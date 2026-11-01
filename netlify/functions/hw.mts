@@ -103,6 +103,26 @@ export default async (req: Request, context: Context) => {
       return json({ msg });
     }
 
+    // pictures in the chat (screenshots, photos of a question)
+    if (req.method === "POST" && action === "photo") {
+      const form = await req.formData();
+      const f = await readFile(form);
+      if (!f || !/^image\//.test(f.meta.type)) return fail(400, "Send a picture.");
+      const at = Date.now();
+      const msgId = String(at).padStart(13, "0") + "-" + Math.random().toString(36).slice(2, 8);
+      await s.set("chatimg/" + msgId, f.data);
+      const msg = { id: msgId, at, from: teacher ? "teacher" : "student", text: clean(form.get("text"), 2000), image: { type: f.meta.type, size: f.meta.size } };
+      await s.setJSON("msg/" + msgId, msg);
+      return json({ msg });
+    }
+
+    if (req.method === "GET" && action === "photo" && id) {
+      const rec = (await s.get("msg/" + id, { type: "json" })) as { image?: { type: string } } | null;
+      const data = await s.get("chatimg/" + id, { type: "arrayBuffer" });
+      if (!rec || !rec.image || !data) return fail(404, "Picture not found.");
+      return new Response(data, { headers: { "content-type": rec.image.type, "cache-control": "private, max-age=86400" } });
+    }
+
     if (req.method === "GET" && action === "voice" && id) {
       const rec = (await s.get("msg/" + id, { type: "json" })) as { audio?: { type: string } } | null;
       const data = await s.get("voice/" + id, { type: "arrayBuffer" });
