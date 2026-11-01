@@ -2193,14 +2193,30 @@ function studentView() {
   const subj = h('select', { class: 'hwinput', id: 'hwSubj' }, ...SUBJECTS.map(([k, n]) => h('option', { value: k }, n)));
   const titleWrap = field('Title', title), subjWrap = field('Subject', subj);
   sel.addEventListener('change', () => { const other = !sel.value; titleWrap.hidden = !other; subjWrap.hidden = !other; });
-  const files = h('input', { class: 'hwinput', id: 'hwFiles', type: 'file', accept: 'application/pdf,.pdf,image/*', multiple: true });
+  let chosen = [];
+  const pdfIn = h('input', { type: 'file', id: 'hwPdf', accept: 'application/pdf,.pdf', hidden: true });
+  const imgIn = h('input', { type: 'file', id: 'hwImgs', accept: 'image/*', multiple: true, hidden: true });
+  const chosenList = h('div', { class: 'hwchosen' });
+  const showChosen = () => {
+    chosenList.replaceChildren();
+    if (!chosen.length) { chosenList.append(h('p', { class: 'empty' }, 'Nothing chosen yet.')); return; }
+    chosen.forEach((f, i) => chosenList.append(h('div', { class: 'hwrow' },
+      h('span', null, (/pdf$/i.test(f.type) || /\.pdf$/i.test(f.name) ? '📄 ' : '🖼️ ') + f.name),
+      h('button', { class: 'tb', type: 'button', onclick: () => { chosen.splice(i, 1); showChosen(); } }, 'Remove'))));
+  };
+  pdfIn.addEventListener('change', () => { if (pdfIn.files[0]) chosen = [pdfIn.files[0]]; pdfIn.value = ''; showChosen(); });
+  imgIn.addEventListener('change', () => { chosen = chosen.filter((f) => !(/pdf$/i.test(f.type) || /\.pdf$/i.test(f.name))).concat([...imgIn.files]); imgIn.value = ''; showChosen(); });
+  showChosen();
+  const files = h('div', null, h('div', { class: 'hwrow' },
+    h('button', { class: 'hwbtn', type: 'button', onclick: () => imgIn.click() }, '🖼️ Add photos / screenshots'),
+    h('button', { class: 'tb', type: 'button', onclick: () => pdfIn.click() }, '📄 Choose a PDF')), pdfIn, imgIn, chosenList);
   const note = h('textarea', { class: 'hwinput', id: 'hwNote', rows: '2', placeholder: 'Anything to tell Papa (optional)' });
   const send = h('button', { class: 'hwbtn', type: 'submit' }, 'Upload homework');
   const form = h('form', { class: 'hwcard' }, field('Which homework', sel), titleWrap, subjWrap,
-    field('Scanned PDF, or photos of the pages (select all photos together)', files), field('Note', note), send);
+    h('div', { class: 'hwfield' }, h('span', null, 'Photos of the pages (add as many as you like), or one PDF'), files), field('Note', note), send);
   form.addEventListener('submit', async (ev) => {
     ev.preventDefault();
-    const list = [...(files.files || [])];
+    const list = chosen.slice();
     if (!list.length) { hwSay('Choose the scan or photos first.', true); return; }
     const task = tasks.find((t) => t.id === sel.value);
     if (!task && !title.value.trim()) { hwSay('Type a title for this homework.', true); return; }
