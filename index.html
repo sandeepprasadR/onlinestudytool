@@ -1395,18 +1395,28 @@ async function loadLib() {
   try { const r = await api('lib'); LIB.items = r.items || []; LIB.err = ''; }
   catch (e) { LIB.items = null; LIB.err = e.message; }
 }
-const LIB_CHUNK = 3500000; // each upload stays under the server's request size limit
-async function shareChapter(book, bytes, name) {
+// small pieces so each upload finishes even on a slow connection; each piece is retried if the connection drops
+const LIB_CHUNK = 1500000;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function shareChapter(book, bytes, name, onPart) {
   if (!canShare()) return 'skip';
   if (bytes.byteLength > 120000000) return 'big';
   const parts = Math.max(1, Math.ceil(bytes.byteLength / LIB_CHUNK));
   for (let i = 0; i < parts; i++) {
-    const fd = new FormData();
-    fd.append('file', new File([bytes.slice(i * LIB_CHUNK, (i + 1) * LIB_CHUNK)], 'part' + i + '.pdf', { type: 'application/pdf' }));
-    fd.append('subject', book.subject); fd.append('ch', String(book.ch));
-    fd.append('part', String(i)); fd.append('parts', String(parts));
-    fd.append('size', String(bytes.byteLength)); fd.append('name', name || (chapterName(book) + '.pdf'));
-    await api('lib', { method: 'POST', body: fd });
+    if (onPart) onPart(i + 1, parts);
+    for (let attempt = 1; ; attempt++) {
+      const fd = new FormData();
+      fd.append('file', new File([bytes.slice(i * LIB_CHUNK, (i + 1) * LIB_CHUNK)], 'part' + i + '.pdf', { type: 'application/pdf' }));
+      fd.append('subject', book.subject); fd.append('ch', String(book.ch));
+      fd.append('part', String(i)); fd.append('parts', String(parts));
+      fd.append('size', String(bytes.byteLength)); fd.append('name', name || (chapterName(book) + '.pdf'));
+      try { await api('lib', { method: 'POST', body: fd }); break; }
+      catch (e) {
+        if (attempt >= 5 || /teacher|Unknown chapter|class code/i.test(e.message)) throw e;
+        if (onPart) onPart(i + 1, parts, attempt);
+        await sleep(2000 * attempt);
+      }
+    }
   }
   return 'ok';
 }
@@ -1428,17 +1438,20 @@ async function shareLocalChapters() {
   let ok = 0; const big = [], bad = [];
   for (let i = 0; i < todo.length; i++) {
     const n = todo[i];
-    toast('Sharing ' + (i + 1) + ' of ' + todo.length + ': ' + chapterName(n.book) + ' …', null, 120000);
+    const label = 'Sharing ' + (i + 1) + ' of ' + todo.length + ': ' + chapterName(n.book);
+    toast(label + ' …', null, 600000);
     try {
       const rec = await DB.get('pdfs', n.pdfIds[0]);
-      if (!rec) { bad.push(chapterName(n.book)); continue; }
-      const r = await shareChapter(n.book, rec.bytes, rec.name);
+      if (!rec) { bad.push(chapterName(n.book) + ' (PDF missing on this device)'); continue; }
+      const mb = (rec.bytes.byteLength / 1048576).toFixed(1);
+      const r = await shareChapter(n.book, rec.bytes, rec.name, (p, of, retry) =>
+        toast(label + ' (' + mb + ' MB), piece ' + p + ' of ' + of + (retry ? ' · slow connection, retrying …' : ' …'), null, 600000));
       if (r === 'ok') ok++; else if (r === 'big') big.push(chapterName(n.book));
-    } catch (e) { bad.push(chapterName(n.book)); }
+    } catch (e) { bad.push(chapterName(n.book) + ' (' + (e && e.message ? e.message : 'upload failed') + ')'); }
   }
   let msg = todo.length ? 'Shared ' + ok + (ok === 1 ? ' chapter' : ' chapters') + ' online.' : 'Every chapter on this device is already shared online.';
   if (big.length) msg += ' Too big to share (over 120 MB): ' + big.join(', ') + '.';
-  if (bad.length) msg += ' Could not share: ' + bad.join(', ') + '.';
+  if (bad.length) msg += ' Could not share: ' + bad.join('; ') + '. Tap Share again to retry; finished chapters are not sent twice.';
   toast(msg, null, 12000);
 }
 // download one chapter from the shared library and file it on this device
