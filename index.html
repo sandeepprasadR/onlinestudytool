@@ -167,6 +167,44 @@ body.finger #scroller { touch-action: none; }
 .help { padding: 6px 12px 10px; max-width: 320px; -webkit-user-select: text; user-select: text; }
 .help p { margin: 6px 0; }
 .help b { font-weight: 600; }
+#hw { position: fixed; inset: 0; z-index: 45; overflow: auto; background: var(--ui-bg); color: var(--ui-fg); -webkit-user-select: text; user-select: text; }
+.hwin { max-width: 760px; margin: 0 auto; padding-block: 16px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 10px; }
+.hwhead { display: flex; align-items: center; gap: 8px; position: sticky; top: 0; background: var(--ui-bg); padding-block: 6px; z-index: 1; }
+.hwhead h2 { margin: 0 auto 0 0; font-size: 22px; }
+.hwhead .sub { color: var(--ui-muted); }
+#hw h3 { margin: 14px 0 2px; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--ui-muted); font-weight: 600; }
+.hwcard { background: var(--ui-panel); border: 1px solid var(--ui-line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.hwcard p { margin: 0; }
+.hwtop { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.hwtop b { font-size: 16px; min-width: 0; overflow-wrap: anywhere; }
+.meta { color: var(--ui-muted); font-size: 13px; }
+.note, .remarks { white-space: pre-wrap; overflow-wrap: anywhere; }
+.remarks { background: var(--accent-soft); border-radius: 8px; padding: 8px 10px; }
+.chip { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--ui-bg); border: 1px solid var(--ui-line); white-space: nowrap; }
+.chip.ok { background: #e3f4e8; border-color: #9fd3ae; color: #1e6b37; }
+.chip.wait { background: #fff4dc; border-color: #f0cf85; color: #7a5300; }
+.chip.sub-maths { color: var(--accent); }
+.chip.sub-science { color: #15803d; }
+.hwacts { display: flex; flex-wrap: wrap; gap: 8px; }
+.hwbtn { height: 40px; padding: 0 14px; border: 0; border-radius: 10px; background: var(--accent); color: #fff; font-weight: 600; }
+.hwbtn:disabled { opacity: .5; }
+.tb.danger, .tb[data-armed] { color: var(--danger); }
+.hwfield { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+.hwfield > span { font-size: 13px; color: var(--ui-muted); }
+.hwinput { width: 100%; min-height: 42px; border: 1px solid var(--ui-line); border-radius: 9px; padding: 8px 10px; font: 16px var(--font-ui); background: var(--ui-bg); color: var(--ui-fg); }
+textarea.hwinput { resize: vertical; }
+.hwrow { display: flex; flex-wrap: wrap; gap: 10px; }
+.hwroles { display: flex; flex-wrap: wrap; gap: 16px; }
+.hwcheck { display: flex; align-items: center; gap: 6px; }
+.hwmsg { margin: 0; padding: 8px 12px; border-radius: 9px; background: var(--accent-soft); }
+.hwmsg.bad { background: #fde7e5; color: #8f1f15; }
+.empty { color: var(--ui-muted); margin: 0; }
+.hwfoot { margin-top: 18px; }
+.linkbtn { border: 0; background: none; color: var(--ui-muted); text-decoration: underline; padding: 0; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .chip.ok { background: #173a24; color: #9fe0b3; border-color: #2b6b40; } :root:not([data-theme="light"]) .chip.wait { background: #3d3013; color: #f3d38a; border-color: #6b5520; } :root:not([data-theme="light"]) .hwmsg.bad { background: #4a1d19; color: #ffc2bb; } }
+:root[data-theme="dark"] .chip.ok { background: #173a24; color: #9fe0b3; border-color: #2b6b40; }
+:root[data-theme="dark"] .chip.wait { background: #3d3013; color: #f3d38a; border-color: #6b5520; }
+:root[data-theme="dark"] .hwmsg.bad { background: #4a1d19; color: #ffc2bb; }
 a.pi { color: inherit; text-decoration: none; }
 .meetin { width: 100%; height: 42px; border: 1px solid var(--ui-line); border-radius: 9px; padding: 0 10px; font: 16px var(--font-ui); background: var(--ui-bg); color: var(--ui-fg); -webkit-user-select: text; user-select: text; }
 .formmsg { font-size: 13px; color: var(--ui-muted); }
@@ -1029,21 +1067,21 @@ function loadImage(f) {
     im.src = url;
   });
 }
-async function imagesToPdf(files) {
+async function imagesToPdf(files, maxPx = 2000, quality = 0.85) {
   if (!window.jspdf) throw new Error('The PDF writer did not load. Check the internet connection and reload the page.');
   const { jsPDF } = window.jspdf;
   let doc = null;
   for (let i = 0; i < files.length; i++) {
     toast('Preparing photo ' + (i + 1) + ' of ' + files.length + ' …', null, 60000);
     const img = await loadImage(files[i]);
-    const k = Math.min(1, 2000 / Math.max(img.naturalWidth, img.naturalHeight));
+    const k = Math.min(1, maxPx / Math.max(img.naturalWidth, img.naturalHeight));
     const w = Math.max(1, Math.round(img.naturalWidth * k)), hh = Math.max(1, Math.round(img.naturalHeight * k));
     const cv = document.createElement('canvas');
     cv.width = w; cv.height = hh;
     const c = cv.getContext('2d');
     c.fillStyle = '#fff'; c.fillRect(0, 0, w, hh);
     c.drawImage(img, 0, 0, w, hh);
-    const data = cv.toDataURL('image/jpeg', 0.85);
+    const data = cv.toDataURL('image/jpeg', quality);
     cv.width = 0; cv.height = 0;
     const wpt = 595.28, hpt = wpt * hh / w, orient = hpt >= wpt ? 'portrait' : 'landscape';
     if (!doc) doc = new jsPDF({ unit: 'pt', format: [wpt, hpt], orientation: orient, compress: true });
@@ -1312,21 +1350,7 @@ async function exportPdf() {
   exporting = true;
   try {
     await saveNow();
-    const { jsPDF } = window.jspdf;
-    let doc = null;
-    for (let i = 0; i < nb.pages.length; i++) {
-      toast('Preparing page ' + (i + 1) + ' of ' + nb.pages.length + ' …', null, 60000);
-      const p = nb.pages[i];
-      const cv = await renderPageImage(p, 1600);
-      const img = cv.toDataURL('image/jpeg', 0.88);
-      cv.width = 0; cv.height = 0;
-      const wpt = 595.28, hpt = wpt * p.h / U, orient = hpt >= wpt ? 'portrait' : 'landscape';
-      if (!doc) doc = new jsPDF({ unit: 'pt', format: [wpt, hpt], orientation: orient, compress: true });
-      else doc.addPage([wpt, hpt], orient);
-      doc.addImage(img, 'JPEG', 0, 0, wpt, hpt);
-    }
-    doc.setProperties({ title: nb.name, creator: 'Study Board' });
-    const blob = doc.output('blob');
+    const blob = await buildNotebookPdf(1600, 0.88);
     const name = (nb.name.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'notes') + '.pdf';
     const file = new File([blob], name, { type: 'application/pdf' });
     toast('PDF ready: ' + nb.pages.length + (nb.pages.length === 1 ? ' page.' : ' pages.'), { label: 'Share or save', fn: () => deliver(file, blob, name), ms: 30000 });
@@ -1334,6 +1358,23 @@ async function exportPdf() {
     console.warn(e);
     toast('Could not make the PDF: ' + (e && e.message ? e.message : 'unknown error'));
   } finally { exporting = false; }
+}
+async function buildNotebookPdf(width, quality) {
+  const { jsPDF } = window.jspdf;
+  let doc = null;
+  for (let i = 0; i < nb.pages.length; i++) {
+    toast('Preparing page ' + (i + 1) + ' of ' + nb.pages.length + ' …', null, 60000);
+    const p = nb.pages[i];
+    const cv = await renderPageImage(p, width);
+    const img = cv.toDataURL('image/jpeg', quality);
+    cv.width = 0; cv.height = 0;
+    const wpt = 595.28, hpt = wpt * p.h / U, orient = hpt >= wpt ? 'portrait' : 'landscape';
+    if (!doc) doc = new jsPDF({ unit: 'pt', format: [wpt, hpt], orientation: orient, compress: true });
+    else doc.addPage([wpt, hpt], orient);
+    doc.addImage(img, 'JPEG', 0, 0, wpt, hpt);
+  }
+  doc.setProperties({ title: nb.name, creator: 'Study Board' });
+  return doc.output('blob');
 }
 async function deliver(file, blob, name) {
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -1447,6 +1488,8 @@ $('#bBooks').addEventListener('click', async (e) => {
   await saveNow();
   const all = (await DB.all('notebooks').catch(() => [])).sort((a, b) => b.updated - a.updated);
   openPop(anchor, (pop) => {
+    pop.append(h('div', { class: 'ph' }, 'Homework'));
+    pop.append(h('button', { class: 'pi', html: ICON.school + '<span>Homework: give, hand in, check</span>', onclick: () => openHw() }));
     pop.append(h('div', { class: 'ph' }, 'New'));
     pop.append(h('button', { class: 'pi', html: ICON.plus + '<span>New notebook (' + labelOf(prefs.lastBg) + ' paper)</span>', onclick: () => createNotebook(prefs.lastBg) }));
     pop.append(h('button', { class: 'pi', html: ICON.pdf + '<span>Open a PDF or photos as a new notebook</span>', onclick: () => pickPdf('new') }));
@@ -1478,8 +1521,9 @@ $('#bMore').addEventListener('click', (e) => openPop(e.currentTarget, (pop) => {
     pop.append(h('a', { class: 'pi', href: prefs.meetUrl, target: '_blank', rel: 'noopener', html: ICON.video + '<span>Start class on Google Meet</span>', onclick: () => { closePop(); setTimeout(() => toast('In Meet: tap ⋯, then Share screen, then Start Broadcast. Then come back to Study Board.', null, 9000), 600); } }));
   }
   pop.append(h('button', { class: 'pi', html: ICON.video + '<span>' + (prefs.meetUrl ? 'Change the class Meet link' : 'Set the class Meet link') + '</span>', onclick: () => showMeetForm($('#bMore')) }));
-  pop.append(h('a', { class: 'pi', href: 'https://classroom.google.com/', target: '_blank', rel: 'noopener', html: ICON.school + '<span>Open Google Classroom</span>', onclick: () => closePop() }));
+  pop.append(h('button', { class: 'pi', html: ICON.school + '<span>Homework: give, hand in, check</span>', onclick: () => openHw() }));
   pop.append(h('button', { class: 'pi', html: ICON.help + '<span>How to share this screen</span>', onclick: () => showShareHelp($('#bMore')) }));
+  if (nb && nb.hw) pop.append(h('button', { class: 'pi on', html: ICON.school + '<span>Return marked homework to Tanish</span>', onclick: () => { closePop(); openHw(nb.hw.id); } }));
   pop.append(h('div', { class: 'ph' }, 'Notebook'));
   pop.append(h('button', { class: 'pi', html: ICON.share + '<span>Export notebook as PDF</span>', onclick: () => { closePop(); exportPdf(); } }));
   const clr = h('button', { class: 'pi', html: ICON.clear + '<span>Clear writing on page ' + (currentIdx + 1) + '</span>' });
@@ -1626,6 +1670,305 @@ async function wake() {
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveNow(); });
 window.addEventListener('pagehide', () => { saveNow(); });
 
+/* ---------- homework exchange (works on the Netlify version, which has the /api/hw server) ---------- */
+const HW = { code: '', pin: '', role: '', items: [], teacher: false, busy: false, msg: '', bad: false, returning: null, timer: null };
+try { const saved = JSON.parse(localStorage.getItem('studyboard-hw') || '{}'); HW.code = saved.code || ''; HW.pin = saved.pin || ''; HW.role = saved.role || ''; } catch (e) {}
+function saveHw() { try { localStorage.setItem('studyboard-hw', JSON.stringify({ code: HW.code, pin: HW.pin, role: HW.role })); } catch (e) {} }
+const SUBJECTS = [['maths', 'Maths'], ['science', 'Science'], ['other', 'Other']];
+const subjName = (k) => (SUBJECTS.find((x) => x[0] === k) || [0, 'Other'])[1];
+function fmtWhen(v) {
+  if (!v) return '';
+  const d = new Date(v);
+  if (isNaN(d)) return '';
+  return d.toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+}
+async function api(path, opts) {
+  opts = opts || {};
+  const headers = Object.assign({ 'x-class-code': HW.code }, HW.role === 'teacher' ? { 'x-teacher-pin': HW.pin } : {}, opts.headers || {});
+  let r;
+  try { r = await fetch('api/hw/' + path, Object.assign({}, opts, { headers, cache: 'no-store' })); }
+  catch (e) { throw new Error('No connection. Check the internet and try again.'); }
+  const ct = r.headers.get('content-type') || '';
+  if (!r.ok) {
+    let msg = 'Something went wrong (' + r.status + '). Try again.';
+    if (ct.includes('json')) { try { msg = (await r.json()).error || msg; } catch (e) {} }
+    else if (r.status === 404 || r.status === 405) msg = 'Homework works only on the Netlify version of Study Board.';
+    throw new Error(msg);
+  }
+  return ct.includes('json') ? r.json() : r.blob();
+}
+const hwEl = h('div', { id: 'hw', role: 'dialog', 'aria-label': 'Homework' });
+hwEl.hidden = true;
+document.body.append(hwEl);
+function openHw(returnId) {
+  closePop();
+  HW.returning = returnId || null;
+  hwEl.hidden = false;
+  renderHw();
+  if (HW.code) refreshHw();
+  clearInterval(HW.timer);
+  HW.timer = setInterval(() => { if (!hwEl.hidden && HW.code && !HW.busy && !HW.returning) refreshHw(); }, 60000);
+}
+function closeHw() {
+  hwEl.hidden = true;
+  clearInterval(HW.timer);
+  if (location.hash === '#homework') { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }
+}
+async function refreshHw() {
+  try { const r = await api('items'); HW.items = r.items || []; HW.teacher = !!r.teacher; if (HW.bad) { HW.msg = ''; HW.bad = false; } }
+  catch (e) { HW.msg = e.message; HW.bad = true; }
+  if (!hwEl.hidden) renderHw();
+}
+function hwSay(text, bad) { HW.msg = text; HW.bad = !!bad; const m = hwEl.querySelector('.hwmsg'); if (m) { m.textContent = text; m.classList.toggle('bad', !!bad); m.hidden = !text; } }
+async function viewHwFile(id, marked) {
+  const w = window.open('', '_blank');
+  try {
+    const blob = await api('file/' + id + (marked ? '?v=marked' : ''));
+    const url = URL.createObjectURL(blob);
+    if (w) w.location.href = url;
+    else { const a = h('a', { href: url, target: '_blank', rel: 'noopener' }); document.body.append(a); a.click(); a.remove(); }
+    setTimeout(() => URL.revokeObjectURL(url), 120000);
+  } catch (e) { if (w) w.close(); hwSay(e.message, true); }
+}
+async function markHw(item) {
+  hwSay('Opening ' + item.title + ' …');
+  try {
+    const blob = await api('file/' + item.id);
+    let file = new File([blob], (item.title || 'Homework') + '.pdf', { type: blob.type || 'application/pdf' });
+    if (!/pdf/i.test(file.type)) file = await imagesToPdf([new File([blob], item.file.name, { type: blob.type })]);
+    await importPdf(file, 'new');
+    nb.hw = { id: item.id, title: item.title };
+    nb.name = 'Check: ' + item.title;
+    $('#nbName').value = nb.name;
+    dirty();
+    closeHw();
+    toast('Mark it with the pen. Then ⋯ menu, Return marked homework to Tanish.', null, 9000);
+  } catch (e) { hwSay(e.message, true); }
+}
+function field(label, control) { return h('label', { class: 'hwfield' }, h('span', null, label), control); }
+function chip(text, kind) { return h('span', { class: 'chip ' + (kind || '') }, text); }
+function renderHw() {
+  hwEl.textContent = '';
+  const inner = h('div', { class: 'hwin' });
+  const head = h('div', { class: 'hwhead' },
+    h('h2', null, 'Homework'),
+    HW.code ? h('span', { class: 'sub' }, HW.role === 'teacher' ? 'Teacher' : 'Student') : null,
+    HW.code ? h('button', { class: 'tb', onclick: () => refreshHw() }, 'Refresh') : null,
+    h('button', { class: 'tb', onclick: closeHw }, 'Close'));
+  const msg = h('p', { class: 'hwmsg' + (HW.bad ? ' bad' : ''), role: 'status' }, HW.msg);
+  msg.hidden = !HW.msg;
+  inner.append(head, msg);
+  if (!HW.code) inner.append(setupView());
+  else if (HW.returning) inner.append(returnView());
+  else inner.append(HW.role === 'teacher' ? teacherView() : studentView());
+  if (HW.code && !HW.returning) inner.append(h('p', { class: 'hwfoot' }, h('button', { class: 'linkbtn', onclick: () => { HW.code = ''; HW.pin = ''; HW.role = ''; saveHw(); HW.items = []; HW.msg = ''; renderHw(); } }, 'Sign out of homework on this device')));
+  hwEl.append(inner);
+}
+function setupView() {
+  const code = h('input', { class: 'hwinput', id: 'hwCode', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', placeholder: 'Class code' });
+  const pin = h('input', { class: 'hwinput', id: 'hwPin', type: 'password', inputmode: 'numeric', autocomplete: 'off', placeholder: 'Teacher PIN' });
+  const roleStu = h('input', { type: 'radio', name: 'hwRole', value: 'student', checked: true });
+  const roleTea = h('input', { type: 'radio', name: 'hwRole', value: 'teacher' });
+  const pinWrap = field('Teacher PIN', pin);
+  pinWrap.hidden = true;
+  roleStu.addEventListener('change', () => { pinWrap.hidden = true; });
+  roleTea.addEventListener('change', () => { pinWrap.hidden = false; });
+  const go = h('button', { class: 'hwbtn', type: 'submit' }, 'Continue');
+  const form = h('form', { class: 'hwcard' },
+    h('p', null, 'Enter the class code once on this device. Tanish uses the class code only; the teacher also uses the PIN.'),
+    field('Class code', code),
+    h('div', { class: 'hwroles' }, h('label', null, roleStu, ' I am Tanish (student)'), h('label', null, roleTea, ' I am the teacher')),
+    pinWrap, go);
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    HW.code = code.value.trim();
+    HW.role = roleTea.checked ? 'teacher' : 'student';
+    HW.pin = roleTea.checked ? pin.value.trim() : '';
+    if (!HW.code) { hwSay('Enter the class code.', true); return; }
+    go.disabled = true;
+    try {
+      const r = await api('whoami');
+      if (HW.role === 'teacher' && !r.teacher) throw new Error('That teacher PIN is wrong.');
+      saveHw(); HW.msg = ''; renderHw(); refreshHw();
+    } catch (e) { HW.code = ''; HW.pin = ''; HW.role = ''; go.disabled = false; hwSay(e.message, true); }
+  });
+  return form;
+}
+function itemCard(it, actions) {
+  const top = h('div', { class: 'hwtop' }, chip(subjName(it.subject), 'sub-' + (it.subject || 'other')), h('b', null, it.title));
+  const card = h('div', { class: 'hwcard' }, top);
+  const meta = [];
+  if (it.kind === 'task' && it.due) meta.push('Due ' + fmtWhen(it.due));
+  if (it.kind === 'sub') meta.push('Handed in ' + fmtWhen(it.created));
+  if (meta.length) card.append(h('p', { class: 'meta' }, meta.join(' · ')));
+  if (it.note) card.append(h('p', { class: 'note' }, it.note));
+  if (it.kind === 'sub') {
+    if (it.status === 'checked') {
+      top.append(chip('Checked' + (it.score ? ': ' + it.score + (it.outOf ? ' / ' + it.outOf : '') : ''), 'ok'));
+      if (it.remarks) card.append(h('p', { class: 'remarks' }, h('b', null, 'Remarks: '), it.remarks));
+    } else top.append(chip('Waiting to be checked', 'wait'));
+  }
+  if (actions && actions.length) card.append(h('div', { class: 'hwacts' }, ...actions));
+  return card;
+}
+function studentView() {
+  const wrap = h('div');
+  const tasks = HW.items.filter((x) => x.kind === 'task');
+  const subs = HW.items.filter((x) => x.kind === 'sub');
+  const done = new Set(subs.map((x) => x.taskId).filter(Boolean));
+  const sel = h('select', { class: 'hwinput', id: 'hwTask' }, h('option', { value: '' }, 'Something else (type a title)'));
+  for (const t of tasks) sel.append(h('option', { value: t.id }, subjName(t.subject) + ': ' + t.title));
+  wrap.append(h('h3', null, 'Homework to do'));
+  const open = tasks.filter((t) => !done.has(t.id));
+  if (!open.length) wrap.append(h('p', { class: 'empty' }, tasks.length ? 'All homework handed in.' : 'No homework yet.'));
+  for (const t of open) wrap.append(itemCard(t, [h('button', { class: 'hwbtn', onclick: () => { sel.value = t.id; sel.dispatchEvent(new Event('change')); form.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }, 'Hand this in')]));
+
+  const title = h('input', { class: 'hwinput', id: 'hwTitle', placeholder: 'For example: Exercise 8.1 Q1 to 5', maxlength: '120' });
+  const subj = h('select', { class: 'hwinput', id: 'hwSubj' }, ...SUBJECTS.map(([k, n]) => h('option', { value: k }, n)));
+  const titleWrap = field('Title', title), subjWrap = field('Subject', subj);
+  sel.addEventListener('change', () => { const other = !sel.value; titleWrap.hidden = !other; subjWrap.hidden = !other; });
+  const files = h('input', { class: 'hwinput', id: 'hwFiles', type: 'file', accept: 'application/pdf,.pdf,image/*', multiple: true });
+  const note = h('textarea', { class: 'hwinput', id: 'hwNote', rows: '2', placeholder: 'Anything to tell Papa (optional)' });
+  const send = h('button', { class: 'hwbtn', type: 'submit' }, 'Upload homework');
+  const form = h('form', { class: 'hwcard' }, field('Which homework', sel), titleWrap, subjWrap,
+    field('Scan or photos (PDF or photos, all pages together)', files), field('Note', note), send);
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const list = [...(files.files || [])];
+    if (!list.length) { hwSay('Choose the scan or photos first.', true); return; }
+    const task = tasks.find((t) => t.id === sel.value);
+    if (!task && !title.value.trim()) { hwSay('Type a title for this homework.', true); return; }
+    send.disabled = true;
+    try {
+      const pdf = list.find((f) => /pdf$/i.test(f.type) || /\.pdf$/i.test(f.name));
+      let file = pdf;
+      if (!file) { hwSay('Preparing ' + list.length + (list.length === 1 ? ' photo' : ' photos') + ' …'); file = await imagesToPdf(list, 1600, 0.8); toastEl.hidden = true; }
+      if (file.size > 4300000) throw new Error('This is larger than 4 MB. Upload fewer pages at a time, or scan in lower quality.');
+      hwSay('Uploading …');
+      const fd = new FormData();
+      fd.append('file', file, task ? task.title + '.pdf' : title.value.trim() + '.pdf');
+      fd.append('title', task ? task.title : title.value.trim());
+      fd.append('subject', task ? task.subject : subj.value);
+      if (task) fd.append('taskId', task.id);
+      fd.append('note', note.value);
+      await api('submit', { method: 'POST', body: fd });
+      HW.msg = 'Handed in. Papa will check it.'; HW.bad = false;
+      await refreshHw();
+    } catch (e) { send.disabled = false; hwSay(e.message, true); }
+  });
+  wrap.append(h('h3', null, 'Hand in homework'), form);
+  wrap.append(h('h3', null, 'My homework'));
+  if (!subs.length) wrap.append(h('p', { class: 'empty' }, 'Nothing handed in yet.'));
+  for (const s of subs) {
+    const acts = [h('button', { class: 'tb', onclick: () => viewHwFile(s.id) }, 'My upload')];
+    if (s.marked) acts.unshift(h('button', { class: 'hwbtn', onclick: () => viewHwFile(s.id, true) }, 'See marked copy'));
+    wrap.append(itemCard(s, acts));
+  }
+  return wrap;
+}
+function teacherView() {
+  const wrap = h('div');
+  const tasks = HW.items.filter((x) => x.kind === 'task');
+  const subs = HW.items.filter((x) => x.kind === 'sub');
+  const pending = subs.filter((s) => s.status !== 'checked');
+  const checked = subs.filter((s) => s.status === 'checked');
+  wrap.append(h('h3', null, 'To check (' + pending.length + ')'));
+  if (!pending.length) wrap.append(h('p', { class: 'empty' }, 'Nothing waiting.'));
+  for (const s of pending) wrap.append(itemCard(s, [
+    h('button', { class: 'hwbtn', onclick: () => markHw(s) }, 'Open and mark'),
+    h('button', { class: 'tb', onclick: () => { HW.returning = s.id; renderHw(); } }, 'Give marks only'),
+    h('button', { class: 'tb', onclick: () => viewHwFile(s.id) }, 'View')]));
+
+  const subj = h('select', { class: 'hwinput', id: 'hwgSubj' }, ...SUBJECTS.map(([k, n]) => h('option', { value: k }, n)));
+  const title = h('input', { class: 'hwinput', id: 'hwgTitle', placeholder: 'For example: Exercise 8.1 Q1 to 5', maxlength: '120' });
+  const due = h('input', { class: 'hwinput', id: 'hwgDue', type: 'datetime-local' });
+  const t = new Date(); t.setHours(20, 0, 0, 0);
+  due.value = new Date(t.getTime() - t.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  const note = h('textarea', { class: 'hwinput', id: 'hwgNote', rows: '3', placeholder: 'Instructions (optional)' });
+  const post = h('button', { class: 'hwbtn', type: 'submit' }, 'Give homework');
+  const form = h('form', { class: 'hwcard' }, h('div', { class: 'hwrow' }, field('Subject', subj), field('Due', due)), field('Title', title), field('Instructions', note), post);
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    if (!title.value.trim()) { hwSay('Give the homework a title.', true); return; }
+    post.disabled = true;
+    try {
+      await api('task', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: title.value, subject: subj.value, due: due.value, note: note.value }) });
+      HW.msg = 'Homework given. Tanish sees it when he opens Homework.'; HW.bad = false;
+      await refreshHw();
+    } catch (e) { post.disabled = false; hwSay(e.message, true); }
+  });
+  wrap.append(h('h3', null, 'Give homework'), form);
+  const del = (it) => { const b = h('button', { class: 'tb danger' }, 'Delete'); b.addEventListener('click', () => armedTb(b, async () => { try { await api('item/' + it.id, { method: 'DELETE' }); await refreshHw(); } catch (e) { hwSay(e.message, true); } })); return b; };
+  wrap.append(h('h3', null, 'Homework given (' + tasks.length + ')'));
+  if (!tasks.length) wrap.append(h('p', { class: 'empty' }, 'None yet.'));
+  for (const tk of tasks) {
+    const n = subs.filter((s) => s.taskId === tk.id).length;
+    const card = itemCard(tk, [del(tk)]);
+    card.querySelector('.hwtop').append(chip(n ? 'Handed in' : 'Not handed in', n ? 'ok' : 'wait'));
+    wrap.append(card);
+  }
+  wrap.append(h('h3', null, 'Checked (' + checked.length + ')'));
+  for (const s of checked) {
+    const acts = [h('button', { class: 'tb', onclick: () => { HW.returning = s.id; renderHw(); } }, 'Change marks'), h('button', { class: 'tb', onclick: () => viewHwFile(s.id) }, 'His upload')];
+    if (s.marked) acts.unshift(h('button', { class: 'tb', onclick: () => viewHwFile(s.id, true) }, 'Marked copy'));
+    acts.push(del(s));
+    wrap.append(itemCard(s, acts));
+  }
+  return wrap;
+}
+function armedTb(btn, fn) {
+  if (btn.dataset.armed) { fn(); return; }
+  btn.dataset.armed = '1'; const old = btn.textContent; btn.textContent = 'Tap again to delete';
+  setTimeout(() => { if (btn.isConnected) { delete btn.dataset.armed; btn.textContent = old; } }, 3500);
+}
+function returnView() {
+  const it = HW.items.find((x) => x.id === HW.returning);
+  const wrap = h('div');
+  if (!it) {
+    wrap.append(h('p', { class: 'empty' }, HW.items.length ? 'That homework was not found. It may have been deleted.' : 'Loading …'),
+      h('button', { class: 'tb', onclick: () => { HW.returning = null; renderHw(); } }, 'Back'));
+    return wrap;
+  }
+  const mine = nb && nb.hw && nb.hw.id === it.id;
+  const score = h('input', { class: 'hwinput', id: 'hwScore', inputmode: 'decimal', value: it.score || '', placeholder: '8' });
+  const outOf = h('input', { class: 'hwinput', id: 'hwOutOf', inputmode: 'decimal', value: it.outOf || '10' });
+  const remarks = h('textarea', { class: 'hwinput', id: 'hwRemarks', rows: '4', placeholder: 'What went well, and what to correct' }, it.remarks || '');
+  const attach = h('input', { type: 'checkbox', id: 'hwAttach', checked: mine });
+  if (!mine) attach.disabled = true;
+  const send = h('button', { class: 'hwbtn', type: 'submit' }, 'Return to Tanish');
+  const form = h('form', { class: 'hwcard' },
+    h('div', { class: 'hwtop' }, chip(subjName(it.subject), 'sub-' + (it.subject || 'other')), h('b', null, it.title)),
+    h('div', { class: 'hwrow' }, field('Score', score), field('Out of', outOf)),
+    field('Remarks', remarks),
+    h('label', { class: 'hwcheck' }, attach, mine ? ' Attach my marked copy (the notebook open now)' : ' To attach a marked copy, use Open and mark first'),
+    h('div', { class: 'hwacts' }, send, h('button', { class: 'tb', type: 'button', onclick: () => { HW.returning = null; renderHw(); } }, 'Cancel')));
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    send.disabled = true;
+    try {
+      const fd = new FormData();
+      fd.append('score', score.value); fd.append('outOf', outOf.value); fd.append('remarks', remarks.value);
+      if (attach.checked && mine) {
+        if (!window.jspdf) throw new Error('The PDF writer did not load. Reload the page and try again.');
+        hwSay('Preparing the marked copy …');
+        await saveNow();
+        let blob = await buildNotebookPdf(1200, 0.75);
+        if (blob.size > 4300000) blob = await buildNotebookPdf(900, 0.6);
+        toastEl.hidden = true;
+        if (blob.size > 4300000) throw new Error('The marked copy is larger than 4 MB. Return marks only, or delete blank pages.');
+        fd.append('file', new File([blob], 'Marked ' + it.title + '.pdf', { type: 'application/pdf' }));
+      }
+      hwSay('Sending …');
+      await api('check/' + it.id, { method: 'POST', body: fd });
+      HW.returning = null;
+      HW.msg = 'Returned to Tanish with marks.'; HW.bad = false;
+      await refreshHw();
+    } catch (e) { send.disabled = false; hwSay(e.message, true); }
+  });
+  wrap.append(h('h3', null, 'Return with marks'), form);
+  return wrap;
+}
+
 /* ---------- start ---------- */
 async function init() {
   if (pdfReady()) pdfjsLib.GlobalWorkerOptions.workerSrc = WORKER_SRC;
@@ -1642,6 +1985,8 @@ async function init() {
   if (!n) { n = seedNotebook(); await DB.put('notebooks', n).catch(() => {}); }
   renderToolbar();
   setNotebook(n, true);
+  if (location.hash === '#homework') openHw();
+  window.addEventListener('hashchange', () => { if (location.hash === '#homework') openHw(); });
   if (!prefs.seenTip) {
     prefs.seenTip = true; savePrefs();
     setTimeout(() => toast('Write with Apple Pencil. Scroll with one finger, pinch with two to zoom.', null, 7000), 300);

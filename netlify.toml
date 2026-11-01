@@ -1,0 +1,7 @@
+# Netlify hosting: the static app is copied to dist/; netlify/functions/hw.mts stores homework in Netlify Blobs.
+[build]
+  command = "mkdir -p dist && cp -r index.html vendor manifest.webmanifest icon-180.png icon-512.png dist/"
+  publish = "dist"
+
+[functions]
+  directory = "netlify/functions"
