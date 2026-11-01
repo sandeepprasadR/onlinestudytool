@@ -70,6 +70,25 @@ export default async (req: Request, context: Context) => {
       return json({ items, teacher });
     }
 
+    if (req.method === "GET" && action === "msgs") {
+      // keys are msg/<13-digit time>-<random>, so they sort by time
+      const since = Number(new URL(req.url).searchParams.get("since") || 0);
+      const { blobs } = await s.list({ prefix: "msg/" });
+      const keys = blobs.map((b) => b.key).sort().slice(-300).filter((k) => Number(k.slice(4, 17)) > since);
+      const msgs = (await Promise.all(keys.map((k) => s.get(k, { type: "json" })))).filter(Boolean);
+      return json({ msgs, teacher });
+    }
+
+    if (req.method === "POST" && action === "msg") {
+      const body = await req.json();
+      const text = clean(body.text, 2000);
+      if (!text) return fail(400, "Type a message first.");
+      const at = Date.now();
+      const msg = { id: String(at).padStart(13, "0") + "-" + Math.random().toString(36).slice(2, 8), at, from: teacher ? "teacher" : "student", text };
+      await s.setJSON("msg/" + msg.id, msg);
+      return json({ msg });
+    }
+
     if (req.method === "GET" && action === "file" && id) {
       const which = new URL(req.url).searchParams.get("v") === "marked" ? "marked" : "file";
       const rec = (await s.get("item/" + id, { type: "json" })) as Item | null;
