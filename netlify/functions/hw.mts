@@ -1,5 +1,6 @@
 import { getStore } from "@netlify/blobs";
 import type { Config, Context } from "@netlify/functions";
+import webpush from "web-push";
 
 // Homework exchange between the teacher (iPad) and the student (laptop).
 // Every request carries the class code; teacher-only actions also carry the teacher PIN.
@@ -39,6 +40,32 @@ function same(a: string, b: string) {
   return d === 0;
 }
 
+// Phone notifications (Web Push). The server makes its own key pair on first use and keeps it in the
+// blob store (key "vapid"), so no secret is handled by hand. Subscriptions are stored per role at
+// push/<role>/<id>; a message from one side notifies every device of the other side.
+type Vapid = { publicKey: string; privateKey: string };
+async function vapid(s: ReturnType<typeof store>): Promise<Vapid> {
+  const have = (await s.get("vapid", { type: "json" })) as Vapid | null;
+  if (have && have.publicKey && have.privateKey) return have;
+  await s.setJSON("vapid", webpush.generateVAPIDKeys(), { onlyIfNew: true });
+  return (await s.get("vapid", { type: "json" })) as Vapid;
+}
+async function notify(s: ReturnType<typeof store>, to: "teacher" | "student", title: string, body: string, tag: string) {
+  const { blobs } = await s.list({ prefix: "push/" + to + "/" });
+  if (!blobs.length) return;
+  const k = await vapid(s);
+  webpush.setVapidDetails("https://tanish-study-board.netlify.app", k.publicKey, k.privateKey);
+  const payload = JSON.stringify({ title, body: body.slice(0, 160), tag, url: tag === "chat" ? "./#chat" : "./#homework" });
+  await Promise.allSettled(blobs.map(async (b) => {
+    const sub = await s.get(b.key, { type: "json" });
+    if (!sub) return;
+    try { await webpush.sendNotification(sub, payload, { TTL: 86400, urgency: "high", timeout: 8000 }); }
+    catch (e) { const code = (e as { statusCode?: number }).statusCode; if (code === 404 || code === 410) await s.delete(b.key); }
+  }));
+}
+const who = (teacher: boolean) => (teacher ? "Papa" : "Tanish");
+const other = (teacher: boolean): "teacher" | "student" => (teacher ? "student" : "teacher");
+
 async function readFile(form: FormData, audio = false) {
   const f = form.get("file");
   if (!f || typeof f === "string") return null;
@@ -64,6 +91,20 @@ export default async (req: Request, context: Context) => {
   try {
     if (req.method === "GET" && action === "whoami") return json({ ok: true, teacher });
 
+    if (req.method === "GET" && action === "push") return json({ key: (await vapid(s)).publicKey });
+
+    if (req.method === "POST" && action === "push") {
+      const body = await req.json();
+      const sub = body && body.subscription;
+      const endpoint = clean(sub && sub.endpoint, 1000);
+      if (!/^https:\/\//.test(endpoint) || !sub.keys || !sub.keys.p256dh || !sub.keys.auth) return fail(400, "Bad subscription.");
+      const key = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(endpoint)))).slice(0, 12).map((x) => x.toString(16).padStart(2, "0")).join("");
+      const role = teacher ? "teacher" : "student";
+      await Promise.all([s.delete("push/" + other(teacher) + "/" + key), body.off ? s.delete("push/" + role + "/" + key) : s.setJSON("push/" + role + "/" + key, { endpoint, keys: { p256dh: clean(sub.keys.p256dh, 200), auth: clean(sub.keys.auth, 100) } })]);
+      if (body.test && !body.off) await notify(s, role, "Study Board", "Notifications are on for this device.", "test");
+      return json({ ok: true });
+    }
+
     if (req.method === "GET" && action === "items") {
       const { blobs } = await s.list({ prefix: "item/" });
       const items = (await Promise.all(blobs.map((b) => s.get(b.key, { type: "json" })))).filter(Boolean) as Item[];
@@ -87,6 +128,7 @@ export default async (req: Request, context: Context) => {
       const at = Date.now();
       const msg = { id: String(at).padStart(13, "0") + "-" + Math.random().toString(36).slice(2, 8), at, from: teacher ? "teacher" : "student", text };
       await s.setJSON("msg/" + msg.id, msg);
+      await notify(s, other(teacher), who(teacher), text, "chat");
       return json({ msg });
     }
 
@@ -100,6 +142,7 @@ export default async (req: Request, context: Context) => {
       await s.set("voice/" + msgId, f.data);
       const msg = { id: msgId, at, from: teacher ? "teacher" : "student", text: "", audio: { type: f.meta.type, size: f.meta.size, dur } };
       await s.setJSON("msg/" + msgId, msg);
+      await notify(s, other(teacher), who(teacher), "🎤 Voice message", "chat");
       return json({ msg });
     }
 
@@ -113,6 +156,7 @@ export default async (req: Request, context: Context) => {
       await s.set("chatimg/" + msgId, f.data);
       const msg = { id: msgId, at, from: teacher ? "teacher" : "student", text: clean(form.get("text"), 2000), image: { type: f.meta.type, size: f.meta.size } };
       await s.setJSON("msg/" + msgId, msg);
+      await notify(s, other(teacher), who(teacher), "📷 " + (msg.text || "Picture"), "chat");
       return json({ msg });
     }
 
@@ -208,6 +252,7 @@ export default async (req: Request, context: Context) => {
       if (!title) return fail(400, "Give the homework a title.");
       const item: Item = { id: newId(), kind: "task", title, subject: clean(body.subject, 20), note: clean(body.note, 2000), due: clean(body.due, 40), created: Date.now() };
       await s.setJSON("item/" + item.id, item);
+      await notify(s, "student", "New homework", title, "hw");
       return json({ item });
     }
 
@@ -222,6 +267,7 @@ export default async (req: Request, context: Context) => {
       };
       await s.set("file/" + item.id, f.data);
       await s.setJSON("item/" + item.id, item);
+      await notify(s, "teacher", "Tanish handed in homework", title, "hw");
       return json({ item });
     }
 
@@ -238,6 +284,7 @@ export default async (req: Request, context: Context) => {
       rec.status = "checked";
       rec.checkedAt = Date.now();
       await s.setJSON("item/" + id, rec);
+      await notify(s, "student", "Homework checked", rec.title + (rec.score ? ": " + rec.score + (rec.outOf ? "/" + rec.outOf : "") : ""), "hw");
       return json({ item: rec });
     }
 

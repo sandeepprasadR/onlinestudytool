@@ -209,6 +209,8 @@ body.finger #scroller { touch-action: none; }
 .hwinput { width: 100%; min-height: 42px; border: 1px solid var(--ui-line); border-radius: 9px; padding: 8px 10px; font: 16px var(--font-ui); background: var(--ui-bg); color: var(--ui-fg); }
 textarea.hwinput { resize: vertical; }
 .hwrow { display: flex; flex-wrap: wrap; gap: 10px; }
+.pushbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 10px; margin: 0 0 8px; border-radius: 10px; background: #fff7d6; font-size: 14px; }
+.pushbar[hidden] { display: none; }
 .hwroles { display: flex; flex-wrap: wrap; gap: 16px; }
 .hwcheck { display: flex; align-items: center; gap: 6px; }
 .hwmsg { margin: 0; padding: 8px 12px; border-radius: 9px; background: var(--accent-soft); }
@@ -1826,6 +1828,7 @@ $('#bBooks').addEventListener('click', async (e) => {
     pop.append(h('button', { class: 'pi', html: ICON.school + '<span>Homework: give, hand in, check</span>', onclick: () => openHw() }));
     pop.append(h('button', { class: 'pi', html: ICON.help + '<span>' + (HW.role === 'teacher' ? 'AI tutor log' : 'AI tutor (Study Buddy)') + '</span>', onclick: () => { openHw(null, 'tutor'); } }));
     pop.append(h('button', { class: 'pi', html: ICON.chat + '<span>Chat' + (unreadCount() ? ' (' + unreadCount() + ' new)' : '') + '</span>', onclick: () => openHw(null, 'chat') }));
+    if (HW.code) { const nb2 = h('button', { class: 'pi', html: ICON.chat + '<span>Phone notifications on this device …</span>', onclick: async () => { closePop(); if (await pushIsOn()) await disablePush(); else await enablePush(); } }); pop.append(nb2); pushIsOn().then((on) => { nb2.querySelector('span').textContent = on ? 'Turn off notifications on this device' : 'Turn on notifications on this device'; }); }
     pop.append(h('div', { class: 'ph' }, 'New'));
     pop.append(h('button', { class: 'pi', html: ICON.plus + '<span>New notebook (' + labelOf(prefs.lastBg) + ' paper)</span>', onclick: () => createNotebook(prefs.lastBg) }));
     pop.append(h('button', { class: 'pi', html: ICON.pdf + '<span>Open a PDF or photos as a new notebook</span>', onclick: () => pickPdf('new') }));
@@ -2025,6 +2028,58 @@ function fmtWhen(v) {
   if (isNaN(d)) return '';
   return d.toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
 }
+// phone notifications (Web Push through sw.js)
+const PUSH_OK = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+const isIOS = () => /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+function b64uBytes(s) { const b = atob((s + '='.repeat((4 - s.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, (c) => c.charCodeAt(0)); }
+async function pushSub() {
+  if (!PUSH_OK) return null;
+  const reg = await navigator.serviceWorker.getRegistration().catch(() => null);
+  return reg ? reg.pushManager.getSubscription().catch(() => null) : null;
+}
+async function pushIsOn() { return PUSH_OK && Notification.permission === 'granted' && !!(await pushSub()); }
+async function syncPush() { // keeps the server's record (and role) of this device current
+  if (!HW.code || !PUSH_OK || Notification.permission !== 'granted') return;
+  const sub = await pushSub();
+  if (sub) api('push', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ subscription: sub.toJSON() }) }).catch(() => {});
+}
+async function enablePush() {
+  if (!HW.code) { toast('Sign in under Homework first.'); return false; }
+  if (!PUSH_OK) {
+    if (isIOS() && !isStandalone()) toast('On iPhone or iPad: tap Share, then Add to Home Screen. Open Study Board from that Home Screen icon, sign in, and tap this again.', null, 20000);
+    else toast('This browser cannot show notifications. Use Chrome on Android, or the Home Screen app on iPhone.', null, 10000);
+    return false;
+  }
+  const perm = await Notification.requestPermission();
+  if (perm !== 'granted') { toast('Notifications are blocked. Allow them for Study Board in the phone Settings, then try again.', null, 10000); return false; }
+  try {
+    const { key } = await api('push');
+    if (!key) throw new Error('Notifications are not set up on the server yet.');
+    const reg = await navigator.serviceWorker.register('sw.js');
+    await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uBytes(key) });
+    await api('push', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ subscription: sub.toJSON(), test: true }) });
+    toast('Notifications are on for this device. A test one is on its way.', null, 7000);
+    return true;
+  } catch (e) { toast('Could not turn on notifications: ' + (e && e.message ? e.message : 'try again'), null, 10000); return false; }
+}
+async function disablePush() {
+  const sub = await pushSub();
+  if (sub) { await api('push', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ subscription: sub.toJSON(), off: true }) }).catch(() => {}); await sub.unsubscribe().catch(() => {}); }
+  toast('Notifications are off for this device.');
+}
+function pushButton() { // shown at the top of Chat until notifications are on
+  const bar = h('div', { class: 'pushbar', hidden: true });
+  pushIsOn().then((on) => {
+    if (on || !HW.code) return;
+    bar.hidden = false;
+    bar.append(h('span', null, '🔔 Get a notification on this device when ' + (myRole() === 'teacher' ? 'Tanish' : 'Papa') + ' writes.'),
+      h('button', { class: 'hwbtn', onclick: async () => { if (await enablePush()) bar.hidden = true; } }, 'Turn on'));
+  });
+  return bar;
+}
 async function api(path, opts) {
   opts = opts || {};
   const headers = Object.assign({ 'x-class-code': HW.code }, HW.role === 'teacher' ? { 'x-teacher-pin': HW.pin } : {}, opts.headers || {});
@@ -2155,7 +2210,7 @@ function setupView() {
       if (HW.role === 'teacher' && !r.teacher) throw new Error('That teacher PIN is wrong.');
       saveHw(); HW.msg = '';
       if (HW.view === 'chat') showChat(); else if (HW.view === 'tutor') showTutor(); else renderHw();
-      refreshHw();
+      refreshHw(); syncPush();
     } catch (e) { HW.code = ''; HW.pin = ''; HW.role = ''; go.disabled = false; hwSay(e.message, true); }
   });
   return form;
@@ -2390,6 +2445,7 @@ function showChat() {
 function chatView() {
   const wrap = h('div', { class: 'chat' });
   const list = h('div', { class: 'chatlist', 'aria-live': 'polite' });
+  wrap.append(pushButton());
   if (!HW.msgs.length) list.append(h('p', { class: 'empty' }, myRole() === 'teacher' ? 'No messages yet. Tanish can write to you here.' : 'No messages yet. Write to Papa here: doubts, questions, anything.'));
   let lastDay = '';
   for (const m of HW.msgs) {
@@ -2757,6 +2813,7 @@ async function init() {
   if (!n) { n = seedNotebook(); await DB.put('notebooks', n).catch(() => {}); }
   renderToolbar();
   setNotebook(n, true);
+  syncPush();
   if (location.hash === '#homework') openHw();
   if (location.hash === '#chat') openHw(null, 'chat');
   if (location.hash === '#tutor') openHw(null, 'tutor');
