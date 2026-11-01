@@ -240,8 +240,11 @@ details summary { cursor: pointer; color: var(--accent); }
 .callbtn { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; line-height: 40px; }
 .callbtn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; }
 @media (max-width: 560px) { .micbtn span { display: none; } .micbtn { padding: 0 10px; } }
+.bigpic { position: fixed; inset: 0; z-index: 70; background: rgba(10,14,20,.92); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 16px; }
+.bigpic img { max-width: 100%; max-height: calc(100% - 70px); object-fit: contain; background: #fff; border-radius: 6px; }
+.chatpic img { min-height: 120px; min-width: 120px; }
 .chatpic { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
-.chatpic img { max-width: min(320px, 70vw); max-height: 360px; border-radius: 8px; border: 1px solid var(--ui-line); cursor: zoom-in; background: #fff; }
+.chatpic img { max-width: min(320px, 70vw); max-height: 360px; border-radius: 8px; border: 1px solid var(--ui-line); cursor: pointer; background: #fff; }
 .voice { display: flex; flex-direction: column; gap: 4px; min-width: 220px; }
 .voice audio { width: 100%; max-width: 300px; height: 36px; }
 .recbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--danger); border-radius: 12px; background: var(--ui-panel); }
@@ -2554,19 +2557,36 @@ function chatPicture(m) {
   const show = (url) => { img.src = url; };
   if (picUrls.has(m.id)) show(picUrls.get(m.id));
   else api('photo/' + m.id).then((b) => { const u = URL.createObjectURL(b); picUrls.set(m.id, u); show(u); }).catch(() => { img.replaceWith(h('span', { class: 'meta' }, 'Picture could not load. Tap Chat to retry.')); });
-  img.addEventListener('click', () => { if (img.src) window.open(img.src, '_blank'); });
+  const teacher = myRole() === 'teacher';
+  const markIt = async () => {
+    hwSay('Opening the picture for marking …');
+    try {
+      const blob = await api('photo/' + m.id);
+      const file = await imagesToPdf([new File([blob], 'picture.jpg', { type: blob.type })]);
+      await importPdf(new File([file], 'Homework ' + new Date(m.at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) + ' (picture).pdf', { type: 'application/pdf' }), 'new');
+      HW.msg = '';
+      closeHw();
+      toast('Mark it with the pen. To send it back: ⋯ menu, Export notebook as PDF, then attach it in Chat or Homework.', null, 9000);
+    } catch (e) { hwSay(e.message, true); }
+  };
+  // teacher: tapping the picture opens it as a page to write on; student: tapping shows it full size
+  img.title = teacher ? 'Tap to mark this picture' : 'Tap to see full size';
+  img.addEventListener('click', () => { if (teacher) markIt(); else if (img.src) showBig(img.src); });
   wrap.append(img);
-  if (myRole() === 'teacher') {
-    wrap.append(h('button', { class: 'tb', type: 'button', onclick: async () => {
-      try {
-        const blob = await api('photo/' + m.id);
-        const file = await imagesToPdf([new File([blob], 'picture.jpg', { type: blob.type })]);
-        await importPdf(new File([file], 'Homework ' + new Date(m.at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) + ' (picture).pdf', { type: 'application/pdf' }), 'new');
-        closeHw();
-      } catch (e) { hwSay(e.message, true); }
-    } }, 'Open in Study Board to mark'));
+  if (teacher) {
+    wrap.append(h('div', { class: 'hwacts' },
+      h('button', { class: 'hwbtn', type: 'button', onclick: markIt }, '✏️ Mark this picture'),
+      h('button', { class: 'tb', type: 'button', onclick: () => { if (img.src) showBig(img.src); } }, 'View full size')));
   }
   return wrap;
+}
+// full-size view inside Study Board (a new window would open outside the app on iPad)
+function showBig(url) {
+  const close = () => box.remove();
+  const box = h('div', { class: 'bigpic', role: 'dialog', 'aria-label': 'Picture', onclick: close },
+    h('img', { src: url, alt: 'Picture' }),
+    h('button', { class: 'hwbtn', type: 'button', onclick: close }, 'Close'));
+  document.body.append(box);
 }
 async function sendPictures(files, text) {
   files = files.filter((f) => /^image\//.test(f.type) || /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name));
