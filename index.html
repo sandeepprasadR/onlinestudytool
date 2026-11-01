@@ -200,6 +200,17 @@ textarea.hwinput { resize: vertical; }
 .hwmsg.bad { background: #fde7e5; color: #8f1f15; }
 .empty { color: var(--ui-muted); margin: 0; }
 .hwfoot { margin-top: 18px; }
+.tb.on { background: var(--accent-soft); color: var(--accent); }
+#bBooks.badge::after { content: ""; position: absolute; top: 6px; right: 6px; width: 9px; height: 9px; border-radius: 50%; background: var(--danger); box-shadow: 0 0 0 2px var(--ui-panel); }
+.chat { display: flex; flex-direction: column; gap: 10px; }
+.chatlist { display: flex; flex-direction: column; gap: 6px; max-height: calc(100vh - 230px); min-height: 200px; overflow: auto; padding: 10px; background: var(--ui-panel); border: 1px solid var(--ui-line); border-radius: 12px; }
+.chatday { align-self: center; font-size: 12px; color: var(--ui-muted); padding: 6px 0 2px; }
+.bubble { max-width: 80%; align-self: flex-start; background: var(--ui-bg); border: 1px solid var(--ui-line); border-radius: 12px 12px 12px 4px; padding: 6px 10px; }
+.bubble.mine { align-self: flex-end; background: var(--accent-soft); border-color: transparent; border-radius: 12px 12px 4px 12px; }
+.bubble .who { font-size: 11px; color: var(--ui-muted); }
+.bubble .txt { white-space: pre-wrap; overflow-wrap: anywhere; }
+.chatform { display: flex; gap: 8px; align-items: flex-end; }
+.chatform textarea { flex: 1; }
 .linkbtn { border: 0; background: none; color: var(--ui-muted); text-decoration: underline; padding: 0; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .chip.ok { background: #173a24; color: #9fe0b3; border-color: #2b6b40; } :root:not([data-theme="light"]) .chip.wait { background: #3d3013; color: #f3d38a; border-color: #6b5520; } :root:not([data-theme="light"]) .hwmsg.bad { background: #4a1d19; color: #ffc2bb; } }
 :root[data-theme="dark"] .chip.ok { background: #173a24; color: #9fe0b3; border-color: #2b6b40; }
@@ -320,6 +331,7 @@ const ICON = {
   full: '<svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>',
   book: '<svg viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/><path d="M8 7.5h8M8 11h5"/></svg>',
   video: '<svg viewBox="0 0 24 24"><rect x="3" y="6" width="12" height="12" rx="2"/><path d="M15 10l6-3.5v11L15 14"/></svg>',
+  chat: '<svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12.5h5"/></svg>',
   school: '<svg viewBox="0 0 24 24"><path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5"/></svg>',
   help: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7M12 17h.01"/></svg>'
 };
@@ -1490,6 +1502,7 @@ $('#bBooks').addEventListener('click', async (e) => {
   openPop(anchor, (pop) => {
     pop.append(h('div', { class: 'ph' }, 'Homework'));
     pop.append(h('button', { class: 'pi', html: ICON.school + '<span>Homework: give, hand in, check</span>', onclick: () => openHw() }));
+    pop.append(h('button', { class: 'pi', html: ICON.chat + '<span>Chat' + (unreadCount() ? ' (' + unreadCount() + ' new)' : '') + '</span>', onclick: () => openHw(null, 'chat') }));
     pop.append(h('div', { class: 'ph' }, 'New'));
     pop.append(h('button', { class: 'pi', html: ICON.plus + '<span>New notebook (' + labelOf(prefs.lastBg) + ' paper)</span>', onclick: () => createNotebook(prefs.lastBg) }));
     pop.append(h('button', { class: 'pi', html: ICON.pdf + '<span>Open a PDF or photos as a new notebook</span>', onclick: () => pickPdf('new') }));
@@ -1671,7 +1684,8 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 window.addEventListener('pagehide', () => { saveNow(); });
 
 /* ---------- homework exchange (works on the Netlify version, which has the /api/hw server) ---------- */
-const HW = { code: '', pin: '', role: '', items: [], teacher: false, busy: false, msg: '', bad: false, returning: null, timer: null };
+const HW = { code: '', pin: '', role: '', items: [], teacher: false, busy: false, msg: '', bad: false, returning: null, timer: null, view: 'work', msgs: [], lastSeen: 0, chatTimer: null };
+try { HW.lastSeen = +localStorage.getItem('studyboard-chat-seen') || 0; } catch (e) {}
 try { const saved = JSON.parse(localStorage.getItem('studyboard-hw') || '{}'); HW.code = saved.code || ''; HW.pin = saved.pin || ''; HW.role = saved.role || ''; } catch (e) {}
 function saveHw() { try { localStorage.setItem('studyboard-hw', JSON.stringify({ code: HW.code, pin: HW.pin, role: HW.role })); } catch (e) {} }
 const SUBJECTS = [['maths', 'Maths'], ['science', 'Science'], ['other', 'Other']];
@@ -1700,11 +1714,13 @@ async function api(path, opts) {
 const hwEl = h('div', { id: 'hw', role: 'dialog', 'aria-label': 'Homework' });
 hwEl.hidden = true;
 document.body.append(hwEl);
-function openHw(returnId) {
+function openHw(returnId, view) {
   closePop();
   HW.returning = returnId || null;
+  HW.view = view || 'work';
   hwEl.hidden = false;
-  renderHw();
+  if (HW.view === 'chat' && HW.code) showChat();
+  else renderHw();
   if (HW.code) refreshHw();
   clearInterval(HW.timer);
   HW.timer = setInterval(() => { if (!hwEl.hidden && HW.code && !HW.busy && !HW.returning) refreshHw(); }, 60000);
@@ -1712,7 +1728,8 @@ function openHw(returnId) {
 function closeHw() {
   hwEl.hidden = true;
   clearInterval(HW.timer);
-  if (location.hash === '#homework') { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }
+  clearInterval(HW.chatTimer);
+  if (location.hash === '#homework' || location.hash === '#chat') { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }
 }
 async function refreshHw() {
   try { const r = await api('items'); HW.items = r.items || []; HW.teacher = !!r.teacher; if (HW.bad) { HW.msg = ''; HW.bad = false; } }
@@ -1751,18 +1768,21 @@ function renderHw() {
   hwEl.textContent = '';
   const inner = h('div', { class: 'hwin' });
   const head = h('div', { class: 'hwhead' },
-    h('h2', null, 'Homework'),
+    h('h2', null, HW.view === 'chat' ? 'Chat' : 'Homework'),
     HW.code ? h('span', { class: 'sub' }, HW.role === 'teacher' ? 'Teacher' : 'Student') : null,
-    HW.code ? h('button', { class: 'tb', onclick: () => refreshHw() }, 'Refresh') : null,
+    HW.code ? h('button', { class: 'tb' + (HW.view === 'work' ? ' on' : ''), onclick: () => { HW.view = 'work'; HW.returning = null; clearInterval(HW.chatTimer); renderHw(); refreshHw(); } }, 'Homework') : null,
+    HW.code ? h('button', { class: 'tb' + (HW.view === 'chat' ? ' on' : ''), onclick: () => showChat() }, 'Chat' + (unreadCount() ? ' (' + unreadCount() + ')' : '')) : null,
     h('button', { class: 'tb', onclick: closeHw }, 'Close'));
   const msg = h('p', { class: 'hwmsg' + (HW.bad ? ' bad' : ''), role: 'status' }, HW.msg);
   msg.hidden = !HW.msg;
   inner.append(head, msg);
   if (!HW.code) inner.append(setupView());
+  else if (HW.view === 'chat') inner.append(chatView());
   else if (HW.returning) inner.append(returnView());
   else inner.append(HW.role === 'teacher' ? teacherView() : studentView());
-  if (HW.code && !HW.returning) inner.append(h('p', { class: 'hwfoot' }, h('button', { class: 'linkbtn', onclick: () => { HW.code = ''; HW.pin = ''; HW.role = ''; saveHw(); HW.items = []; HW.msg = ''; renderHw(); } }, 'Sign out of homework on this device')));
+  if (HW.code && !HW.returning && HW.view !== 'chat') inner.append(h('p', { class: 'hwfoot' }, h('button', { class: 'linkbtn', onclick: () => { HW.code = ''; HW.pin = ''; HW.role = ''; saveHw(); HW.items = []; HW.msg = ''; renderHw(); } }, 'Sign out of homework on this device')));
   hwEl.append(inner);
+  if (HW.view === 'chat') { const list = hwEl.querySelector('.chatlist'); if (list) list.scrollTop = list.scrollHeight; }
 }
 function setupView() {
   const code = h('input', { class: 'hwinput', id: 'hwCode', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', placeholder: 'Class code' });
@@ -1789,7 +1809,9 @@ function setupView() {
     try {
       const r = await api('whoami');
       if (HW.role === 'teacher' && !r.teacher) throw new Error('That teacher PIN is wrong.');
-      saveHw(); HW.msg = ''; renderHw(); refreshHw();
+      saveHw(); HW.msg = '';
+      if (HW.view === 'chat') showChat(); else renderHw();
+      refreshHw();
     } catch (e) { HW.code = ''; HW.pin = ''; HW.role = ''; go.disabled = false; hwSay(e.message, true); }
   });
   return form;
@@ -1970,6 +1992,76 @@ function returnView() {
   return wrap;
 }
 
+/* ---------- chat between teacher and student ---------- */
+const myRole = () => (HW.role === 'teacher' ? 'teacher' : 'student');
+function unreadCount() { return HW.msgs.filter((m) => m.from !== myRole() && m.at > HW.lastSeen).length; }
+function markSeen() {
+  const last = HW.msgs.length ? HW.msgs[HW.msgs.length - 1].at : 0;
+  if (last > HW.lastSeen) { HW.lastSeen = last; try { localStorage.setItem('studyboard-chat-seen', String(last)); } catch (e) {} }
+  updateChatBadge();
+}
+async function pollChat() {
+  if (!HW.code) return;
+  const since = HW.msgs.length ? HW.msgs[HW.msgs.length - 1].at : 0;
+  try {
+    const r = await api('msgs?since=' + since);
+    const known = new Set(HW.msgs.map((m) => m.id));
+    const fresh = (r.msgs || []).filter((m) => !known.has(m.id));
+    if (!fresh.length) return;
+    HW.msgs = HW.msgs.concat(fresh).sort((a, b) => a.at - b.at).slice(-300);
+    if (!hwEl.hidden && HW.view === 'chat') { markSeen(); renderHw(); }
+    else {
+      updateChatBadge();
+      const theirs = fresh.filter((m) => m.from !== myRole() && m.at > HW.lastSeen);
+      if (theirs.length && since) toast((myRole() === 'teacher' ? 'Tanish' : 'Papa') + ': ' + theirs[theirs.length - 1].text.slice(0, 80), { label: 'Open chat', fn: () => openHw(null, 'chat') });
+      if (!hwEl.hidden) renderHw();
+    }
+  } catch (e) { /* offline or not set up: try again later */ }
+}
+function updateChatBadge() { $('#bBooks').classList.toggle('badge', unreadCount() > 0); }
+function showChat() {
+  HW.view = 'chat'; HW.returning = null;
+  renderHw();
+  pollChat().then(() => { markSeen(); renderHw(); });
+  clearInterval(HW.chatTimer);
+  HW.chatTimer = setInterval(() => { if (!hwEl.hidden && HW.view === 'chat' && document.visibilityState === 'visible') pollChat(); }, 8000);
+}
+function chatView() {
+  const wrap = h('div', { class: 'chat' });
+  const list = h('div', { class: 'chatlist', 'aria-live': 'polite' });
+  if (!HW.msgs.length) list.append(h('p', { class: 'empty' }, myRole() === 'teacher' ? 'No messages yet. Tanish can write to you here.' : 'No messages yet. Write to Papa here: doubts, questions, anything.'));
+  let lastDay = '';
+  for (const m of HW.msgs) {
+    const d = new Date(m.at);
+    const day = d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+    if (day !== lastDay) { list.append(h('div', { class: 'chatday' }, day)); lastDay = day; }
+    const mine = m.from === myRole();
+    list.append(h('div', { class: 'bubble' + (mine ? ' mine' : '') },
+      h('div', { class: 'who' }, (m.from === 'teacher' ? 'Papa' : 'Tanish') + ' · ' + d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })),
+      h('div', { class: 'txt' }, m.text)));
+  }
+  const box = h('textarea', { class: 'hwinput', id: 'chatText', rows: '2', maxlength: '2000', placeholder: myRole() === 'teacher' ? 'Write to Tanish' : 'Write to Papa' });
+  const send = h('button', { class: 'hwbtn', type: 'submit' }, 'Send');
+  const form = h('form', { class: 'chatform' }, box, send);
+  box.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); } });
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const text = box.value.trim();
+    if (!text) return;
+    send.disabled = true;
+    try {
+      const r = await api('msg', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text }) });
+      HW.msgs.push(r.msg); markSeen(); HW.msg = ''; renderHw();
+      const nb2 = hwEl.querySelector('#chatText'); if (nb2) nb2.focus();
+    } catch (e) { send.disabled = false; hwSay(e.message, true); }
+  });
+  wrap.append(list, form, h('p', { class: 'meta' }, 'New messages appear within a few seconds while this screen is open. To talk, join the class Meet.'));
+  return wrap;
+}
+// check for new messages every 2 minutes while the app is open, so the ☰ button can show a dot
+setInterval(() => { if (HW.code && document.visibilityState === 'visible' && (hwEl.hidden || HW.view !== 'chat')) pollChat(); }, 120000);
+setTimeout(() => { if (HW.code) pollChat(); }, 3000);
+
 /* ---------- start ---------- */
 async function init() {
   if (pdfReady()) pdfjsLib.GlobalWorkerOptions.workerSrc = WORKER_SRC;
@@ -1987,7 +2079,8 @@ async function init() {
   renderToolbar();
   setNotebook(n, true);
   if (location.hash === '#homework') openHw();
-  window.addEventListener('hashchange', () => { if (location.hash === '#homework') openHw(); });
+  if (location.hash === '#chat') openHw(null, 'chat');
+  window.addEventListener('hashchange', () => { if (location.hash === '#homework') openHw(); if (location.hash === '#chat') openHw(null, 'chat'); });
   if (!prefs.seenTip) {
     prefs.seenTip = true; savePrefs();
     setTimeout(() => toast('Write with Apple Pencil. Scroll with one finger, pinch with two to zoom.', null, 7000), 300);
