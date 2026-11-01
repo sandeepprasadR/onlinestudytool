@@ -323,13 +323,32 @@ const DB = {
         if (!d.objectStoreNames.contains('notebooks')) d.createObjectStore('notebooks', { keyPath: 'id' });
         if (!d.objectStoreNames.contains('pdfs')) d.createObjectStore('pdfs');
       };
-      r.onsuccess = () => { this.db = r.result; res(); };
+      r.onsuccess = () => {
+        const d = r.result;
+        this.db = d;
+        // iPadOS closes the connection when the app goes to the background (e.g. while Meet broadcasts)
+        d.onclose = () => { if (this.db === d) this.db = null; };
+        d.onversionchange = () => { d.close(); if (this.db === d) this.db = null; };
+        res();
+      };
       r.onerror = () => rej(r.error);
       r.onblocked = () => rej(new Error('Storage is blocked'));
     });
   },
   useMemory() { this.mem = { notebooks: new Map(), pdfs: new Map() }; },
-  run(store, mode, fn) {
+  async run(store, mode, fn) {
+    try { return await this.once(store, mode, fn); }
+    catch (e) {
+      // a closed or closing connection: open a fresh one and try once more
+      if (!e || !/InvalidState|clos|abort|UnknownError/i.test((e.name || '') + ' ' + (e.message || ''))) throw e;
+      try { if (this.db) this.db.close(); } catch (err) {}
+      this.db = null;
+      await this.open();
+      return this.once(store, mode, fn);
+    }
+  },
+  async once(store, mode, fn) {
+    if (!this.db) await this.open();
     return new Promise((res, rej) => {
       const t = this.db.transaction(store, mode);
       const rq = fn(t.objectStore(store));
