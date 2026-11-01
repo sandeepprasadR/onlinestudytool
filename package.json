@@ -3,8 +3,9 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@anthropic-ai/sdk": "0.135.0",
     "@netlify/blobs": "11.1.4",
-    "@anthropic-ai/sdk": "0.135.0"
+    "web-push": "3.6.7"
   },
   "devDependencies": {
     "@netlify/functions": "6.0.2"
