@@ -1,0 +1,1407 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<!--HEAD-ONLY-->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Study Board">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#f4f6f9">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-180.png">
+<!--/HEAD-ONLY-->
+<title>Study Board</title>
+<style>
+/* Layout: one-screen app. A wrapping toolbar on top, a scrolling "desk" of paper pages below. */
+:root {
+  --ui-bg: #f4f6f9;
+  --ui-panel: #ffffff;
+  --ui-fg: #1c2430;
+  --ui-muted: #5d6b7c;
+  --ui-line: #d9dfe7;
+  --accent: #2457d6;
+  --accent-soft: #e3ebfc;
+  --desk: #e4e8ee;
+  --danger: #c2362b;
+  --toast-bg: #1c2430;
+  --toast-fg: #f4f6f9;
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --board: #1f2f28;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ui-bg: #151a21; --ui-panel: #1d242d; --ui-fg: #e6ebf2; --ui-muted: #97a3b3; --ui-line: #2e3742;
+    --accent: #7aa2ff; --accent-soft: #25324d; --desk: #0f1318; --danger: #ff6b5e;
+    --toast-bg: #e6ebf2; --toast-fg: #151a21; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --ui-bg: #151a21; --ui-panel: #1d242d; --ui-fg: #e6ebf2; --ui-muted: #97a3b3; --ui-line: #2e3742;
+  --accent: #7aa2ff; --accent-soft: #25324d; --desk: #0f1318; --danger: #ff6b5e;
+  --toast-bg: #e6ebf2; --toast-fg: #151a21; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; display: flex; flex-direction: column; overflow: hidden;
+  background: var(--ui-bg); color: var(--ui-fg); font: 14px/1.4 var(--font-ui);
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+[hidden] { display: none !important; }
+button { font: inherit; color: inherit; touch-action: manipulation; cursor: pointer; }
+button:focus-visible, input:focus-visible, label:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Toolbar */
+#bar {
+  flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 0;
+  padding-block: 6px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: var(--ui-panel); border-bottom: 1px solid var(--ui-line);
+  touch-action: manipulation; position: relative; z-index: 20;
+}
+.grp { display: flex; align-items: center; gap: 1px; padding: 0 5px; border-right: 1px solid var(--ui-line); min-height: 40px; }
+.grp:first-child { padding-left: 0; }
+.grp:last-child { border-right: 0; margin-left: auto; padding-right: 0; }
+.ib {
+  width: 38px; height: 40px; border: 0; border-radius: 10px; background: transparent;
+  display: grid; place-items: center; padding: 0; position: relative;
+}
+.ib svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.ib:hover { background: var(--accent-soft); }
+.ib.on { background: var(--accent-soft); color: var(--accent); }
+.ib:disabled { opacity: .35; cursor: default; background: transparent; }
+.ib .caret { position: absolute; right: 3px; bottom: 3px; width: 0; height: 0; border-left: 4px solid transparent; border-top: 4px solid currentColor; transform: rotate(-45deg); opacity: .7; }
+.tb { height: 40px; border: 0; border-radius: 10px; background: transparent; padding: 0 10px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tb:hover { background: var(--accent-soft); }
+#nbName {
+  width: 132px; height: 36px; border: 1px solid transparent; border-radius: 8px; background: transparent;
+  color: var(--ui-fg); font: 600 16px var(--font-ui); padding: 0 8px; -webkit-user-select: text; user-select: text;
+}
+#nbName:hover, #nbName:focus { border-color: var(--ui-line); background: var(--ui-bg); outline: none; }
+.sw {
+  width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--ui-line); margin: 0 2px; padding: 0;
+  background: var(--c); flex: none;
+}
+.sw.on { box-shadow: 0 0 0 2px var(--ui-panel), 0 0 0 4px var(--accent); }
+.sw.custom { display: grid; place-items: center; background: conic-gradient(#e53935, #fdd835, #43a047, #1e88e5, #8e24aa, #e53935); position: relative; overflow: hidden; cursor: pointer; }
+.sw.custom input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; border: 0; padding: 0; }
+.sz span { display: block; border-radius: 50%; background: currentColor; }
+.dim { opacity: .45; }
+body.compact .x { display: none; }
+
+/* Desk and pages */
+#scroller {
+  flex: 1; min-height: 0; overflow: auto; background: var(--desk);
+  touch-action: pan-x pan-y; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+}
+body.finger #scroller { touch-action: none; }
+#pages { position: relative; padding: 16px 16px 40px; }
+.page {
+  position: relative; margin: 0 auto 28px; background-color: #fff;
+  box-shadow: 0 1px 2px rgba(20,30,45,.18), 0 6px 18px rgba(20,30,45,.10);
+  overflow: hidden; contain: layout paint;
+}
+.page::after {
+  content: attr(data-n); position: absolute; right: 8px; bottom: 6px; font: 11px var(--font-ui);
+  color: #8a96a6; pointer-events: none;
+}
+.page canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.page.pdf-error::before {
+  content: "This PDF page could not be shown"; position: absolute; inset: 0; display: grid; place-items: center; color: #8a96a6;
+}
+/* Paper styles, scaled by --u (CSS px per page unit; a page is 1000 units wide) */
+.bg-ruled {
+  background-image:
+    linear-gradient(to right, transparent calc(var(--u) * 90 - 1px), #f2a3a3 calc(var(--u) * 90 - 1px), #f2a3a3 calc(var(--u) * 90 + 1px), transparent calc(var(--u) * 90 + 1px)),
+    linear-gradient(to bottom, transparent calc(100% - 1px), #b9d3ee calc(100% - 1px));
+  background-size: 100% 100%, 100% calc(var(--u) * 36);
+  background-position: 0 0, 0 calc(var(--u) * 12);
+  background-repeat: no-repeat, repeat;
+}
+.bg-graph {
+  background-image:
+    linear-gradient(to right, #9fc0e0 1px, transparent 1px), linear-gradient(to bottom, #9fc0e0 1px, transparent 1px),
+    linear-gradient(to right, #dbe7f3 1px, transparent 1px), linear-gradient(to bottom, #dbe7f3 1px, transparent 1px);
+  background-size: calc(var(--u) * 125) calc(var(--u) * 125), calc(var(--u) * 125) calc(var(--u) * 125),
+    calc(var(--u) * 25) calc(var(--u) * 25), calc(var(--u) * 25) calc(var(--u) * 25);
+}
+.bg-dot {
+  background-image: radial-gradient(circle, #a9b4c2 calc(var(--u) * 1.8), transparent calc(var(--u) * 1.8 + .6px));
+  background-size: calc(var(--u) * 30) calc(var(--u) * 30);
+}
+.page.bg-board { background-color: var(--board); }
+.page.bg-board::after { color: #6f8a7d; }
+
+/* Popover menus */
+#pop {
+  position: fixed; z-index: 50; min-width: 230px; max-width: min(340px, calc(100vw - 16px)); max-height: 72vh; overflow: auto;
+  background: var(--ui-panel); color: var(--ui-fg); border: 1px solid var(--ui-line); border-radius: 14px;
+  box-shadow: 0 12px 32px rgba(10,20,35,.22); padding: 6px; display: flex; flex-direction: column; gap: 2px;
+}
+.ph { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ui-muted); padding: 8px 10px 4px; }
+.pi {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: 0; background: transparent;
+  padding: 10px 12px; border-radius: 9px; min-height: 42px;
+}
+.pi:hover { background: var(--accent-soft); }
+.pi.on { color: var(--accent); font-weight: 600; }
+.pi.danger, .pi[data-armed] { color: var(--danger); }
+.pi .sub { margin-left: auto; color: var(--ui-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.pi:disabled { opacity: .4; cursor: default; background: transparent; }
+.pi svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.prev { width: 26px; height: 34px; border-radius: 3px; border: 1px solid var(--ui-line); flex: none; background-color: #fff; --u: .14px; }
+.prev.bg-board { background-color: var(--board); }
+.nbrow { display: flex; align-items: center; gap: 2px; }
+.nbrow .pi { flex: 1; min-width: 0; }
+.nbrow .pi span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nbrow .del { width: 40px; flex: none; justify-content: center; padding: 0; color: var(--ui-muted); }
+.nbrow .del[data-armed] { width: auto; padding: 0 10px; color: var(--danger); }
+.pgrid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; padding: 4px; }
+.pgrid button { height: 40px; border: 1px solid var(--ui-line); border-radius: 8px; background: transparent; font-variant-numeric: tabular-nums; }
+.pgrid button.on { background: var(--accent); border-color: var(--accent); color: var(--ui-panel); }
+.help { padding: 6px 12px 10px; max-width: 320px; -webkit-user-select: text; user-select: text; }
+.help p { margin: 6px 0; }
+.help b { font-weight: 600; }
+
+/* Toast */
+#toast {
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 60;
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  display: flex; align-items: center; gap: 12px; max-width: calc(100vw - 32px);
+  background: var(--toast-bg); color: var(--toast-fg); padding: 10px 14px; border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.25);
+}
+#toast button { border: 0; border-radius: 8px; padding: 8px 12px; background: var(--accent); color: #fff; font-weight: 600; white-space: nowrap; }
+@media (prefers-reduced-motion: no-preference) {
+  #toast:not([hidden]) { animation: rise .18s ease-out; }
+  @keyframes rise { from { opacity: 0; transform: translate(-50%, 8px); } }
+}
+@media (max-width: 700px) {
+  #nbName { width: 110px; }
+  .grp { padding: 0 3px; }
+}
+</style>
+</head>
+<body>
+<header id="bar" role="toolbar" aria-label="Writing tools">
+  <div class="grp">
+    <button class="ib" id="bBooks" title="Notebooks" aria-label="Notebooks"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+    <input id="nbName" class="x" aria-label="Notebook name" maxlength="60" autocomplete="off" spellcheck="false">
+  </div>
+  <div class="grp" id="gTools">
+    <button class="ib tool" data-tool="pen" title="Pen (P)" aria-label="Pen"><svg viewBox="0 0 24 24"><path d="M4 20l1.2-4.6L16.6 4a2 2 0 0 1 2.8 0l.6.6a2 2 0 0 1 0 2.8L8.6 18.8z"/><path d="M14.5 6l3.5 3.5"/></svg></button>
+    <button class="ib tool" data-tool="hl" title="Highlighter (H)" aria-label="Highlighter"><svg viewBox="0 0 24 24"><path d="M8.5 14.5l7.8-9.8a1.8 1.8 0 0 1 2.6-.2l1 .9a1.8 1.8 0 0 1 .1 2.6l-8.6 9z"/><path d="M8.5 14.5l2.9 2.5-1.6 1.7H6.2l-.7-.6z"/><path d="M3 21h9"/></svg></button>
+    <button class="ib tool" data-tool="eraser" title="Eraser (E)" aria-label="Eraser"><svg viewBox="0 0 24 24"><path d="M8.5 20H20"/><path d="M4.4 14.6l9.2-9.2a2 2 0 0 1 2.8 0l3.2 3.2a2 2 0 0 1 0 2.8L11 20H8.8l-4.4-4.4a.7.7 0 0 1 0-1z"/><path d="M9 10l5 5"/></svg></button>
+    <button class="ib tool" data-tool="laser" title="Laser pointer (L)" aria-label="Laser pointer"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"/></svg></button>
+    <button class="ib tool" data-tool="shape" id="bShape" title="Shapes: tap again to choose" aria-label="Shapes"></button>
+  </div>
+  <div class="grp" id="gColors" aria-label="Colours"></div>
+  <div class="grp" id="gSizes" aria-label="Thickness"></div>
+  <div class="grp">
+    <button class="ib" id="bUndo" title="Undo" aria-label="Undo"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
+    <button class="ib" id="bRedo" title="Redo" aria-label="Redo"><svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
+  </div>
+  <div class="grp x">
+    <button class="ib" id="bAdd" title="Add or change page" aria-label="Add page"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M12 10.5v6M9 13.5h6"/></svg></button>
+    <button class="ib" id="bPdf" title="Insert a PDF" aria-label="Insert PDF"><svg viewBox="0 0 24 24"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/><path d="M12 10v7M9 14l3 3 3-3"/></svg></button>
+  </div>
+  <div class="grp x">
+    <button class="tb" id="bPage" title="Go to page" aria-label="Go to page">1 / 1</button>
+    <button class="tb" id="bFit" title="Fit page width" aria-label="Fit page width">Fit</button>
+  </div>
+  <div class="grp">
+    <button class="ib" id="bMore" title="More" aria-label="More options"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg></button>
+  </div>
+</header>
+<main id="scroller"><div id="pages"></div></main>
+<div id="pop" hidden></div>
+<div id="toast" role="status" aria-live="polite" hidden></div>
+<input type="file" id="pdfInput" accept="application/pdf,.pdf" hidden>
+<script src="vendor/pdf.min.js"></script>
+<script src="vendor/jspdf.umd.min.js"></script>
+<script>
+(() => {
+'use strict';
+
+/* ---------- constants ---------- */
+const WORKER_SRC = 'vendor/pdf.worker.min.js';
+const U = 1000;              // every page is 1000 units wide
+const A4H = 1414;            // A4 portrait height in units
+const BOARD = '#1f2f28';
+const PEN = ['#1b1f24', '#1f4fd1', '#d32f2f', '#15803d', '#e8710a', '#7c3aed', '#ffffff'];
+const PEN_NAMES = ['Black', 'Blue', 'Red', 'Green', 'Orange', 'Purple', 'White'];
+const HL = ['#ffe24a', '#7dee8b', '#ff8fd6', '#80cbff', '#ffb34d'];
+const HL_NAMES = ['Yellow', 'Green', 'Pink', 'Blue', 'Orange'];
+const SIZES = { pen: [2, 3.5, 6], hl: [16, 26, 40], eraser: [10, 22, 45] };
+const BG_TYPES = [['blank', 'Blank'], ['ruled', 'Ruled'], ['graph', 'Graph (squares)'], ['dot', 'Dotted'], ['board', 'Blackboard']];
+const SHAPES = [['line', 'Straight line'], ['arrow', 'Arrow'], ['rect', 'Rectangle'], ['ellipse', 'Circle or ellipse']];
+const ICON = {
+  line: '<svg viewBox="0 0 24 24"><path d="M5 19L19 5"/></svg>',
+  arrow: '<svg viewBox="0 0 24 24"><path d="M5 19L19 5M10 5h9v9"/></svg>',
+  rect: '<svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="1"/></svg>',
+  ellipse: '<svg viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="8" ry="7"/></svg>',
+  pdf: '<svg viewBox="0 0 24 24"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/></svg>',
+  plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+  share: '<svg viewBox="0 0 24 24"><path d="M12 15V3M7.5 7.5L12 3l4.5 4.5"/><path d="M5 12v8h14v-8"/></svg>',
+  trash: '<svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6.5 7l1 13h9l1-13"/></svg>',
+  clear: '<svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M9.5 11.5l5 5M14.5 11.5l-5 5"/></svg>',
+  hand: '<svg viewBox="0 0 24 24"><path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V11M11 10V4.5a1.5 1.5 0 0 1 3 0V11M14 10.5V6a1.5 1.5 0 0 1 3 0v8a7 7 0 0 1-7 7h-.5a6 6 0 0 1-5-2.7L3 15.5a1.6 1.6 0 0 1 2.6-1.8L8 16"/></svg>',
+  compact: '<svg viewBox="0 0 24 24"><path d="M4 7h16M8 12h8M10 17h4"/></svg>',
+  full: '<svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>',
+  help: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7M12 17h.01"/></svg>'
+};
+
+/* ---------- small helpers ---------- */
+const $ = (s) => document.querySelector(s);
+const scroller = $('#scroller');
+const pagesEl = $('#pages');
+const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-5);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+function h(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  if (attrs) for (const [k, v] of Object.entries(attrs)) {
+    if (k === 'class') e.className = v;
+    else if (k === 'html') e.innerHTML = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else if (v !== false && v != null) e.setAttribute(k, v === true ? '' : v);
+  }
+  for (const k of kids) if (k != null) e.append(k);
+  return e;
+}
+
+/* ---------- preferences (per device) ---------- */
+const prefs = Object.assign({
+  tool: 'pen', shape: 'line', penColor: PEN[0], hlColor: HL[0],
+  size: { pen: 1, hl: 1, eraser: 1 }, fingerDraw: false, compact: false, lastBg: 'graph', lastNb: null, seenTip: false
+}, (() => { try { return JSON.parse(localStorage.getItem('studyboard-prefs') || '{}'); } catch (e) { return {}; } })());
+function savePrefs() { try { localStorage.setItem('studyboard-prefs', JSON.stringify(prefs)); } catch (e) { /* storage blocked */ } }
+
+/* ---------- storage: IndexedDB with an in-memory fallback ---------- */
+const DB = {
+  db: null, mem: null,
+  open() {
+    return new Promise((res, rej) => {
+      let r;
+      try { r = indexedDB.open('studyboard', 1); } catch (e) { rej(e); return; }
+      r.onupgradeneeded = () => {
+        const d = r.result;
+        if (!d.objectStoreNames.contains('notebooks')) d.createObjectStore('notebooks', { keyPath: 'id' });
+        if (!d.objectStoreNames.contains('pdfs')) d.createObjectStore('pdfs');
+      };
+      r.onsuccess = () => { this.db = r.result; res(); };
+      r.onerror = () => rej(r.error);
+      r.onblocked = () => rej(new Error('Storage is blocked'));
+    });
+  },
+  useMemory() { this.mem = { notebooks: new Map(), pdfs: new Map() }; },
+  run(store, mode, fn) {
+    return new Promise((res, rej) => {
+      const t = this.db.transaction(store, mode);
+      const rq = fn(t.objectStore(store));
+      let out;
+      if (rq) rq.onsuccess = () => { out = rq.result; };
+      t.oncomplete = () => res(out);
+      t.onerror = () => rej(t.error);
+      t.onabort = () => rej(t.error || new Error('Storage full or blocked'));
+    });
+  },
+  async get(store, key) { if (this.mem) return this.mem[store].get(key); return this.run(store, 'readonly', (s) => s.get(key)); },
+  async put(store, val, key) {
+    if (this.mem) { this.mem[store].set(key === undefined ? val.id : key, val); return; }
+    return this.run(store, 'readwrite', (s) => (key === undefined ? s.put(val) : s.put(val, key)));
+  },
+  async del(store, key) { if (this.mem) { this.mem[store].delete(key); return; } return this.run(store, 'readwrite', (s) => s.delete(key)); },
+  async all(store) { if (this.mem) return [...this.mem[store].values()]; return this.run(store, 'readonly', (s) => s.getAll()); }
+};
+
+/* ---------- state ---------- */
+let nb = null;                 // current notebook
+let scale = 1;                 // CSS px per page unit
+let fitMode = true;
+let currentIdx = 0;
+const views = new Map();       // page id -> view
+let undoStack = [], redoStack = [];
+const pdfDocs = new Map();     // pdf id -> Promise<PDFDocumentProxy>
+
+/* ---------- PDFs ---------- */
+function pdfReady() { return !!window.pdfjsLib; }
+function getPdf(id) {
+  if (!pdfDocs.has(id)) {
+    const pr = (async () => {
+      if (!pdfReady()) throw new Error('The PDF reader did not load. Check the internet connection and reload.');
+      const rec = await DB.get('pdfs', id);
+      if (!rec) throw new Error('The PDF file is missing from this iPad.');
+      return pdfjsLib.getDocument({ data: new Uint8Array(rec.bytes.slice(0)) }).promise;
+    })();
+    pr.catch(() => pdfDocs.delete(id));
+    pdfDocs.set(id, pr);
+  }
+  return pdfDocs.get(id);
+}
+
+/* ---------- saving ---------- */
+let saveTimer = null;
+function dirty() {
+  if (!nb) return;
+  nb.updated = Date.now();
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveNow, 700);
+}
+async function saveNow() {
+  clearTimeout(saveTimer); saveTimer = null;
+  if (!nb) return;
+  try { await DB.put('notebooks', nb); }
+  catch (e) { toast('Could not save on this iPad: ' + (e && e.message ? e.message : 'storage error')); }
+}
+
+/* ---------- page views ---------- */
+const io = new IntersectionObserver((entries) => {
+  for (const e of entries) {
+    const v = views.get(e.target.dataset.id);
+    if (!v) continue;
+    if (e.isIntersecting) mount(v); else unmount(v);
+  }
+}, { root: scroller, rootMargin: '120% 0px 120% 0px' });
+
+function fitScale() { return Math.max(0.2, (scroller.clientWidth - 32) / U); }
+function minScale() { return fitScale() * 0.4; }
+
+function buildPages() {
+  io.disconnect();
+  for (const v of views.values()) unmount(v);
+  views.clear();
+  pagesEl.textContent = '';
+  nb.pages.forEach((p, i) => {
+    const el = h('div', { class: 'page bg-' + p.bg, 'data-id': p.id, 'data-n': String(i + 1) });
+    views.set(p.id, { p, el, ink: null, bg: null, mounted: false, token: 0, task: null });
+    pagesEl.append(el);
+  });
+  layout();
+  for (const v of views.values()) io.observe(v.el);
+  currentIdx = clamp(currentIdx, 0, nb.pages.length - 1);
+  updateIndicator();
+}
+
+function layout() {
+  const w = U * scale;
+  pagesEl.style.width = Math.max(scroller.clientWidth, w + 32) + 'px';
+  pagesEl.style.setProperty('--u', scale + 'px');
+  for (const v of views.values()) {
+    v.el.style.width = w + 'px';
+    v.el.style.height = (v.p.h * scale) + 'px';
+  }
+  updZoomLabel();
+}
+
+function pixelRatio(p) {
+  let r = Math.min(window.devicePixelRatio || 1, 2);
+  const w = U * scale * r, hh = p.h * scale * r, max = 8e6;
+  if (w * hh > max) r *= Math.sqrt(max / (w * hh));
+  return r;
+}
+
+function mount(v) {
+  if (v.mounted) return;
+  v.mounted = true;
+  v.ink = h('canvas', { class: 'ink' });
+  v.el.append(v.ink);
+  if (v.p.bg === 'pdf') { v.bg = h('canvas', { class: 'pdfbg' }); v.el.prepend(v.bg); }
+  paint(v);
+}
+function unmount(v) {
+  if (!v.mounted) return;
+  v.mounted = false; v.token++;
+  if (v.task) { try { v.task.cancel(); } catch (e) {} v.task = null; }
+  for (const c of [v.ink, v.bg]) if (c) { c.width = 0; c.height = 0; c.remove(); }
+  v.ink = v.bg = null;
+  if (live.view === v) detachLive();
+}
+function paint(v) {
+  if (!v.mounted) return;
+  const r = pixelRatio(v.p);
+  const W = Math.round(U * scale * r), H = Math.round(v.p.h * scale * r);
+  if (v.ink.width !== W || v.ink.height !== H) { v.ink.width = W; v.ink.height = H; }
+  renderInk(v);
+  if (v.bg) renderPdfBg(v, W, H);
+  if (live.view === v) sizeLive(v);
+}
+function renderInk(v) {
+  if (!v.mounted) return;
+  const c = v.ink, ctx = c.getContext('2d');
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, c.width, c.height);
+  const k = c.width / U;
+  ctx.setTransform(k, 0, 0, k, 0, 0);
+  drawInk(ctx, v.p.strokes);
+}
+async function renderPdfBg(v, W, H) {
+  const tok = ++v.token;
+  if (v.task) { try { v.task.cancel(); } catch (e) {} v.task = null; }
+  try {
+    const pdf = await getPdf(v.p.pdfId);
+    if (tok !== v.token || !v.mounted) return;
+    const page = await pdf.getPage(v.p.pdfPage);
+    if (tok !== v.token || !v.mounted) return;
+    const vp1 = page.getViewport({ scale: 1 });
+    const vp = page.getViewport({ scale: W / vp1.width });
+    const off = document.createElement('canvas');
+    off.width = W; off.height = H;
+    const octx = off.getContext('2d');
+    octx.fillStyle = '#fff'; octx.fillRect(0, 0, W, H);
+    v.task = page.render({ canvasContext: octx, viewport: vp });
+    await v.task.promise;
+    v.task = null;
+    if (tok !== v.token || !v.mounted) { off.width = 0; return; }
+    v.bg.width = W; v.bg.height = H;
+    v.bg.getContext('2d').drawImage(off, 0, 0);
+    off.width = 0;
+    v.el.classList.remove('pdf-error');
+  } catch (e) {
+    if (e && e.name === 'RenderingCancelledException') return;
+    console.warn(e);
+    if (v.mounted && tok === v.token) v.el.classList.add('pdf-error');
+  }
+}
+let repaintTimer = null;
+function scheduleRepaint() {
+  clearTimeout(repaintTimer);
+  repaintTimer = setTimeout(() => { for (const v of views.values()) if (v.mounted) paint(v); }, 160);
+}
+
+/* ---------- drawing strokes ---------- */
+// stroke: { t: 'pen'|'hl'|'line'|'arrow'|'rect'|'ellipse', c: colour, w: width, pts }
+// pen/hl pts: x, y, pressure triples; shapes: x1, y1, x2, y2
+const pw = (pr) => 0.45 + 0.95 * pr;
+function drawInk(ctx, strokes) {
+  for (const s of strokes) if (s.t === 'hl') drawStroke(ctx, s);
+  for (const s of strokes) if (s.t !== 'hl') drawStroke(ctx, s);
+}
+function drawStroke(ctx, s) {
+  const p = s.pts;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = s.c; ctx.fillStyle = s.c;
+  if (s.t === 'pen') {
+    const n = p.length / 3;
+    if (n === 1) { ctx.beginPath(); ctx.arc(p[0], p[1], s.w * pw(p[2]) / 2, 0, Math.PI * 2); ctx.fill(); return; }
+    let px = p[0], py = p[1];
+    for (let i = 1; i < n - 1; i++) {
+      const x = p[i * 3], y = p[i * 3 + 1], nx = p[i * 3 + 3], ny = p[i * 3 + 4];
+      const mx = (x + nx) / 2, my = (y + ny) / 2;
+      ctx.beginPath(); ctx.moveTo(px, py); ctx.quadraticCurveTo(x, y, mx, my);
+      ctx.lineWidth = s.w * pw(p[i * 3 + 2]); ctx.stroke();
+      px = mx; py = my;
+    }
+    ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(p[(n - 1) * 3], p[(n - 1) * 3 + 1]);
+    ctx.lineWidth = s.w * pw(p[(n - 1) * 3 + 2]); ctx.stroke();
+    return;
+  }
+  if (s.t === 'hl') {
+    const n = p.length / 3;
+    ctx.save(); ctx.globalAlpha = 0.38; ctx.lineWidth = s.w;
+    ctx.beginPath(); ctx.moveTo(p[0], p[1]);
+    if (n === 1) ctx.lineTo(p[0] + 0.01, p[1]);
+    for (let i = 1; i < n - 1; i++) {
+      const x = p[i * 3], y = p[i * 3 + 1];
+      ctx.quadraticCurveTo(x, y, (x + p[i * 3 + 3]) / 2, (y + p[i * 3 + 4]) / 2);
+    }
+    if (n > 1) ctx.lineTo(p[(n - 1) * 3], p[(n - 1) * 3 + 1]);
+    ctx.stroke(); ctx.restore();
+    return;
+  }
+  const [x1, y1, x2, y2] = p;
+  ctx.lineWidth = s.w;
+  ctx.beginPath();
+  if (s.t === 'line') { ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); }
+  else if (s.t === 'arrow') {
+    const hd = arrowHead(s);
+    ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+    ctx.moveTo(hd[0], hd[1]); ctx.lineTo(x2, y2); ctx.lineTo(hd[2], hd[3]);
+  }
+  else if (s.t === 'rect') ctx.rect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1));
+  else if (s.t === 'ellipse') ctx.ellipse((x1 + x2) / 2, (y1 + y2) / 2, Math.abs(x2 - x1) / 2, Math.abs(y2 - y1) / 2, 0, 0, Math.PI * 2);
+  ctx.stroke();
+}
+function arrowHead(s) {
+  const [x1, y1, x2, y2] = s.pts;
+  const a = Math.atan2(y2 - y1, x2 - x1), L = Math.max(14, s.w * 4.5), sp = 0.45;
+  return [x2 - L * Math.cos(a - sp), y2 - L * Math.sin(a - sp), x2 - L * Math.cos(a + sp), y2 - L * Math.sin(a + sp)];
+}
+
+/* ---------- eraser hit testing ---------- */
+const bbCache = new WeakMap();
+function polyline(s) {
+  const p = s.pts;
+  if (s.t === 'pen' || s.t === 'hl') { const out = []; for (let i = 0; i < p.length; i += 3) out.push(p[i], p[i + 1]); return out; }
+  const [x1, y1, x2, y2] = p;
+  if (s.t === 'line') return [x1, y1, x2, y2];
+  if (s.t === 'arrow') { const hd = arrowHead(s); return [x1, y1, x2, y2, hd[0], hd[1], x2, y2, hd[2], hd[3]]; }
+  if (s.t === 'rect') return [x1, y1, x2, y1, x2, y2, x1, y2, x1, y1];
+  const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2, rx = Math.abs(x2 - x1) / 2, ry = Math.abs(y2 - y1) / 2, out = [];
+  for (let i = 0; i <= 48; i++) { const t = i / 48 * Math.PI * 2; out.push(cx + rx * Math.cos(t), cy + ry * Math.sin(t)); }
+  return out;
+}
+function bbox(s) {
+  let b = bbCache.get(s);
+  if (b) return b;
+  const q = polyline(s);
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (let i = 0; i < q.length; i += 2) { x0 = Math.min(x0, q[i]); x1 = Math.max(x1, q[i]); y0 = Math.min(y0, q[i + 1]); y1 = Math.max(y1, q[i + 1]); }
+  const pad = s.w;
+  b = { box: [x0 - pad, y0 - pad, x1 + pad, y1 + pad], q };
+  bbCache.set(s, b);
+  return b;
+}
+function segDist(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay, l = dx * dx + dy * dy;
+  const t = l ? clamp(((px - ax) * dx + (py - ay) * dy) / l, 0, 1) : 0;
+  return Math.hypot(px - ax - t * dx, py - ay - t * dy);
+}
+function hit(s, x, y, r) {
+  const { box, q } = bbox(s);
+  if (x < box[0] - r || x > box[2] + r || y < box[1] - r || y > box[3] + r) return false;
+  const lim = r + s.w / 2;
+  if (q.length === 2) return Math.hypot(x - q[0], y - q[1]) < lim;
+  for (let i = 2; i < q.length; i += 2) if (segDist(x, y, q[i - 2], q[i - 1], q[i], q[i + 1]) < lim) return true;
+  return false;
+}
+
+/* ---------- live overlay (stroke in progress, eraser ring, laser) ---------- */
+const live = { cv: h('canvas', { class: 'live' }), view: null };
+function sizeLive(v) {
+  if (live.cv.width !== v.ink.width || live.cv.height !== v.ink.height) { live.cv.width = v.ink.width; live.cv.height = v.ink.height; }
+}
+function attachLive(v) {
+  if (live.view !== v) { v.el.append(live.cv); live.view = v; }
+  sizeLive(v);
+}
+function detachLive() { live.cv.remove(); live.view = null; live.cv.width = 0; live.cv.height = 0; }
+let drawQueued = false;
+function requestDraw() {
+  if (drawQueued) return;
+  drawQueued = true;
+  requestAnimationFrame(() => { drawQueued = false; drawLive(); });
+}
+function drawLive() {
+  const v = live.view;
+  if (!v || !v.mounted) return;
+  const ctx = live.cv.getContext('2d');
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, live.cv.width, live.cv.height);
+  const k = live.cv.width / U;
+  ctx.setTransform(k, 0, 0, k, 0, 0);
+  if (act && act.v === v) {
+    if (act.s) drawStroke(ctx, act.s);
+    if (act.tool === 'eraser' && act.cursor) {
+      ctx.beginPath(); ctx.arc(act.cursor[0], act.cursor[1], act.r, 0, Math.PI * 2);
+      ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(90,100,115,.9)'; ctx.fillStyle = 'rgba(255,255,255,.35)';
+      ctx.fill(); ctx.stroke();
+    }
+  }
+  if (laser.v === v && laser.pts.length) drawLaser(ctx);
+}
+
+/* laser pointer: a red trail that fades within a second, never saved */
+const LASER_LIFE = 900;
+const laser = { pts: [], v: null, raf: 0 };
+function laserAdd(v, x, y) {
+  if (laser.v !== v) { laser.pts = []; laser.v = v; }
+  laser.pts.push(x, y, performance.now());
+  if (!laser.raf) laser.raf = requestAnimationFrame(laserFrame);
+}
+function laserFrame() {
+  laser.raf = 0;
+  const now = performance.now();
+  let cut = 0;
+  while (cut < laser.pts.length && now - laser.pts[cut + 2] > LASER_LIFE) cut += 3;
+  if (cut) laser.pts.splice(0, cut);
+  drawLive();
+  const holding = act && act.tool === 'laser';
+  if (laser.pts.length || holding) laser.raf = requestAnimationFrame(laserFrame);
+}
+function drawLaser(ctx) {
+  const p = laser.pts, now = performance.now();
+  ctx.lineCap = 'round';
+  for (const [w, a0] of [[16, 0.22], [5, 1]]) {
+    for (let i = 3; i < p.length; i += 3) {
+      const a = 1 - (now - p[i + 2]) / LASER_LIFE;
+      if (a <= 0) continue;
+      ctx.strokeStyle = 'rgba(255,45,45,' + (a * a0).toFixed(3) + ')';
+      ctx.lineWidth = w;
+      ctx.beginPath(); ctx.moveTo(p[i - 3], p[i - 2]); ctx.lineTo(p[i], p[i + 1]); ctx.stroke();
+    }
+  }
+  if (act && act.tool === 'laser' && p.length) {
+    const x = p[p.length - 3], y = p[p.length - 2];
+    ctx.fillStyle = 'rgba(255,45,45,.3)'; ctx.beginPath(); ctx.arc(x, y, 13, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ff2d2d'; ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x, y, 2.2, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+/* ---------- pointer input ---------- */
+let act = null;
+let pinch = null;
+function allowed(e) {
+  if (e.pointerType === 'pen') return true;
+  if (e.pointerType === 'mouse') return e.button === 0;
+  if (e.pointerType === 'touch') return prefs.fingerDraw && !pinch;
+  return false;
+}
+function pressure(e) {
+  if (e.pointerType !== 'pen') return 0.5;
+  return e.pressure > 0 ? e.pressure : 0.35;
+}
+function toPage(e) {
+  const r = act.rect, f = U / r.width;
+  return [(e.clientX - r.left) * f, (e.clientY - r.top) * f];
+}
+pagesEl.addEventListener('pointerdown', (e) => {
+  if (act || !allowed(e)) return;
+  const el = e.target.closest('.page');
+  if (!el) return;
+  const v = views.get(el.dataset.id);
+  if (!v || !v.mounted) return;
+  e.preventDefault();
+  closePop(); wake();
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  try { el.setPointerCapture(e.pointerId); } catch (err) {}
+  act = { id: e.pointerId, v, rect: el.getBoundingClientRect(), tool: prefs.tool, type: e.pointerType };
+  const [x, y] = toPage(e);
+  attachLive(v);
+  if (act.tool === 'pen') {
+    act.lp = pressure(e);
+    act.s = { t: 'pen', c: prefs.penColor, w: SIZES.pen[prefs.size.pen], pts: [x, y, act.lp] };
+  } else if (act.tool === 'hl') {
+    act.s = { t: 'hl', c: prefs.hlColor, w: SIZES.hl[prefs.size.hl], pts: [x, y, 0.5] };
+  } else if (act.tool === 'shape') {
+    act.start = [x, y];
+    act.s = { t: prefs.shape, c: prefs.penColor, w: SIZES.pen[prefs.size.pen], pts: [x, y, x, y] };
+  } else if (act.tool === 'eraser') {
+    act.removed = []; act.r = SIZES.eraser[prefs.size.eraser]; act.last = [x, y]; eraseAt(x, y);
+  } else if (act.tool === 'laser') {
+    laserAdd(v, x, y);
+  }
+  requestDraw();
+});
+pagesEl.addEventListener('pointermove', (e) => {
+  if (!act || e.pointerId !== act.id) return;
+  e.preventDefault();
+  const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : null;
+  for (const ev of (evs && evs.length ? evs : [e])) {
+    const [x, y] = toPage(ev);
+    addPoint(x, y, pressure(ev));
+  }
+  requestDraw();
+});
+pagesEl.addEventListener('pointerup', (e) => { if (act && e.pointerId === act.id) finish(true); });
+pagesEl.addEventListener('pointercancel', (e) => { if (act && e.pointerId === act.id) finish(true); });
+
+function addPoint(x, y, pr) {
+  const t = act.tool;
+  if (t === 'pen' || t === 'hl') {
+    const p = act.s.pts;
+    if (Math.hypot(x - p[p.length - 3], y - p[p.length - 2]) < 0.8) return;
+    if (t === 'pen') act.lp = act.lp * 0.55 + pr * 0.45;
+    p.push(x, y, t === 'pen' ? act.lp : 0.5);
+  } else if (t === 'shape') {
+    snapShape(act.s, act.start, x, y);
+  } else if (t === 'eraser') {
+    const [lx, ly] = act.last, d = Math.hypot(x - lx, y - ly);
+    const steps = Math.max(1, Math.ceil(d / (act.r * 0.5)));
+    for (let i = 1; i <= steps; i++) eraseAt(lx + (x - lx) * i / steps, ly + (y - ly) * i / steps);
+    act.last = [x, y];
+  } else if (t === 'laser') {
+    laserAdd(act.v, x, y);
+  }
+}
+function snapShape(s, [x1, y1], x2, y2) {
+  const dx = x2 - x1, dy = y2 - y1;
+  if (s.t === 'line' || s.t === 'arrow') {
+    const len = Math.hypot(dx, dy), a = Math.atan2(dy, dx), step = Math.PI / 4;
+    const sa = Math.round(a / step) * step;
+    if (Math.abs(a - sa) < 0.07) { x2 = x1 + len * Math.cos(sa); y2 = y1 + len * Math.sin(sa); }
+  } else {
+    const ax = Math.abs(dx), ay = Math.abs(dy);
+    if (Math.abs(ax - ay) < 0.08 * Math.max(ax, ay)) { const m = Math.max(ax, ay); x2 = x1 + Math.sign(dx || 1) * m; y2 = y1 + Math.sign(dy || 1) * m; }
+  }
+  s.pts = [x1, y1, x2, y2];
+}
+function eraseAt(x, y) {
+  const p = act.v.p;
+  let changed = false;
+  for (let i = p.strokes.length - 1; i >= 0; i--) {
+    const s = p.strokes[i];
+    if (hit(s, x, y, act.r)) { p.strokes.splice(i, 1); act.removed.push({ s, i }); changed = true; }
+  }
+  if (changed) renderInk(act.v);
+  act.cursor = [x, y];
+}
+function finish(commit) {
+  const a = act;
+  act = null;
+  const v = a.v, p = v.p;
+  if (a.s) {
+    const s = a.s;
+    const ok = (s.t === 'pen' || s.t === 'hl') ? s.pts.length >= 3 : Math.hypot(s.pts[2] - s.pts[0], s.pts[3] - s.pts[1]) > 3;
+    if (commit && ok) {
+      s.pts = Float32Array.from(s.pts);
+      p.strokes.push(s);
+      pushUndo({ k: 'add', pid: p.id, s });
+      dirty();
+    }
+    renderInk(v);
+  } else if (a.tool === 'eraser' && a.removed.length) {
+    pushUndo({ k: 'erase', pid: p.id, items: a.removed });
+    dirty();
+  }
+  requestDraw();
+}
+function cancelActive() {
+  if (!act) return;
+  const a = act;
+  act = null;
+  if (a.tool === 'eraser' && a.removed.length) { pushUndo({ k: 'erase', pid: a.v.p.id, items: a.removed }); dirty(); }
+  requestDraw();
+}
+
+/* ---------- touch: palm rejection, pinch zoom, two-finger pan ---------- */
+const isStylus = (list) => { for (const t of list) if (t.touchType === 'stylus') return true; return false; };
+const tdist = (a, b) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+scroller.addEventListener('touchstart', (e) => {
+  if (isStylus(e.changedTouches)) { if (e.cancelable) e.preventDefault(); return; }
+  if (e.touches.length === 2 && !(act && act.type === 'pen')) {
+    if (act && act.type === 'touch') cancelActive();
+    const [a, b] = e.touches;
+    pinch = { d: tdist(a, b), s: scale, mx: (a.clientX + b.clientX) / 2, my: (a.clientY + b.clientY) / 2 };
+    if (e.cancelable) e.preventDefault();
+  }
+}, { passive: false });
+scroller.addEventListener('touchmove', (e) => {
+  if ((act && act.type === 'pen') || isStylus(e.touches)) { if (e.cancelable) e.preventDefault(); return; }
+  if (pinch && e.touches.length >= 2) {
+    if (e.cancelable) e.preventDefault();
+    const [a, b] = e.touches;
+    const mx = (a.clientX + b.clientX) / 2, my = (a.clientY + b.clientY) / 2;
+    zoomTo(pinch.s * tdist(a, b) / pinch.d, mx, my, false);
+    scroller.scrollLeft -= mx - pinch.mx;
+    scroller.scrollTop -= my - pinch.my;
+    pinch.mx = mx; pinch.my = my;
+  }
+}, { passive: false });
+function endTouch(e) { if (pinch && e.touches.length < 2) { pinch = null; scheduleRepaint(); } }
+scroller.addEventListener('touchend', endTouch, { passive: true });
+scroller.addEventListener('touchcancel', endTouch, { passive: true });
+document.addEventListener('gesturestart', (e) => e.preventDefault());
+document.addEventListener('gesturechange', (e) => e.preventDefault());
+document.addEventListener('dblclick', (e) => { if (e.target.closest('#scroller')) e.preventDefault(); });
+
+/* trackpad / mouse wheel zoom with ctrl (desktop testing) */
+scroller.addEventListener('wheel', (e) => {
+  if (!e.ctrlKey) return;
+  e.preventDefault();
+  zoomTo(scale * Math.exp(-e.deltaY * 0.01), e.clientX, e.clientY);
+}, { passive: false });
+
+/* ---------- zoom ---------- */
+function zoomTo(ns, cx, cy, repaint = true) {
+  ns = clamp(ns, minScale(), 4);
+  if (Math.abs(ns - scale) < 1e-4) return;
+  const r = scroller.getBoundingClientRect();
+  const ax = cx - r.left, ay = cy - r.top;
+  const k = ns / scale;
+  const sx = scroller.scrollLeft + ax, sy = scroller.scrollTop + ay;
+  scale = ns;
+  fitMode = Math.abs(ns - fitScale()) < 0.005;
+  layout();
+  scroller.scrollLeft = sx * k - ax;
+  scroller.scrollTop = sy * k - ay;
+  if (repaint) scheduleRepaint();
+}
+function zoomCenter(f) {
+  const r = scroller.getBoundingClientRect();
+  zoomTo(scale * f, r.left + r.width / 2, r.top + r.height / 2);
+}
+function fitWidth() {
+  const idx = currentIdx;
+  scale = fitScale(); fitMode = true;
+  layout(); scheduleRepaint();
+  scrollToPage(idx, false);
+}
+function updZoomLabel() {
+  const pct = Math.round(scale / fitScale() * 100);
+  $('#bFit').textContent = fitMode ? 'Fit' : pct + '%';
+}
+let resizeT = null;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeT);
+  resizeT = setTimeout(() => {
+    if (!nb) return;
+    if (fitMode) { const idx = currentIdx; scale = fitScale(); layout(); scheduleRepaint(); scrollToPage(idx, false); }
+    else layout();
+  }, 120);
+});
+
+/* ---------- page navigation ---------- */
+function scrollToPage(i, smooth = true) {
+  const p = nb.pages[clamp(i, 0, nb.pages.length - 1)];
+  const v = p && views.get(p.id);
+  if (!v) return;
+  scroller.scrollTo({ top: Math.max(0, v.el.offsetTop - 12), behavior: smooth ? 'smooth' : 'auto' });
+  currentIdx = nb.pages.indexOf(p);
+  updateIndicator();
+}
+let scrollQ = false;
+scroller.addEventListener('scroll', () => {
+  if (scrollQ) return;
+  scrollQ = true;
+  requestAnimationFrame(() => { scrollQ = false; computeCurrent(); });
+}, { passive: true });
+function computeCurrent() {
+  if (!nb) return;
+  const mid = scroller.scrollTop + scroller.clientHeight * 0.4;
+  let idx = 0;
+  nb.pages.forEach((p, i) => { const v = views.get(p.id); if (v && v.el.offsetTop <= mid) idx = i; });
+  if (idx !== currentIdx) { currentIdx = idx; updateIndicator(); }
+}
+function updateIndicator() {
+  if (!nb) return;
+  $('#bPage').textContent = (currentIdx + 1) + ' / ' + nb.pages.length;
+}
+function ensureVisible(pid) {
+  const i = nb.pages.findIndex((p) => p.id === pid);
+  const v = views.get(pid);
+  if (i < 0 || !v) return;
+  const top = v.el.offsetTop, bottom = top + v.el.offsetHeight;
+  if (bottom < scroller.scrollTop || top > scroller.scrollTop + scroller.clientHeight) scrollToPage(i);
+}
+
+/* ---------- undo / redo ---------- */
+function pushUndo(op) {
+  undoStack.push(op);
+  if (undoStack.length > 300) undoStack.shift();
+  redoStack.length = 0;
+  updUndo();
+}
+function updUndo() { $('#bUndo').disabled = !undoStack.length; $('#bRedo').disabled = !redoStack.length; }
+function undo() { if (act) return; const op = undoStack.pop(); if (!op) return; applyOp(op, true); redoStack.push(op); updUndo(); dirty(); }
+function redo() { if (act) return; const op = redoStack.pop(); if (!op) return; applyOp(op, false); undoStack.push(op); updUndo(); dirty(); }
+function applyOp(op, inverse) {
+  if (op.k === 'pages') {
+    if (inverse) nb.pages.splice(op.idx, op.added.length, ...op.removed);
+    else nb.pages.splice(op.idx, op.removed.length, ...op.added);
+    const keep = scroller.scrollTop;
+    buildPages();
+    scroller.scrollTop = keep;
+    scrollToPage(clamp(op.idx, 0, nb.pages.length - 1));
+    return;
+  }
+  const p = nb.pages.find((q) => q.id === op.pid);
+  if (!p) return;
+  if (op.k === 'add') {
+    if (inverse) { const i = p.strokes.lastIndexOf(op.s); if (i >= 0) p.strokes.splice(i, 1); }
+    else p.strokes.push(op.s);
+  } else if (op.k === 'erase') {
+    if (inverse) for (let j = op.items.length - 1; j >= 0; j--) { const it = op.items[j]; p.strokes.splice(Math.min(it.i, p.strokes.length), 0, it.s); }
+    else for (const it of op.items) { const i = p.strokes.indexOf(it.s); if (i >= 0) p.strokes.splice(i, 1); }
+  } else if (op.k === 'clear') {
+    p.strokes = inverse ? op.strokes.slice() : [];
+  } else if (op.k === 'bg') {
+    p.bg = inverse ? op.from : op.to;
+    const v = views.get(p.id);
+    if (v) v.el.className = 'page bg-' + p.bg;
+  }
+  const v = views.get(p.id);
+  if (v) { v.p = p; if (v.mounted) renderInk(v); }
+  ensureVisible(p.id);
+}
+function doOp(op) { applyOp(op, false); pushUndo(op); dirty(); }
+
+/* ---------- page operations ---------- */
+const newPage = (bg) => ({ id: uid(), bg, h: A4H, strokes: [] });
+function addPage(bg) {
+  prefs.lastBg = bg; savePrefs();
+  doOp({ k: 'pages', idx: currentIdx + 1, removed: [], added: [newPage(bg)] });
+}
+function setPageBg(bg) {
+  const p = nb.pages[currentIdx];
+  if (!p || p.bg === 'pdf' || p.bg === bg) return;
+  prefs.lastBg = bg; savePrefs();
+  doOp({ k: 'bg', pid: p.id, from: p.bg, to: bg });
+}
+function clearPage() {
+  const p = nb.pages[currentIdx];
+  if (!p || !p.strokes.length) return;
+  doOp({ k: 'clear', pid: p.id, strokes: p.strokes.slice() });
+}
+function deletePage() {
+  const p = nb.pages[currentIdx];
+  if (!p) return;
+  const added = nb.pages.length === 1 ? [newPage(prefs.lastBg)] : [];
+  doOp({ k: 'pages', idx: currentIdx, removed: [p], added });
+  toast('Page deleted.', { label: 'Undo', fn: undo });
+}
+function isUntouchedSinglePage(n) { return n.pages.length === 1 && n.pages[0].bg !== 'pdf' && !n.pages[0].strokes.length; }
+
+let pdfMode = 'insert';
+function pickPdf(mode) {
+  if (!pdfReady()) { toast('The PDF reader did not load. Check the internet connection and reload the page.'); return; }
+  pdfMode = mode;
+  const inp = $('#pdfInput');
+  inp.value = '';
+  inp.click();
+}
+$('#pdfInput').addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  closePop();
+  try { await importPdf(file, pdfMode); }
+  catch (err) { console.warn(err); toast('Could not open that PDF: ' + (err && err.message ? err.message : 'unknown error')); }
+});
+async function importPdf(file, mode) {
+  toast('Opening ' + file.name + ' …', null, 60000);
+  const bytes = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(bytes.slice(0)) }).promise;
+  const pdfId = uid();
+  await DB.put('pdfs', { bytes, name: file.name }, pdfId);
+  pdfDocs.set(pdfId, Promise.resolve(pdf));
+  const pages = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const pg = await pdf.getPage(i);
+    const vp = pg.getViewport({ scale: 1 });
+    pages.push({ id: uid(), bg: 'pdf', pdfId, pdfPage: i, h: Math.round(U * vp.height / vp.width), strokes: [] });
+    if (i % 20 === 0) toast('Reading page ' + i + ' of ' + pdf.numPages + ' …', null, 60000);
+  }
+  const title = file.name.replace(/\.pdf$/i, '').slice(0, 60) || 'PDF notes';
+  if (mode === 'new') {
+    await saveNow();
+    const n = { id: uid(), name: title, created: Date.now(), updated: Date.now(), pdfIds: [pdfId], pages };
+    await DB.put('notebooks', n);
+    setNotebook(n, true);
+  } else {
+    nb.pdfIds = nb.pdfIds || [];
+    nb.pdfIds.push(pdfId);
+    if (isUntouchedSinglePage(nb)) {
+      doOp({ k: 'pages', idx: 0, removed: [nb.pages[0]], added: pages });
+      if (/^Untitled/.test(nb.name)) { nb.name = title; $('#nbName').value = title; }
+    } else {
+      doOp({ k: 'pages', idx: currentIdx + 1, removed: [], added: pages });
+    }
+  }
+  toast(pdf.numPages + (pdf.numPages === 1 ? ' page' : ' pages') + ' added from ' + file.name + '.');
+}
+
+/* ---------- notebooks ---------- */
+function makeNotebook(name, bg) {
+  return { id: uid(), name, created: Date.now(), updated: Date.now(), pdfIds: [], pages: [newPage(bg)] };
+}
+function setNotebook(n, fresh) {
+  for (const pr of pdfDocs.values()) pr.then((d) => d.destroy()).catch(() => {});
+  pdfDocs.clear();
+  nb = n;
+  prefs.lastNb = n.id; savePrefs();
+  undoStack = []; redoStack = []; updUndo();
+  $('#nbName').value = n.name;
+  currentIdx = 0;
+  if (fitMode || fresh) { scale = fitScale(); fitMode = true; }
+  buildPages();
+  scroller.scrollTop = 0; scroller.scrollLeft = 0;
+}
+async function openNotebook(id) {
+  if (nb && id === nb.id) { closePop(); return; }
+  await saveNow();
+  const n = await DB.get('notebooks', id);
+  closePop();
+  if (n) setNotebook(n, true);
+}
+async function createNotebook(bg) {
+  await saveNow();
+  const all = await DB.all('notebooks').catch(() => []);
+  const n = makeNotebook('Untitled ' + (all.length + 1), bg);
+  prefs.lastBg = bg;
+  await DB.put('notebooks', n).catch(() => {});
+  closePop();
+  setNotebook(n, true);
+  const inp = $('#nbName');
+  if (!document.body.classList.contains('compact')) { inp.focus(); inp.select(); }
+}
+async function deleteNotebook(id) {
+  const n = await DB.get('notebooks', id);
+  if (n) for (const pid of n.pdfIds || []) await DB.del('pdfs', pid).catch(() => {});
+  await DB.del('notebooks', id);
+  if (nb && nb.id === id) {
+    nb = null;
+    const all = (await DB.all('notebooks').catch(() => [])).sort((a, b) => b.updated - a.updated);
+    let next = all[0];
+    if (!next) { next = makeNotebook('Untitled 1', prefs.lastBg); await DB.put('notebooks', next).catch(() => {}); }
+    setNotebook(next, true);
+  }
+}
+$('#nbName').addEventListener('input', (e) => { if (!nb) return; nb.name = e.target.value.trim() || 'Untitled'; dirty(); });
+$('#nbName').addEventListener('keydown', (e) => { if (e.key === 'Enter') e.target.blur(); });
+
+function seedNotebook() {
+  const n = makeNotebook('Maths practice', 'graph');
+  const f = (a) => Float32Array.from(a);
+  n.pages[0].strokes = [
+    { t: 'hl', c: HL[0], w: 26, pts: f([500, 750, 0.5, 575, 650, 0.5, 650, 550, 0.5]) },
+    { t: 'arrow', c: PEN[0], w: 3.5, pts: f([125, 750, 875, 750]) },
+    { t: 'arrow', c: PEN[0], w: 3.5, pts: f([500, 1250, 500, 250]) },
+    { t: 'ellipse', c: PEN[1], w: 3.5, pts: f([312.5, 562.5, 687.5, 937.5]) },
+    { t: 'line', c: PEN[2], w: 3.5, pts: f([500, 750, 650, 750]) },
+    { t: 'line', c: PEN[2], w: 3.5, pts: f([650, 750, 650, 550]) },
+    { t: 'line', c: PEN[2], w: 3.5, pts: f([650, 550, 500, 750]) },
+    { t: 'rect', c: PEN[2], w: 2, pts: f([625, 725, 650, 750]) }
+  ];
+  n.pages.push(newPage('ruled'), newPage('board'));
+  return n;
+}
+
+/* ---------- export ---------- */
+function drawPattern(ctx, bg, hh) {
+  // ctx is already scaled to page units
+  ctx.fillStyle = bg === 'board' ? BOARD : '#ffffff';
+  ctx.fillRect(0, 0, U, hh);
+  if (bg === 'ruled') {
+    ctx.fillStyle = '#b9d3ee';
+    for (let y = 12; y < hh; y += 36) ctx.fillRect(0, y - 1.1, U, 1.1);
+    ctx.fillStyle = '#f2a3a3'; ctx.fillRect(89, 0, 2, hh);
+  } else if (bg === 'graph') {
+    ctx.fillStyle = '#dbe7f3';
+    for (let x = 0; x < U; x += 25) ctx.fillRect(x, 0, 1, hh);
+    for (let y = 0; y < hh; y += 25) ctx.fillRect(0, y, U, 1);
+    ctx.fillStyle = '#9fc0e0';
+    for (let x = 0; x < U; x += 125) ctx.fillRect(x, 0, 1.2, hh);
+    for (let y = 0; y < hh; y += 125) ctx.fillRect(0, y, U, 1.2);
+  } else if (bg === 'dot') {
+    ctx.fillStyle = '#a9b4c2';
+    for (let y = 15; y < hh; y += 30) for (let x = 15; x < U; x += 30) { ctx.beginPath(); ctx.arc(x, y, 1.8, 0, Math.PI * 2); ctx.fill(); }
+  }
+}
+async function renderPageImage(p, W) {
+  const H = Math.round(W * p.h / U), k = W / U;
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+  if (p.bg === 'pdf') {
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+    try {
+      const pdf = await getPdf(p.pdfId);
+      const pg = await pdf.getPage(p.pdfPage);
+      const vp1 = pg.getViewport({ scale: 1 });
+      await pg.render({ canvasContext: ctx, viewport: pg.getViewport({ scale: W / vp1.width }) }).promise;
+    } catch (e) { console.warn(e); }
+  } else {
+    ctx.setTransform(k, 0, 0, k, 0, 0);
+    drawPattern(ctx, p.bg, p.h);
+  }
+  ctx.setTransform(k, 0, 0, k, 0, 0);
+  drawInk(ctx, p.strokes);
+  return cv;
+}
+let exporting = false;
+async function exportPdf() {
+  if (exporting || !nb) return;
+  if (!window.jspdf) { toast('The PDF writer did not load. Check the internet connection and reload the page.'); return; }
+  exporting = true;
+  try {
+    await saveNow();
+    const { jsPDF } = window.jspdf;
+    let doc = null;
+    for (let i = 0; i < nb.pages.length; i++) {
+      toast('Preparing page ' + (i + 1) + ' of ' + nb.pages.length + ' …', null, 60000);
+      const p = nb.pages[i];
+      const cv = await renderPageImage(p, 1600);
+      const img = cv.toDataURL('image/jpeg', 0.88);
+      cv.width = 0; cv.height = 0;
+      const wpt = 595.28, hpt = wpt * p.h / U, orient = hpt >= wpt ? 'portrait' : 'landscape';
+      if (!doc) doc = new jsPDF({ unit: 'pt', format: [wpt, hpt], orientation: orient, compress: true });
+      else doc.addPage([wpt, hpt], orient);
+      doc.addImage(img, 'JPEG', 0, 0, wpt, hpt);
+    }
+    doc.setProperties({ title: nb.name, creator: 'Study Board' });
+    const blob = doc.output('blob');
+    const name = (nb.name.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'notes') + '.pdf';
+    const file = new File([blob], name, { type: 'application/pdf' });
+    toast('PDF ready: ' + nb.pages.length + (nb.pages.length === 1 ? ' page.' : ' pages.'), { label: 'Share or save', fn: () => deliver(file, blob, name), ms: 30000 });
+  } catch (e) {
+    console.warn(e);
+    toast('Could not make the PDF: ' + (e && e.message ? e.message : 'unknown error'));
+  } finally { exporting = false; }
+}
+async function deliver(file, blob, name) {
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: name }); return; }
+    catch (e) { if (e && e.name === 'AbortError') return; }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = h('a', { href: url, download: name });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+/* ---------- toolbar ---------- */
+function renderToolbar() {
+  document.querySelectorAll('.tool').forEach((b) => {
+    b.classList.toggle('on', b.dataset.tool === prefs.tool);
+    b.setAttribute('aria-pressed', b.dataset.tool === prefs.tool ? 'true' : 'false');
+  });
+  $('#bShape').innerHTML = ICON[prefs.shape] + '<span class="caret"></span>';
+  const gc = $('#gColors');
+  gc.textContent = '';
+  const isHl = prefs.tool === 'hl';
+  const list = isHl ? HL : PEN, names = isHl ? HL_NAMES : PEN_NAMES;
+  const cur = isHl ? prefs.hlColor : prefs.penColor;
+  const passive = prefs.tool === 'eraser' || prefs.tool === 'laser';
+  list.forEach((c, i) => {
+    gc.append(h('button', {
+      class: 'sw' + (c === cur && !passive ? ' on' : '') + (passive ? ' dim' : ''), style: '--c:' + c,
+      title: names[i], 'aria-label': names[i], onclick: () => pickColor(c)
+    }));
+  });
+  const custom = h('input', { type: 'color', 'aria-label': 'Choose any colour', value: list.includes(cur) ? '#ff5500' : cur });
+  custom.addEventListener('input', (e) => pickColor(e.target.value));
+  const isCustom = !list.includes(cur);
+  gc.append(h('label', { class: 'sw custom x' + (isCustom && !passive ? ' on' : ''), title: 'Any colour' }, custom));
+
+  const gs = $('#gSizes');
+  gs.textContent = '';
+  const key = prefs.tool === 'hl' ? 'hl' : prefs.tool === 'eraser' ? 'eraser' : 'pen';
+  gs.style.visibility = prefs.tool === 'laser' ? 'hidden' : '';
+  const dots = key === 'eraser' ? [6, 10, 15] : key === 'hl' ? [7, 11, 16] : [4, 7, 11];
+  const labels = ['Thin', 'Medium', 'Thick'];
+  dots.forEach((d, i) => {
+    const sp = h('span');
+    sp.style.width = sp.style.height = d + 'px';
+    if (key === 'hl') { sp.style.borderRadius = '2px'; sp.style.background = prefs.hlColor; }
+    if (key === 'eraser') { sp.style.background = 'transparent'; sp.style.border = '1.6px solid currentColor'; }
+    gs.append(h('button', {
+      class: 'ib sz' + (prefs.size[key] === i ? ' on' : ''), title: labels[i], 'aria-label': labels[i] + ' ' + key,
+      onclick: () => { prefs.size[key] = i; savePrefs(); renderToolbar(); }
+    }, sp));
+  });
+  document.body.classList.toggle('compact', !!prefs.compact);
+  document.body.classList.toggle('finger', !!prefs.fingerDraw);
+}
+function pickColor(c) {
+  if (prefs.tool === 'hl') prefs.hlColor = c;
+  else { prefs.penColor = c; if (prefs.tool === 'eraser' || prefs.tool === 'laser') prefs.tool = 'pen'; }
+  savePrefs(); renderToolbar();
+}
+function setTool(t) { prefs.tool = t; savePrefs(); renderToolbar(); }
+$('#gTools').addEventListener('click', (e) => {
+  const b = e.target.closest('.tool');
+  if (!b) return;
+  const t = b.dataset.tool;
+  if (t === 'shape' && prefs.tool === 'shape') {
+    openPop(b, (pop) => {
+      pop.append(h('div', { class: 'ph' }, 'Shape'));
+      for (const [k, label] of SHAPES) pop.append(h('button', {
+        class: 'pi' + (prefs.shape === k ? ' on' : ''), html: ICON[k] + '<span>' + label + '</span>',
+        onclick: () => { prefs.shape = k; savePrefs(); renderToolbar(); closePop(); }
+      }));
+      pop.append(h('div', { class: 'help' }, h('p', null, 'Lines snap to flat, upright and 45°. Near-squares and near-circles snap true.')));
+    });
+    return;
+  }
+  setTool(t);
+});
+$('#bUndo').addEventListener('click', undo);
+$('#bRedo').addEventListener('click', redo);
+$('#bFit').addEventListener('click', fitWidth);
+$('#bPdf').addEventListener('click', () => pickPdf('insert'));
+
+function bgPreview(bg) { return h('span', { class: 'prev bg-' + bg }); }
+$('#bAdd').addEventListener('click', (e) => openPop(e.currentTarget, (pop) => {
+  pop.append(h('div', { class: 'ph' }, 'Add a page after page ' + (currentIdx + 1)));
+  for (const [k, label] of BG_TYPES) pop.append(h('button', { class: 'pi', onclick: () => { closePop(); addPage(k); } }, bgPreview(k), h('span', null, label)));
+  const cur = nb.pages[currentIdx];
+  pop.append(h('div', { class: 'ph' }, 'Change page ' + (currentIdx + 1) + ' to'));
+  if (cur && cur.bg === 'pdf') pop.append(h('div', { class: 'help' }, h('p', null, 'This is a PDF page, so its paper cannot be changed.')));
+  else for (const [k, label] of BG_TYPES) pop.append(h('button', {
+    class: 'pi' + (cur && cur.bg === k ? ' on' : ''), onclick: () => { closePop(); setPageBg(k); }
+  }, bgPreview(k), h('span', null, label)));
+}));
+
+$('#bPage').addEventListener('click', (e) => openPop(e.currentTarget, (pop) => {
+  pop.append(h('div', { class: 'ph' }, 'Go to page'));
+  pop.append(h('div', { class: 'nbrow' },
+    h('button', { class: 'pi', disabled: currentIdx <= 0, onclick: () => { closePop(); scrollToPage(currentIdx - 1); } }, 'Previous page'),
+    h('button', { class: 'pi', disabled: currentIdx >= nb.pages.length - 1, onclick: () => { closePop(); scrollToPage(currentIdx + 1); } }, 'Next page')));
+  const g = h('div', { class: 'pgrid' });
+  nb.pages.forEach((p, i) => g.append(h('button', {
+    class: i === currentIdx ? 'on' : '', 'aria-label': 'Page ' + (i + 1),
+    onclick: () => { closePop(); scrollToPage(i); }
+  }, String(i + 1))));
+  pop.append(g);
+}));
+
+$('#bBooks').addEventListener('click', async (e) => {
+  const anchor = e.currentTarget;
+  await saveNow();
+  const all = (await DB.all('notebooks').catch(() => [])).sort((a, b) => b.updated - a.updated);
+  openPop(anchor, (pop) => {
+    pop.append(h('div', { class: 'ph' }, 'New'));
+    pop.append(h('button', { class: 'pi', html: ICON.plus + '<span>New notebook (' + labelOf(prefs.lastBg) + ' paper)</span>', onclick: () => createNotebook(prefs.lastBg) }));
+    pop.append(h('button', { class: 'pi', html: ICON.pdf + '<span>Open a PDF as a new notebook</span>', onclick: () => pickPdf('new') }));
+    pop.append(h('div', { class: 'ph' }, 'Notebooks on this iPad'));
+    for (const n of all) {
+      const open = h('button', { class: 'pi' + (nb && n.id === nb.id ? ' on' : ''), onclick: () => openNotebook(n.id) },
+        h('span', null, n.name), h('span', { class: 'sub' }, n.pages.length + ' p · ' + shortDate(n.updated)));
+      const del = h('button', { class: 'pi del', 'aria-label': 'Delete ' + n.name, title: 'Delete', html: ICON.trash });
+      del.addEventListener('click', () => armed(del, 'Delete?', async () => {
+        await deleteNotebook(n.id);
+        closePop();
+        toast('Deleted ' + n.name + '.');
+      }));
+      pop.append(h('div', { class: 'nbrow' }, open, del));
+    }
+  });
+});
+function labelOf(bg) { const f = BG_TYPES.find((b) => b[0] === bg); return f ? f[1].split(' ')[0].toLowerCase() : 'blank'; }
+function shortDate(t) {
+  const d = new Date(t), now = new Date();
+  if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return d.toLocaleDateString([], { day: 'numeric', month: 'short' });
+}
+
+$('#bMore').addEventListener('click', (e) => openPop(e.currentTarget, (pop) => {
+  pop.append(h('button', { class: 'pi', html: ICON.share + '<span>Export notebook as PDF</span>', onclick: () => { closePop(); exportPdf(); } }));
+  const clr = h('button', { class: 'pi', html: ICON.clear + '<span>Clear writing on page ' + (currentIdx + 1) + '</span>' });
+  clr.addEventListener('click', () => armed(clr, 'Tap again to clear page ' + (currentIdx + 1), () => { closePop(); clearPage(); }));
+  const del = h('button', { class: 'pi', html: ICON.trash + '<span>Delete page ' + (currentIdx + 1) + '</span>' });
+  del.addEventListener('click', () => armed(del, 'Tap again to delete page ' + (currentIdx + 1), () => { closePop(); deletePage(); }));
+  pop.append(clr, del);
+  pop.append(h('div', { class: 'ph' }, 'Zoom (or pinch with two fingers)'));
+  pop.append(h('div', { class: 'nbrow' },
+    h('button', { class: 'pi', onclick: () => zoomCenter(0.8) }, 'Zoom out'),
+    h('button', { class: 'pi', onclick: () => zoomCenter(1.25) }, 'Zoom in')));
+  pop.append(h('div', { class: 'ph' }, 'Settings'));
+  pop.append(h('button', {
+    class: 'pi' + (prefs.fingerDraw ? ' on' : ''), html: ICON.hand + '<span>Draw with finger</span><span class="sub">' + (prefs.fingerDraw ? 'On' : 'Off') + '</span>',
+    onclick: () => { prefs.fingerDraw = !prefs.fingerDraw; savePrefs(); renderToolbar(); closePop(); toast(prefs.fingerDraw ? 'Finger drawing on. Use two fingers to scroll and zoom.' : 'Finger drawing off. Only Apple Pencil writes.'); }
+  }));
+  pop.append(h('button', {
+    class: 'pi' + (prefs.compact ? ' on' : ''), html: ICON.compact + '<span>Compact toolbar for class</span><span class="sub">' + (prefs.compact ? 'On' : 'Off') + '</span>',
+    onclick: () => { prefs.compact = !prefs.compact; savePrefs(); renderToolbar(); closePop(); setTimeout(() => window.dispatchEvent(new Event('resize')), 50); }
+  }));
+  if (document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen) {
+    pop.append(h('button', { class: 'pi', html: ICON.full + '<span>Full screen</span>', onclick: () => { closePop(); toggleFull(); } }));
+  }
+  pop.append(h('button', { class: 'pi', html: ICON.help + '<span>How to use</span>', onclick: () => showHelp(e.currentTarget) }));
+}));
+function toggleFull() {
+  const d = document, el = d.documentElement;
+  try {
+    if (d.fullscreenElement || d.webkitFullscreenElement) (d.exitFullscreen || d.webkitExitFullscreen).call(d);
+    else { const r = (el.requestFullscreen || el.webkitRequestFullscreen).call(el); if (r && r.catch) r.catch(() => toast('Full screen is not available here. Add Study Board to the Home Screen instead.')); }
+  } catch (e) { toast('Full screen is not available here.'); }
+}
+function showHelp(anchor) {
+  openPop(anchor, (pop) => {
+    const d = h('div', { class: 'help' });
+    d.innerHTML =
+      '<p><b>Write</b> with Apple Pencil. Your hand and fingers never draw, so you can rest your palm on the screen.</p>' +
+      '<p><b>Scroll</b> with one finger. <b>Zoom</b> by pinching with two fingers. Tap <b>Fit</b> to return to full width.</p>' +
+      '<p><b>PDF:</b> the page-with-arrow button adds a PDF after the current page. Each PDF page becomes a page you can write on.</p>' +
+      '<p><b>Blank paper:</b> the page-with-plus button adds a blank, ruled, graph, dotted or blackboard page, or changes the current one.</p>' +
+      '<p><b>Laser</b> shows a red trail that fades, for pointing without leaving marks.</p>' +
+      '<p><b>Shapes:</b> tap the shape button, then tap it again to choose line, arrow, rectangle or circle.</p>' +
+      '<p><b>Eraser</b> removes whole strokes it touches. Undo brings them back.</p>' +
+      '<p>Everything saves on this iPad automatically. Use <b>Export notebook as PDF</b> to send the notes.</p>';
+    pop.append(h('div', { class: 'ph' }, 'How to use'), d);
+  });
+}
+function armed(btn, label, fn) {
+  if (btn.dataset.armed) { fn(); return; }
+  const old = btn.innerHTML;
+  btn.dataset.armed = '1';
+  if (btn.classList.contains('del')) btn.textContent = label;
+  else { const s = btn.querySelector('span'); if (s) s.textContent = label; }
+  setTimeout(() => { if (btn.isConnected && btn.dataset.armed) { delete btn.dataset.armed; btn.innerHTML = old; } }, 3500);
+}
+
+/* ---------- popover + toast ---------- */
+const pop = $('#pop');
+let popAnchor = null;
+function openPop(anchor, build) {
+  if (popAnchor === anchor && !pop.hidden) { closePop(); return; }
+  pop.textContent = '';
+  build(pop);
+  pop.hidden = false;
+  popAnchor = anchor;
+  const r = anchor.getBoundingClientRect();
+  const pw2 = pop.offsetWidth, ph = pop.offsetHeight;
+  pop.style.left = clamp(r.left, 8, window.innerWidth - pw2 - 8) + 'px';
+  let top = r.bottom + 6;
+  if (top + ph > window.innerHeight - 8) top = Math.max(8, window.innerHeight - ph - 8);
+  pop.style.top = top + 'px';
+}
+function closePop() { pop.hidden = true; popAnchor = null; }
+document.addEventListener('pointerdown', (e) => {
+  if (!pop.hidden && !pop.contains(e.target) && !(popAnchor && popAnchor.contains(e.target))) closePop();
+}, true);
+const toastEl = $('#toast');
+let toastT = null;
+function toast(msg, action, ms) {
+  toastEl.textContent = '';
+  toastEl.append(h('span', null, msg));
+  if (action) toastEl.append(h('button', { onclick: () => { toastEl.hidden = true; action.fn(); } }, action.label));
+  toastEl.hidden = false;
+  clearTimeout(toastT);
+  toastT = setTimeout(() => { toastEl.hidden = true; }, ms || (action && action.ms) || (action ? 8000 : 3200));
+}
+
+/* ---------- keyboard (for an iPad keyboard or a laptop) ---------- */
+document.addEventListener('keydown', (e) => {
+  if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+  const mod = e.metaKey || e.ctrlKey;
+  if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+  if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
+  if (mod) return;
+  const map = { p: 'pen', h: 'hl', e: 'eraser', l: 'laser', s: 'shape' };
+  if (map[e.key]) setTool(map[e.key]);
+  else if (e.key === 'Escape') closePop();
+  else if (e.key === 'PageDown') { e.preventDefault(); scrollToPage(currentIdx + 1); }
+  else if (e.key === 'PageUp') { e.preventDefault(); scrollToPage(currentIdx - 1); }
+});
+
+/* ---------- keep the screen awake while teaching ---------- */
+let wl = null;
+async function wake() {
+  if (wl || !('wakeLock' in navigator)) return;
+  try { wl = await navigator.wakeLock.request('screen'); wl.addEventListener('release', () => { wl = null; }); } catch (e) { /* not allowed here */ }
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveNow(); });
+window.addEventListener('pagehide', () => { saveNow(); });
+
+/* ---------- start ---------- */
+async function init() {
+  if (pdfReady()) pdfjsLib.GlobalWorkerOptions.workerSrc = WORKER_SRC;
+  try { await DB.open(); }
+  catch (e) { DB.useMemory(); setTimeout(() => toast('This browser is not letting Study Board save. Work will be lost when the page closes.', null, 8000), 400); }
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch (e) {}
+  let n = null;
+  if (prefs.lastNb) n = await DB.get('notebooks', prefs.lastNb).catch(() => null);
+  if (!n) {
+    const all = await DB.all('notebooks').catch(() => []);
+    all.sort((a, b) => b.updated - a.updated);
+    n = all[0] || null;
+  }
+  if (!n) { n = seedNotebook(); await DB.put('notebooks', n).catch(() => {}); }
+  renderToolbar();
+  setNotebook(n, true);
+  if (!prefs.seenTip) {
+    prefs.seenTip = true; savePrefs();
+    setTimeout(() => toast('Write with Apple Pencil. Scroll with one finger, pinch with two to zoom.', null, 7000), 300);
+  }
+}
+init();
+})();
+</script>
+</body>
+</html>

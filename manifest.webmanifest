@@ -1,0 +1,14 @@
+{
+  "name": "Study Board",
+  "short_name": "Study Board",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#e4e8ee",
+  "theme_color": "#f4f6f9",
+  "icons": [
+    { "src": "icon-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
