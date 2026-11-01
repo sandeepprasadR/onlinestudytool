@@ -110,6 +110,41 @@ export default async (req: Request, context: Context) => {
       return new Response(data, { headers: { "content-type": rec.audio.type, "cache-control": "no-store" } });
     }
 
+    // shared chapter library: the teacher uploads each chapter PDF once; every device can download it
+    if (req.method === "GET" && action === "lib" && !id) {
+      const { blobs } = await s.list({ prefix: "libmeta/" });
+      const items = (await Promise.all(blobs.map((b) => s.get(b.key, { type: "json" })))).filter(Boolean);
+      return json({ items, teacher });
+    }
+
+    if (req.method === "GET" && action === "lib" && id) {
+      const meta = await s.get("libmeta/" + id, { type: "json" });
+      const data = await s.get("lib/" + id, { type: "arrayBuffer" });
+      if (!meta || !data) return fail(404, "That chapter is not in the shared library.");
+      return new Response(data, { headers: { "content-type": "application/pdf", "cache-control": "no-store" } });
+    }
+
+    if (req.method === "POST" && action === "lib") {
+      if (!teacher) return fail(403, "Only the teacher can add to the shared library.");
+      const form = await req.formData();
+      const f = await readFile(form);
+      if (!f || f.meta.type !== "application/pdf") return fail(400, "Send a chapter PDF.");
+      const subject = clean(form.get("subject"), 20);
+      const ch = Math.round(Number(form.get("ch")));
+      if (!/^(maths|science)$/.test(subject) || !(ch >= 1 && ch <= 20)) return fail(400, "Unknown chapter.");
+      const key = subject + "-" + ch;
+      await s.set("lib/" + key, f.data);
+      const meta = { key, subject, ch, name: f.meta.name, size: f.meta.size, at: Date.now() };
+      await s.setJSON("libmeta/" + key, meta);
+      return json({ item: meta });
+    }
+
+    if (req.method === "DELETE" && action === "lib" && id) {
+      if (!teacher) return fail(403, "Only the teacher can remove from the shared library.");
+      await Promise.all([s.delete("lib/" + id), s.delete("libmeta/" + id)]);
+      return json({ ok: true });
+    }
+
     if (req.method === "GET" && action === "settings") {
       return json({ settings: (await s.get("settings", { type: "json" })) || {} });
     }
