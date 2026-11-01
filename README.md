@@ -11,6 +11,12 @@ Open it in Safari, share the iPad screen in Google Meet, and write.
 - Pen, highlighter, stroke eraser, laser pointer (red trail that fades), straight line, arrow, rectangle and circle.
   Lines snap to horizontal, vertical and 45 degrees; near-circles snap to true circles.
 - Undo and redo, several notebooks, automatic saving on the iPad.
+- Chapter library for NCERT Class 10 Maths (14 chapters) and Science (13 chapters). When a chapter PDF is
+  imported, Study Board reads the chapter title from the PDF (or the NCERT file code such as `jemh108`) and
+  files it under that chapter. Tick chapters as they are taught to track progress.
+
+NCERT PDFs are not stored in this repository. Download them from NCERT's textbook page on the iPad and
+import them; they stay on the device.
 - Export the whole notebook, with your writing, as a PDF through the iPad share sheet (Files, WhatsApp, Mail).
 
 ## Use it on the iPad
