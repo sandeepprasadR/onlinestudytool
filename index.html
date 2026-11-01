@@ -167,6 +167,21 @@ body.finger #scroller { touch-action: none; }
 .help { padding: 6px 12px 10px; max-width: 320px; -webkit-user-select: text; user-select: text; }
 .help p { margin: 6px 0; }
 .help b { font-weight: 600; }
+.notepin {
+  position: absolute; z-index: 3; width: 30px; height: 30px; margin: -15px 0 0 -15px; padding: 0;
+  border-radius: 50% 50% 50% 4px; border: 2px solid #b7791f; background: #ffe58a; color: #5c3d00;
+  font: 700 13px var(--font-ui); box-shadow: 0 2px 6px rgba(0,0,0,.25); display: grid; place-items: center;
+}
+#noteCard {
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 30;
+  background: var(--ui-panel); border: 1px solid var(--ui-line); border-radius: 14px;
+  box-shadow: 0 18px 50px rgba(10,20,35,.35); padding: 10px; display: flex; flex-direction: column; gap: 8px;
+  touch-action: none; max-width: calc(100vw - 16px);
+}
+.notehead { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.notehead b { margin-right: auto; }
+.notepage { margin: 0; box-shadow: inset 0 0 0 1px var(--ui-line); border-radius: 6px; }
+.notepage::after { content: none; }
 #hw { position: fixed; inset: 0; z-index: 45; overflow: auto; background: var(--ui-bg); color: var(--ui-fg); -webkit-user-select: text; user-select: text; }
 .hwin { max-width: 760px; margin: 0 auto; padding-block: 16px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 10px; }
 .hwhead { display: flex; align-items: center; gap: 8px; position: sticky; top: 0; background: var(--ui-bg); padding-block: 6px; z-index: 1; }
@@ -211,6 +226,16 @@ textarea.hwinput { resize: vertical; }
 .bubble .txt { white-space: pre-wrap; overflow-wrap: anywhere; }
 .chatform { display: flex; gap: 8px; align-items: flex-end; }
 .chatform textarea { flex: 1; }
+.micbtn { display: flex; align-items: center; gap: 4px; height: 42px; border: 1px solid var(--ui-line); }
+.micbtn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.callrow { display: flex; align-items: center; gap: 10px; }
+.callbtn { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; line-height: 40px; }
+.callbtn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.voice { display: flex; flex-direction: column; gap: 4px; min-width: 220px; }
+.voice audio { width: 100%; max-width: 300px; height: 36px; }
+.recbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--danger); border-radius: 12px; background: var(--ui-panel); }
+.recdot { width: 12px; height: 12px; border-radius: 50%; background: var(--danger); }
+@media (prefers-reduced-motion: no-preference) { .recdot { animation: blink 1s infinite; } @keyframes blink { 50% { opacity: .25; } } }
 .linkbtn { border: 0; background: none; color: var(--ui-muted); text-decoration: underline; padding: 0; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .chip.ok { background: #173a24; color: #9fe0b3; border-color: #2b6b40; } :root:not([data-theme="light"]) .chip.wait { background: #3d3013; color: #f3d38a; border-color: #6b5520; } :root:not([data-theme="light"]) .hwmsg.bad { background: #4a1d19; color: #ffc2bb; } }
 :root[data-theme="dark"] .chip.ok { background: #173a24; color: #9fe0b3; border-color: #2b6b40; }
@@ -263,6 +288,7 @@ form.help .pi { justify-content: center; border: 1px solid var(--accent); }
     <button class="ib tool" data-tool="eraser" title="Eraser (E)" aria-label="Eraser"><svg viewBox="0 0 24 24"><path d="M8.5 20H20"/><path d="M4.4 14.6l9.2-9.2a2 2 0 0 1 2.8 0l3.2 3.2a2 2 0 0 1 0 2.8L11 20H8.8l-4.4-4.4a.7.7 0 0 1 0-1z"/><path d="M9 10l5 5"/></svg></button>
     <button class="ib tool" data-tool="laser" title="Laser pointer (L)" aria-label="Laser pointer"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"/></svg></button>
     <button class="ib tool" data-tool="shape" id="bShape" title="Shapes: tap again to choose" aria-label="Shapes"></button>
+    <button class="ib tool" data-tool="note" title="Pop-up note: tap a spot on the page (N)" aria-label="Pop-up note"><svg viewBox="0 0 24 24"><path d="M5 4h14v11l-5 5H5z"/><path d="M14 20v-5h5"/><path d="M8.5 8.5h7M8.5 12h4"/></svg></button>
   </div>
   <div class="grp" id="gColors" aria-label="Colours"></div>
   <div class="grp" id="gSizes" aria-label="Thickness"></div>
@@ -331,6 +357,7 @@ const ICON = {
   full: '<svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>',
   book: '<svg viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/><path d="M8 7.5h8M8 11h5"/></svg>',
   video: '<svg viewBox="0 0 24 24"><rect x="3" y="6" width="12" height="12" rx="2"/><path d="M15 10l6-3.5v11L15 14"/></svg>',
+  mic: '<svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg>',
   chat: '<svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12.5h5"/></svg>',
   school: '<svg viewBox="0 0 24 24"><path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5"/></svg>',
   help: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7M12 17h.01"/></svg>'
@@ -448,8 +475,8 @@ let saveTimer = null;
 function dirty() {
   if (!nb) return;
   nb.updated = Date.now();
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(saveNow, 700);
+  // save at most 0.7 s after the first change, even while writing continues
+  if (!saveTimer) saveTimer = setTimeout(saveNow, 700);
 }
 async function saveNow() {
   clearTimeout(saveTimer); saveTimer = null;
@@ -471,6 +498,7 @@ function fitScale() { return Math.max(0.2, (scroller.clientWidth - 32) / U); }
 function minScale() { return fitScale() * 0.4; }
 
 function buildPages() {
+  closeNote();
   io.disconnect();
   for (const v of views.values()) unmount(v);
   views.clear();
@@ -478,6 +506,7 @@ function buildPages() {
   nb.pages.forEach((p, i) => {
     const el = h('div', { class: 'page bg-' + p.bg, 'data-id': p.id, 'data-n': String(i + 1) });
     views.set(p.id, { p, el, ink: null, bg: null, mounted: false, token: 0, task: null });
+    for (const n of p.notes || []) el.append(notePin(p, n));
     pagesEl.append(el);
   });
   layout();
@@ -494,12 +523,13 @@ function layout() {
     v.el.style.width = w + 'px';
     v.el.style.height = (v.p.h * scale) + 'px';
   }
+  positionPins();
   updZoomLabel();
 }
 
-function pixelRatio(p) {
+function pixelRatio(p, sc) {
   let r = Math.min(window.devicePixelRatio || 1, 2);
-  const w = U * scale * r, hh = p.h * scale * r, max = 8e6;
+  const w = U * sc * r, hh = p.h * sc * r, max = 8e6;
   if (w * hh > max) r *= Math.sqrt(max / (w * hh));
   return r;
 }
@@ -522,8 +552,9 @@ function unmount(v) {
 }
 function paint(v) {
   if (!v.mounted) return;
-  const r = pixelRatio(v.p);
-  const W = Math.round(U * scale * r), H = Math.round(v.p.h * scale * r);
+  const sc = v.s || scale;
+  const r = pixelRatio(v.p, sc);
+  const W = Math.round(U * sc * r), H = Math.round(v.p.h * sc * r);
   if (v.ink.width !== W || v.ink.height !== H) { v.ink.width = W; v.ink.height = H; }
   renderInk(v);
   if (v.bg) renderPdfBg(v, W, H);
@@ -759,13 +790,18 @@ function toPage(e) {
   const r = act.rect, f = U / r.width;
   return [(e.clientX - r.left) * f, (e.clientY - r.top) * f];
 }
-pagesEl.addEventListener('pointerdown', (e) => {
+function onInkDown(e) {
   if (act || !allowed(e)) return;
+  if (e.target.closest('.notepin')) return;
   const el = e.target.closest('.page');
   if (!el) return;
   const v = views.get(el.dataset.id);
   if (!v || !v.mounted) return;
   e.preventDefault();
+  if (prefs.tool === 'note') {
+    if (v.isNote) { setTool(noteState.prevTool || 'pen'); }
+    else { const r = el.getBoundingClientRect(); createNote(v.p, (e.clientX - r.left) * U / r.width, (e.clientY - r.top) * U / r.width); return; }
+  }
   closePop(); wake();
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   try { el.setPointerCapture(e.pointerId); } catch (err) {}
@@ -786,8 +822,8 @@ pagesEl.addEventListener('pointerdown', (e) => {
     laserAdd(v, x, y);
   }
   requestDraw();
-});
-pagesEl.addEventListener('pointermove', (e) => {
+}
+function onInkMove(e) {
   if (!act || e.pointerId !== act.id) return;
   e.preventDefault();
   const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : null;
@@ -796,9 +832,14 @@ pagesEl.addEventListener('pointermove', (e) => {
     addPoint(x, y, pressure(ev));
   }
   requestDraw();
-});
-pagesEl.addEventListener('pointerup', (e) => { if (act && e.pointerId === act.id) finish(true); });
-pagesEl.addEventListener('pointercancel', (e) => { if (act && e.pointerId === act.id) finish(true); });
+}
+function attachInk(container) {
+  container.addEventListener('pointerdown', onInkDown);
+  container.addEventListener('pointermove', onInkMove);
+  container.addEventListener('pointerup', (e) => { if (act && e.pointerId === act.id) finish(true); });
+  container.addEventListener('pointercancel', (e) => { if (act && e.pointerId === act.id) finish(true); });
+}
+attachInk(pagesEl);
 
 function addPoint(x, y, pr) {
   const t = act.tool;
@@ -999,7 +1040,7 @@ function applyOp(op, inverse) {
     scrollToPage(clamp(op.idx, 0, nb.pages.length - 1));
     return;
   }
-  const p = nb.pages.find((q) => q.id === op.pid);
+  const p = findOwner(op.pid);
   if (!p) return;
   if (op.k === 'add') {
     if (inverse) { const i = p.strokes.lastIndexOf(op.s); if (i >= 0) p.strokes.splice(i, 1); }
@@ -1069,6 +1110,99 @@ $('#pdfInput').addEventListener('change', async (e) => {
   }
   catch (err) { console.warn(err); toast('Could not open that PDF: ' + (err && err.message ? err.message : 'unknown error')); }
 });
+/* ---------- pop-up notes: a blank card pinned to a spot on the page ---------- */
+const NOTE_H = 620;
+const noteState = { open: null, prevTool: 'pen' };
+const noteCard = h('div', { id: 'noteCard', role: 'dialog', 'aria-label': 'Note' });
+noteCard.hidden = true;
+document.body.append(noteCard);
+attachInk(noteCard);
+noteCard.addEventListener('touchstart', (e) => { if (isStylus(e.changedTouches) && e.cancelable) e.preventDefault(); }, { passive: false });
+noteCard.addEventListener('touchmove', (e) => { if (e.cancelable) e.preventDefault(); }, { passive: false });
+function findOwner(id) {
+  for (const p of nb.pages) {
+    if (p.id === id) return p;
+    for (const n of p.notes || []) if (n.id === id) return n;
+  }
+  return null;
+}
+function notePin(page, n) {
+  const i = (page.notes || []).indexOf(n) + 1;
+  const pin = h('button', { class: 'notepin', 'data-note': n.id, title: 'Open note', 'aria-label': 'Open note ' + i }, String(i));
+  pin.addEventListener('click', (e) => { e.stopPropagation(); openNote(page, n); });
+  return pin;
+}
+function positionPins() {
+  for (const v of views.values()) {
+    if (v.isNote) continue;
+    for (const pin of v.el.querySelectorAll('.notepin')) {
+      const n = (v.p.notes || []).find((q) => q.id === pin.dataset.note);
+      if (!n) { pin.remove(); continue; }
+      pin.style.left = (n.x * scale) + 'px';
+      pin.style.top = (n.y * scale) + 'px';
+    }
+  }
+}
+function refreshPins(page) {
+  const v = views.get(page.id);
+  if (!v) return;
+  v.el.querySelectorAll('.notepin').forEach((x) => x.remove());
+  for (const n of page.notes || []) v.el.append(notePin(page, n));
+  positionPins();
+}
+function createNote(page, x, y) {
+  page.notes = page.notes || [];
+  const n = { id: uid(), bg: 'blank', h: NOTE_H, x: clamp(x, 10, U - 10), y: clamp(y, 10, page.h - 10), strokes: [] };
+  page.notes.push(n);
+  dirty();
+  refreshPins(page);
+  openNote(page, n);
+}
+function noteLayout() {
+  const bar = $('#bar').getBoundingClientRect();
+  const availW = window.innerWidth - 32, availH = window.innerHeight - bar.bottom - 24 - 56;
+  return Math.max(0.25, Math.min(availW / U, availH / NOTE_H, 0.95));
+}
+function openNote(page, n) {
+  closeNote();
+  if (prefs.tool === 'note') { setTool(noteState.prevTool || 'pen'); }
+  noteState.open = { page, n };
+  const sc = noteLayout();
+  const sheet = h('div', { class: 'page notepage bg-' + n.bg, 'data-id': n.id });
+  sheet.style.width = (U * sc) + 'px';
+  sheet.style.height = (n.h * sc) + 'px';
+  sheet.style.setProperty('--u', sc + 'px');
+  const pageNo = nb.pages.indexOf(page) + 1, noteNo = page.notes.indexOf(n) + 1;
+  const paperBtn = h('button', { class: 'tb', onclick: () => { n.bg = n.bg === 'graph' ? 'blank' : n.bg === 'blank' ? 'ruled' : 'graph'; dirty(); openNote(page, n); } }, 'Paper: ' + ({ blank: 'Blank', ruled: 'Ruled', graph: 'Graph' })[n.bg]);
+  const clearBtn = h('button', { class: 'tb' }, 'Clear');
+  clearBtn.addEventListener('click', () => { if (!n.strokes.length) return; doOp({ k: 'clear', pid: n.id, strokes: n.strokes.slice() }); });
+  const delBtn = h('button', { class: 'tb danger' }, 'Delete note');
+  delBtn.addEventListener('click', () => armedTb(delBtn, () => { page.notes = page.notes.filter((q) => q !== n); dirty(); closeNote(true); refreshPins(page); }));
+  const head = h('div', { class: 'notehead' },
+    h('b', null, 'Note ' + noteNo + ' on page ' + pageNo),
+    paperBtn, clearBtn, delBtn,
+    h('button', { class: 'hwbtn', onclick: () => closeNote() }, 'Done'));
+  noteCard.textContent = '';
+  noteCard.append(head, sheet);
+  noteCard.style.top = ($('#bar').getBoundingClientRect().bottom + 12) + 'px';
+  noteCard.hidden = false;
+  const v = { p: n, el: sheet, ink: null, bg: null, mounted: false, token: 0, task: null, s: sc, isNote: true };
+  views.set(n.id, v);
+  mount(v);
+}
+function closeNote(deleted) {
+  const o = noteState.open;
+  if (!o) return;
+  noteState.open = null;
+  const v = views.get(o.n.id);
+  if (v) { unmount(v); views.delete(o.n.id); }
+  noteCard.hidden = true;
+  noteCard.textContent = '';
+  // an empty note leaves no pin behind
+  if (!deleted && !o.n.strokes.length) { o.page.notes = (o.page.notes || []).filter((q) => q !== o.n); dirty(); refreshPins(o.page); }
+}
+window.addEventListener('resize', () => { const o = noteState.open; if (o) openNote(o.page, o.n); });
+
 /* photos (homework pages) become a PDF so they behave like any other PDF page */
 function loadImage(f) {
   return new Promise((res, rej) => {
@@ -1384,6 +1518,14 @@ async function buildNotebookPdf(width, quality) {
     if (!doc) doc = new jsPDF({ unit: 'pt', format: [wpt, hpt], orientation: orient, compress: true });
     else doc.addPage([wpt, hpt], orient);
     doc.addImage(img, 'JPEG', 0, 0, wpt, hpt);
+    for (const n of (p.notes || []).filter((q) => q.strokes.length)) {
+      const nc = await renderPageImage(n, width);
+      const nimg = nc.toDataURL('image/jpeg', quality);
+      nc.width = 0; nc.height = 0;
+      const nh = wpt * n.h / U;
+      doc.addPage([wpt, nh], nh >= wpt ? 'portrait' : 'landscape');
+      doc.addImage(nimg, 'JPEG', 0, 0, wpt, nh);
+    }
   }
   doc.setProperties({ title: nb.name, creator: 'Study Board' });
   return doc.output('blob');
@@ -1447,7 +1589,7 @@ function pickColor(c) {
   else { prefs.penColor = c; if (prefs.tool === 'eraser' || prefs.tool === 'laser') prefs.tool = 'pen'; }
   savePrefs(); renderToolbar();
 }
-function setTool(t) { prefs.tool = t; savePrefs(); renderToolbar(); }
+function setTool(t) { if (t === 'note' && prefs.tool !== 'note') noteState.prevTool = prefs.tool; prefs.tool = t; savePrefs(); renderToolbar(); }
 $('#gTools').addEventListener('click', (e) => {
   const b = e.target.closest('.tool');
   if (!b) return;
@@ -1464,6 +1606,7 @@ $('#gTools').addEventListener('click', (e) => {
     return;
   }
   setTool(t);
+  if (t === 'note') toast('Tap the spot you want to explain. A blank note opens there.', null, 4000);
 });
 $('#bUndo').addEventListener('click', undo);
 $('#bRedo').addEventListener('click', redo);
@@ -1577,6 +1720,7 @@ function showMeetForm(anchor) {
       if (v && !m) { msg.textContent = 'That is not a Google Meet link. It should look like https://meet.google.com/abc-defg-hij'; msg.classList.add('err'); return; }
       prefs.meetUrl = v ? (m[0].startsWith('https://') ? m[0] : 'https://' + m[0]) : '';
       savePrefs(); closePop();
+      if (HW.code && HW.role === 'teacher') api('settings', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ meetUrl: prefs.meetUrl }) }).then((r) => { HW.meetUrl = r.settings.meetUrl || ''; }).catch(() => {});
       toast(prefs.meetUrl ? 'Meet link saved. Start the class from the ⋯ menu.' : 'Meet link removed.');
     });
     pop.append(form);
@@ -1667,9 +1811,9 @@ document.addEventListener('keydown', (e) => {
   if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
   if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
   if (mod) return;
-  const map = { p: 'pen', h: 'hl', e: 'eraser', l: 'laser', s: 'shape' };
+  const map = { p: 'pen', h: 'hl', e: 'eraser', l: 'laser', s: 'shape', n: 'note' };
   if (map[e.key]) setTool(map[e.key]);
-  else if (e.key === 'Escape') closePop();
+  else if (e.key === 'Escape') { closePop(); closeNote(); }
   else if (e.key === 'PageDown') { e.preventDefault(); scrollToPage(currentIdx + 1); }
   else if (e.key === 'PageUp') { e.preventDefault(); scrollToPage(currentIdx - 1); }
 });
@@ -1684,7 +1828,7 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 window.addEventListener('pagehide', () => { saveNow(); });
 
 /* ---------- homework exchange (works on the Netlify version, which has the /api/hw server) ---------- */
-const HW = { code: '', pin: '', role: '', items: [], teacher: false, busy: false, msg: '', bad: false, returning: null, timer: null, view: 'work', msgs: [], lastSeen: 0, chatTimer: null };
+const HW = { code: '', pin: '', role: '', items: [], teacher: false, busy: false, msg: '', bad: false, returning: null, timer: null, view: 'work', msgs: [], lastSeen: 0, chatTimer: null, meetUrl: '', rec: null };
 try { HW.lastSeen = +localStorage.getItem('studyboard-chat-seen') || 0; } catch (e) {}
 try { const saved = JSON.parse(localStorage.getItem('studyboard-hw') || '{}'); HW.code = saved.code || ''; HW.pin = saved.pin || ''; HW.role = saved.role || ''; } catch (e) {}
 function saveHw() { try { localStorage.setItem('studyboard-hw', JSON.stringify({ code: HW.code, pin: HW.pin, role: HW.role })); } catch (e) {} }
@@ -1764,7 +1908,12 @@ async function markHw(item) {
 }
 function field(label, control) { return h('label', { class: 'hwfield' }, h('span', null, label), control); }
 function chip(text, kind) { return h('span', { class: 'chip ' + (kind || '') }, text); }
+function chatBusy() { return !!HW.rec || [...hwEl.querySelectorAll('audio')].some((a) => !a.paused); }
 function renderHw() {
+  const oldBox = hwEl.querySelector('#chatText');
+  const draft = oldBox ? oldBox.value : (HW.draft || '');
+  HW.draft = draft;
+  const hadFocus = oldBox && document.activeElement === oldBox;
   hwEl.textContent = '';
   const inner = h('div', { class: 'hwin' });
   const head = h('div', { class: 'hwhead' },
@@ -1782,7 +1931,10 @@ function renderHw() {
   else inner.append(HW.role === 'teacher' ? teacherView() : studentView());
   if (HW.code && !HW.returning && HW.view !== 'chat') inner.append(h('p', { class: 'hwfoot' }, h('button', { class: 'linkbtn', onclick: () => { HW.code = ''; HW.pin = ''; HW.role = ''; saveHw(); HW.items = []; HW.msg = ''; renderHw(); } }, 'Sign out of homework on this device')));
   hwEl.append(inner);
-  if (HW.view === 'chat') { const list = hwEl.querySelector('.chatlist'); if (list) list.scrollTop = list.scrollHeight; }
+  if (HW.view === 'chat') {
+    const list = hwEl.querySelector('.chatlist'); if (list) list.scrollTop = list.scrollHeight;
+    const box = hwEl.querySelector('#chatText'); if (box && draft) box.value = draft; if (box && hadFocus) box.focus();
+  }
 }
 function setupView() {
   const code = h('input', { class: 'hwinput', id: 'hwCode', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', placeholder: 'Class code' });
@@ -2009,7 +2161,7 @@ async function pollChat() {
     const fresh = (r.msgs || []).filter((m) => !known.has(m.id));
     if (!fresh.length) return;
     HW.msgs = HW.msgs.concat(fresh).sort((a, b) => a.at - b.at).slice(-300);
-    if (!hwEl.hidden && HW.view === 'chat') { markSeen(); renderHw(); }
+    if (!hwEl.hidden && HW.view === 'chat') { markSeen(); if (chatBusy()) HW.pendingRender = true; else renderHw(); }
     else {
       updateChatBadge();
       const theirs = fresh.filter((m) => m.from !== myRole() && m.at > HW.lastSeen);
@@ -2022,6 +2174,7 @@ function updateChatBadge() { $('#bBooks').classList.toggle('badge', unreadCount(
 function showChat() {
   HW.view = 'chat'; HW.returning = null;
   renderHw();
+  loadSettings().then(() => { if (!hwEl.hidden && HW.view === 'chat') renderHw(); });
   pollChat().then(() => { markSeen(); renderHw(); });
   clearInterval(HW.chatTimer);
   HW.chatTimer = setInterval(() => { if (!hwEl.hidden && HW.view === 'chat' && document.visibilityState === 'visible') pollChat(); }, 8000);
@@ -2038,11 +2191,13 @@ function chatView() {
     const mine = m.from === myRole();
     list.append(h('div', { class: 'bubble' + (mine ? ' mine' : '') },
       h('div', { class: 'who' }, (m.from === 'teacher' ? 'Papa' : 'Tanish') + ' · ' + d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })),
-      h('div', { class: 'txt' }, m.text)));
+      m.audio ? voicePlayer(m) : h('div', { class: 'txt' }, m.text)));
   }
   const box = h('textarea', { class: 'hwinput', id: 'chatText', rows: '2', maxlength: '2000', placeholder: myRole() === 'teacher' ? 'Write to Tanish' : 'Write to Papa' });
   const send = h('button', { class: 'hwbtn', type: 'submit' }, 'Send');
-  const form = h('form', { class: 'chatform' }, box, send);
+  const mic = h('button', { class: 'tb micbtn', type: 'button', title: 'Record a voice message', 'aria-label': 'Record a voice message', html: ICON.mic + '<span>Voice</span>' });
+  mic.addEventListener('click', () => startRecording());
+  const form = h('form', { class: 'chatform' }, mic, box, send);
   box.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); } });
   form.addEventListener('submit', async (ev) => {
     ev.preventDefault();
@@ -2051,13 +2206,97 @@ function chatView() {
     send.disabled = true;
     try {
       const r = await api('msg', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text }) });
-      HW.msgs.push(r.msg); markSeen(); HW.msg = ''; renderHw();
+      HW.msgs.push(r.msg); markSeen(); HW.msg = ''; box.value = ''; HW.draft = ''; renderHw();
       const nb2 = hwEl.querySelector('#chatText'); if (nb2) nb2.focus();
     } catch (e) { send.disabled = false; hwSay(e.message, true); }
   });
-  wrap.append(list, form, h('p', { class: 'meta' }, 'New messages appear within a few seconds while this screen is open. To talk, join the class Meet.'));
+  const call = HW.meetUrl
+    ? h('a', { class: 'hwbtn callbtn', href: HW.meetUrl, target: '_blank', rel: 'noopener', html: ICON.video + '<span>Join video call</span>' })
+    : h('span', { class: 'meta' }, myRole() === 'teacher' ? 'To show a Join video call button here, set the class Meet link in the ⋯ menu.' : 'Papa has not set a video call link yet.');
+  const recBar = HW.rec ? recordingBar() : null;
+  wrap.append(h('div', { class: 'callrow' }, call), list, recBar || form, h('p', { class: 'meta' }, 'New messages appear within a few seconds while this screen is open.'));
   return wrap;
 }
+/* voice messages */
+const voiceUrls = new Map();
+function voicePlayer(m) {
+  const wrap = h('div', { class: 'voice' }, h('span', { class: 'meta' }, 'Voice message' + (m.audio.dur ? ' · ' + fmtDur(m.audio.dur) : '')));
+  const put = (url) => {
+    const a = h('audio', { controls: true, preload: 'metadata', src: url });
+    a.addEventListener('ended', () => { if (HW.pendingRender && !chatBusy()) { HW.pendingRender = false; renderHw(); } });
+    wrap.append(a);
+  };
+  if (voiceUrls.has(m.id)) put(voiceUrls.get(m.id));
+  else {
+    const b = h('button', { class: 'tb', type: 'button' }, 'Load');
+    b.addEventListener('click', async () => {
+      b.disabled = true; b.textContent = 'Loading …';
+      try { const blob = await api('voice/' + m.id); const url = URL.createObjectURL(blob); voiceUrls.set(m.id, url); b.remove(); put(url); const a = wrap.querySelector('audio'); if (a) a.play().catch(() => {}); }
+      catch (e) { b.disabled = false; b.textContent = 'Load'; hwSay(e.message, true); }
+    });
+    wrap.append(b);
+  }
+  return wrap;
+}
+const fmtDur = (s) => Math.floor(s / 60) + ':' + String(Math.round(s % 60)).padStart(2, '0');
+function pickAudioType() {
+  if (!window.MediaRecorder) return null;
+  for (const t of ['audio/mp4;codecs=mp4a.40.2', 'audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus']) { try { if (MediaRecorder.isTypeSupported(t)) return t; } catch (e) {} }
+  return '';
+}
+async function startRecording() {
+  if (HW.rec) return;
+  const type = pickAudioType();
+  if (type === null || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { hwSay('This browser cannot record voice. Use Chrome on the laptop or Safari on the iPad.', true); return; }
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch (e) { hwSay('The microphone is blocked. Allow the microphone for this site in the browser settings, then try again.', true); return; }
+  const chunks = [];
+  const mr = type ? new MediaRecorder(stream, { mimeType: type, audioBitsPerSecond: 32000 }) : new MediaRecorder(stream);
+  mr.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+  HW.rec = { mr, stream, chunks, start: Date.now(), cancel: false, tick: null };
+  mr.onstop = async () => {
+    const r = HW.rec; HW.rec = null;
+    clearInterval(r.tick);
+    r.stream.getTracks().forEach((t) => t.stop());
+    const dur = (Date.now() - r.start) / 1000;
+    if (r.cancel || dur < 0.8) { renderHw(); return; }
+    const blob = new Blob(r.chunks, { type: (mr.mimeType || type || 'audio/webm').split(';')[0] });
+    renderHw();
+    hwSay('Sending voice message …');
+    try {
+      const fd = new FormData();
+      fd.append('file', new File([blob], 'voice', { type: blob.type }));
+      fd.append('dur', String(Math.round(dur)));
+      const res = await api('voice', { method: 'POST', body: fd });
+      voiceUrls.set(res.msg.id, URL.createObjectURL(blob));
+      HW.msgs.push(res.msg); markSeen(); HW.msg = ''; renderHw();
+    } catch (e) { hwSay(e.message, true); }
+  };
+  mr.start(1000);
+  HW.rec.tick = setInterval(() => {
+    const el = hwEl.querySelector('.rectime');
+    const secs = (Date.now() - (HW.rec ? HW.rec.start : Date.now())) / 1000;
+    if (el) el.textContent = fmtDur(secs);
+    if (secs >= 180 && HW.rec) { HW.rec.mr.stop(); }
+  }, 250);
+  renderHw();
+}
+function recordingBar() {
+  const stop = h('button', { class: 'hwbtn', type: 'button' }, 'Stop and send');
+  stop.addEventListener('click', () => { if (HW.rec) HW.rec.mr.stop(); });
+  const cancel = h('button', { class: 'tb', type: 'button' }, 'Cancel');
+  cancel.addEventListener('click', () => { if (HW.rec) { HW.rec.cancel = true; HW.rec.mr.stop(); } });
+  return h('div', { class: 'recbar' }, h('span', { class: 'recdot' }), h('span', null, 'Recording '), h('b', { class: 'rectime' }, '0:00'), h('span', { class: 'meta' }, '(up to 3 minutes)'), stop, cancel);
+}
+async function loadSettings() {
+  try { const r = await api('settings'); HW.meetUrl = (r.settings && r.settings.meetUrl) || ''; } catch (e) {}
+  // the teacher's saved Meet link is shared so Tanish can join from the chat
+  if (HW.role === 'teacher' && prefs.meetUrl && prefs.meetUrl !== HW.meetUrl) {
+    try { const r = await api('settings', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ meetUrl: prefs.meetUrl }) }); HW.meetUrl = r.settings.meetUrl || ''; } catch (e) {}
+  }
+}
+
 // check for new messages every 2 minutes while the app is open, so the ☰ button can show a dot
 setInterval(() => { if (HW.code && document.visibilityState === 'visible' && (hwEl.hidden || HW.view !== 'chat')) pollChat(); }, 120000);
 setTimeout(() => { if (HW.code) pollChat(); }, 3000);
