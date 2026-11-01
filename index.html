@@ -1860,6 +1860,11 @@ $('#bMore').addEventListener('click', (e) => openPop(e.currentTarget, (pop) => {
   pop.append(h('button', { class: 'pi', html: ICON.school + '<span>Homework: give, hand in, check</span>', onclick: () => openHw() }));
   pop.append(h('button', { class: 'pi', html: ICON.help + '<span>How to share this screen</span>', onclick: () => showShareHelp($('#bMore')) }));
   if (nb && nb.hw) pop.append(h('button', { class: 'pi on', html: ICON.school + '<span>Return marked homework to Tanish</span>', onclick: () => { closePop(); openHw(nb.hw.id); } }));
+  if (nb && HW.code) {
+    const other = HW.role === 'teacher' ? 'Tanish' : 'Papa';
+    pop.append(h('button', { class: 'pi' + (nb.fromChat ? ' on' : ''), html: ICON.chat + '<span>Send page ' + (currentIdx + 1) + ' to ' + other + ' in Chat</span>', onclick: () => { closePop(); sendPagesToChat([currentIdx]); } }));
+    if (nb.pages.length > 1) pop.append(h('button', { class: 'pi', html: ICON.chat + '<span>Send all ' + nb.pages.length + ' pages to ' + other + ' in Chat</span>', onclick: () => { closePop(); sendPagesToChat(nb.pages.map((p, i) => i)); } }));
+  }
   pop.append(h('div', { class: 'ph' }, 'Notebook'));
   pop.append(h('button', { class: 'pi', html: ICON.share + '<span>Export notebook as PDF</span>', onclick: () => { closePop(); exportPdf(); } }));
   const clr = h('button', { class: 'pi', html: ICON.clear + '<span>Clear writing on page ' + (currentIdx + 1) + '</span>' });
@@ -2566,7 +2571,8 @@ function chatPicture(m) {
       await importPdf(new File([file], 'Homework ' + new Date(m.at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) + ' (picture).pdf', { type: 'application/pdf' }), 'new');
       HW.msg = '';
       closeHw();
-      toast('Mark it with the pen. To send it back: ⋯ menu, Export notebook as PDF, then attach it in Chat or Homework.', null, 9000);
+      nb.fromChat = true; dirty();
+      toast('Mark it with the pen. To send it back: ⋯ menu, then Send page 1 to Tanish in Chat.', null, 9000);
     } catch (e) { hwSay(e.message, true); }
   };
   // teacher: tapping the picture opens it as a page to write on; student: tapping shows it full size
@@ -2587,6 +2593,28 @@ function showBig(url) {
     h('img', { src: url, alt: 'Picture' }),
     h('button', { class: 'hwbtn', type: 'button', onclick: close }, 'Close'));
   document.body.append(box);
+}
+// send marked pages (writing included) into the chat as pictures
+async function sendPagesToChat(idxs) {
+  if (!HW.code) { toast('Sign in under Homework first.'); return; }
+  const list = idxs.slice(0, 15);
+  try {
+    await saveNow();
+    for (let i = 0; i < list.length; i++) {
+      toast('Sending page ' + (list[i] + 1) + (list.length > 1 ? ' (' + (i + 1) + ' of ' + list.length + ')' : '') + ' …', null, 120000);
+      const cv = await renderPageImage(nb.pages[list[i]], 1600);
+      const blob = await new Promise((r) => cv.toBlob(r, 'image/jpeg', 0.85));
+      cv.width = 0; cv.height = 0;
+      const fd = new FormData();
+      fd.append('file', new File([blob], 'page.jpg', { type: 'image/jpeg' }));
+      if (i === 0) fd.append('text', (HW.role === 'teacher' ? 'Corrected: ' : '') + nb.name + (list.length > 1 ? ' (' + list.length + ' pages)' : ''));
+      const r = await api('photo', { method: 'POST', body: fd });
+      picUrls.set(r.msg.id, URL.createObjectURL(blob));
+      HW.msgs.push(r.msg);
+    }
+    markSeen();
+    toast('Sent to ' + (HW.role === 'teacher' ? 'Tanish' : 'Papa') + ' in Chat.', { label: 'Open chat', fn: () => openHw(null, 'chat') });
+  } catch (e) { toast('Could not send: ' + (e && e.message ? e.message : 'try again')); }
 }
 async function sendPictures(files, text) {
   files = files.filter((f) => /^image\//.test(f.type) || /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name));
