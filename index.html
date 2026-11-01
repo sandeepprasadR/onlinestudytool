@@ -262,6 +262,7 @@ form.help .pi { justify-content: center; border: 1px solid var(--accent); }
   background: transparent; display: grid; place-items: center; padding: 0;
 }
 .tick.on { background: var(--accent); border-color: var(--accent); }
+.pi .sub.pending { color: var(--danger); font-weight: 600; }
 .tick.on::after { content: ""; width: 10px; height: 6px; border: solid var(--ui-panel); border-width: 0 0 2.5px 2.5px; transform: translate(0, -1px) rotate(-45deg); }
 .filesel { max-width: 150px; height: 36px; border: 1px solid var(--ui-line); border-radius: 8px; background: var(--ui-panel); color: var(--ui-fg); font: inherit; padding: 0 6px; }
 
@@ -1523,7 +1524,7 @@ async function showLibrary(anchor) {
             else if (online) { closePop(); try { toast('Downloading ' + title + ' …', null, 60000); await fetchChapter({ subject, ch }); } catch (e) { toast('Could not download: ' + e.message); } }
             else pickPdf('new', { subject, ch });
           }
-        }, h('span', { class: 'chn' }, String(ch)), h('span', { class: 'cht' }, title), h('span', { class: 'sub' }, n ? 'Open' : online ? 'Download' : 'Add PDF'));
+        }, h('span', { class: 'chn' }, String(ch)), h('span', { class: 'cht' }, title), h('span', { class: 'sub' + (n && LIB.items && !online ? ' pending' : '') }, n ? (LIB.items ? (online ? 'Open · online ✓' : 'Open · not online yet') : 'Open') : online ? 'Download' : 'Add PDF'));
         pop.append(h('div', { class: 'nbrow' }, tick, main));
       });
     }
