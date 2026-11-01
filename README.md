@@ -53,3 +53,16 @@ Study Board on Netlify adds a **Homework** screen (☰ menu, or open the site wi
 Files are stored with Netlify Blobs by `netlify/functions/hw.mts`. Every request needs the class code; giving and
 marking homework also needs the teacher PIN. Set both as environment variables on the Netlify site:
 `CLASS_CODE` and `TEACHER_PIN` (scope must include Functions). Files over about 4 MB are refused.
+
+## AI tutor ("Study Buddy")
+
+The Homework screen has an **AI tutor** tab for the student: explanations of Class 10 Maths and Science in simple,
+interesting language, hints before answers for homework questions, and help with a photo of a question or working.
+`netlify/functions/tutor.mts` calls Claude through **Netlify AI Gateway** (no API key stored), using the same class
+code. Every question and answer is saved so the teacher can read them under **Tutor log**. A daily limit (60 questions)
+caps cost. The model can be changed with the environment variable `TUTOR_MODEL`.
+
+## Adding many chapters at once
+
+Chapter library → **Add many chapter PDFs at once**: select all the NCERT chapter PDFs of a book. Each is read,
+named and filed under its chapter; chapters already in the library are skipped.

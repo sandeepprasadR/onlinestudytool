@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@netlify/blobs": "11.1.4"
+    "@netlify/blobs": "11.1.4",
+    "@anthropic-ai/sdk": "0.135.0"
   },
   "devDependencies": {
     "@netlify/functions": "6.0.2"
