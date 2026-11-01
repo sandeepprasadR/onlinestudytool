@@ -40,3 +40,16 @@ The site then appears at `https://<github-username>.github.io/onlinestudytool/`.
 - `index.html`: the whole app (HTML, CSS and JavaScript, no build step).
 - `vendor/`: pdf.js 3.11.174 (reads PDFs) and jsPDF 2.5.1 (writes the export), with their licences.
 - `manifest.webmanifest`, `icon-*.png`: Home Screen app icon and name.
+
+## Homework (Netlify version)
+
+Study Board on Netlify adds a **Homework** screen (☰ menu, or open the site with `#homework` at the end):
+
+- The teacher gives homework (subject, title, due time, instructions).
+- The student uploads a scan or photos (they are combined into one PDF).
+- The teacher opens it as a notebook, marks it with the Pencil, and returns it with a score, remarks and the marked copy.
+- The student sees the score, remarks and marked copy.
+
+Files are stored with Netlify Blobs by `netlify/functions/hw.mts`. Every request needs the class code; giving and
+marking homework also needs the teacher PIN. Set both as environment variables on the Netlify site:
+`CLASS_CODE` and `TEACHER_PIN` (scope must include Functions). Files over about 4 MB are refused.
