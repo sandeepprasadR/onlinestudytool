@@ -1831,7 +1831,7 @@ function studentView() {
   const note = h('textarea', { class: 'hwinput', id: 'hwNote', rows: '2', placeholder: 'Anything to tell Papa (optional)' });
   const send = h('button', { class: 'hwbtn', type: 'submit' }, 'Upload homework');
   const form = h('form', { class: 'hwcard' }, field('Which homework', sel), titleWrap, subjWrap,
-    field('Scan or photos (PDF or photos, all pages together)', files), field('Note', note), send);
+    field('Scanned PDF, or photos of the pages (select all photos together)', files), field('Note', note), send);
   form.addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const list = [...(files.files || [])];
@@ -1840,8 +1840,9 @@ function studentView() {
     if (!task && !title.value.trim()) { hwSay('Type a title for this homework.', true); return; }
     send.disabled = true;
     try {
-      const pdf = list.find((f) => /pdf$/i.test(f.type) || /\.pdf$/i.test(f.name));
-      let file = pdf;
+      const pdfs = list.filter((f) => /pdf$/i.test(f.type) || /\.pdf$/i.test(f.name));
+      if (pdfs.length > 1 || (pdfs.length && pdfs.length !== list.length)) throw new Error('Choose either one PDF, or any number of photos. To send two PDFs, upload them one after the other.');
+      let file = pdfs[0];
       if (!file) { hwSay('Preparing ' + list.length + (list.length === 1 ? ' photo' : ' photos') + ' …'); file = await imagesToPdf(list, 1600, 0.8); toastEl.hidden = true; }
       if (file.size > 4300000) throw new Error('This is larger than 4 MB. Upload fewer pages at a time, or scan in lower quality.');
       hwSay('Uploading …');
