@@ -167,6 +167,11 @@ body.finger #scroller { touch-action: none; }
 .help { padding: 6px 12px 10px; max-width: 320px; -webkit-user-select: text; user-select: text; }
 .help p { margin: 6px 0; }
 .help b { font-weight: 600; }
+a.pi { color: inherit; text-decoration: none; }
+.meetin { width: 100%; height: 42px; border: 1px solid var(--ui-line); border-radius: 9px; padding: 0 10px; font: 16px var(--font-ui); background: var(--ui-bg); color: var(--ui-fg); -webkit-user-select: text; user-select: text; }
+.formmsg { font-size: 13px; color: var(--ui-muted); }
+.formmsg.err { color: var(--danger); }
+form.help .pi { justify-content: center; border: 1px solid var(--accent); }
 #pop.wide { min-width: min(400px, calc(100vw - 16px)); max-width: min(440px, calc(100vw - 16px)); }
 .chn { width: 22px; flex: none; text-align: right; color: var(--ui-muted); font-variant-numeric: tabular-nums; }
 .cht { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -276,6 +281,8 @@ const ICON = {
   compact: '<svg viewBox="0 0 24 24"><path d="M4 7h16M8 12h8M10 17h4"/></svg>',
   full: '<svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>',
   book: '<svg viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/><path d="M8 7.5h8M8 11h5"/></svg>',
+  video: '<svg viewBox="0 0 24 24"><rect x="3" y="6" width="12" height="12" rx="2"/><path d="M15 10l6-3.5v11L15 14"/></svg>',
+  school: '<svg viewBox="0 0 24 24"><path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5"/></svg>',
   help: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7M12 17h.01"/></svg>'
 };
 
@@ -1447,6 +1454,14 @@ function shortDate(t) {
 }
 
 $('#bMore').addEventListener('click', (e) => openPop(e.currentTarget, (pop) => {
+  pop.append(h('div', { class: 'ph' }, 'Class'));
+  if (prefs.meetUrl) {
+    pop.append(h('a', { class: 'pi', href: prefs.meetUrl, target: '_blank', rel: 'noopener', html: ICON.video + '<span>Start class on Google Meet</span>', onclick: () => { closePop(); setTimeout(() => toast('In Meet: tap ⋯, then Share screen, then Start Broadcast. Then come back to Study Board.', null, 9000), 600); } }));
+  }
+  pop.append(h('button', { class: 'pi', html: ICON.video + '<span>' + (prefs.meetUrl ? 'Change the class Meet link' : 'Set the class Meet link') + '</span>', onclick: () => showMeetForm($('#bMore')) }));
+  pop.append(h('a', { class: 'pi', href: 'https://classroom.google.com/', target: '_blank', rel: 'noopener', html: ICON.school + '<span>Open Google Classroom</span>', onclick: () => closePop() }));
+  pop.append(h('button', { class: 'pi', html: ICON.help + '<span>How to share this screen</span>', onclick: () => showShareHelp($('#bMore')) }));
+  pop.append(h('div', { class: 'ph' }, 'Notebook'));
   pop.append(h('button', { class: 'pi', html: ICON.share + '<span>Export notebook as PDF</span>', onclick: () => { closePop(); exportPdf(); } }));
   const clr = h('button', { class: 'pi', html: ICON.clear + '<span>Clear writing on page ' + (currentIdx + 1) + '</span>' });
   clr.addEventListener('click', () => armed(clr, 'Tap again to clear page ' + (currentIdx + 1), () => { closePop(); clearPage(); }));
@@ -1469,8 +1484,43 @@ $('#bMore').addEventListener('click', (e) => openPop(e.currentTarget, (pop) => {
   if (document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen) {
     pop.append(h('button', { class: 'pi', html: ICON.full + '<span>Full screen</span>', onclick: () => { closePop(); toggleFull(); } }));
   }
-  pop.append(h('button', { class: 'pi', html: ICON.help + '<span>How to use</span>', onclick: () => showHelp(e.currentTarget) }));
+  pop.append(h('button', { class: 'pi', html: ICON.help + '<span>How to use</span>', onclick: () => showHelp($('#bMore')) }));
 }));
+function showMeetForm(anchor) {
+  popAnchor = null;
+  openPop(anchor, (pop) => {
+    pop.append(h('div', { class: 'ph' }, 'Class Meet link'));
+    const inp = h('input', { id: 'meetUrl', class: 'meetin', type: 'text', inputmode: 'url', autocapitalize: 'off', placeholder: 'https://meet.google.com/abc-defg-hij', value: prefs.meetUrl || '', autocomplete: 'off', spellcheck: 'false' });
+    const msg = h('p', { class: 'formmsg' }, 'Create a Meet link once (in Google Calendar, or in the Meet app: New meeting, then Get a meeting link to share), paste it here, and send the same link to your son. It works every day.');
+    const save = h('button', { class: 'pi on', type: 'submit' }, 'Save link');
+    const form = h('form', { class: 'help' }, inp, msg, save);
+    form.addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      const v = inp.value.trim();
+      const m = /^(https:\/\/)?meet\.google\.com\/[a-z0-9-]+/i.exec(v);
+      if (v && !m) { msg.textContent = 'That is not a Google Meet link. It should look like https://meet.google.com/abc-defg-hij'; msg.classList.add('err'); return; }
+      prefs.meetUrl = v ? (m[0].startsWith('https://') ? m[0] : 'https://' + m[0]) : '';
+      savePrefs(); closePop();
+      toast(prefs.meetUrl ? 'Meet link saved. Start the class from the ⋯ menu.' : 'Meet link removed.');
+    });
+    pop.append(form);
+    setTimeout(() => inp.focus(), 50);
+  });
+}
+function showShareHelp(anchor) {
+  popAnchor = null;
+  openPop(anchor, (pop) => {
+    const d = h('div', { class: 'help' });
+    d.innerHTML =
+      '<p>A web page cannot start screen sharing on iPad. Apple lets only the Meet app do it, with your approval. It takes two taps:</p>' +
+      '<p><b>1.</b> ⋯ menu, then <b>Start class on Google Meet</b>. The Meet app opens and joins the class.</p>' +
+      '<p><b>2.</b> In Meet, tap <b>⋯</b>, then <b>Share screen</b>, then <b>Start Broadcast</b>.</p>' +
+      '<p><b>3.</b> Swipe up and open Study Board. Your son now sees everything you write.</p>' +
+      '<p>To stop sharing, tap the red indicator at the top of the screen, or return to Meet.</p>' +
+      '<p>Turn on <b>Do Not Disturb</b> first so messages do not appear on his screen.</p>';
+    pop.append(h('div', { class: 'ph' }, 'How to share this screen'), d);
+  });
+}
 function toggleFull() {
   const d = document, el = d.documentElement;
   try {
