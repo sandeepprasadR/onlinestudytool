@@ -226,6 +226,16 @@ textarea.hwinput { resize: vertical; }
 .bubble .txt { white-space: pre-wrap; overflow-wrap: anywhere; }
 .chatform { display: flex; gap: 8px; align-items: flex-end; }
 .chatform textarea { flex: 1; }
+.micbtn { display: flex; align-items: center; gap: 4px; height: 42px; border: 1px solid var(--ui-line); }
+.micbtn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.callrow { display: flex; align-items: center; gap: 10px; }
+.callbtn { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; line-height: 40px; }
+.callbtn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.voice { display: flex; flex-direction: column; gap: 4px; min-width: 220px; }
+.voice audio { width: 100%; max-width: 300px; height: 36px; }
+.recbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--danger); border-radius: 12px; background: var(--ui-panel); }
+.recdot { width: 12px; height: 12px; border-radius: 50%; background: var(--danger); }
+@media (prefers-reduced-motion: no-preference) { .recdot { animation: blink 1s infinite; } @keyframes blink { 50% { opacity: .25; } } }
 .linkbtn { border: 0; background: none; color: var(--ui-muted); text-decoration: underline; padding: 0; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .chip.ok { background: #173a24; color: #9fe0b3; border-color: #2b6b40; } :root:not([data-theme="light"]) .chip.wait { background: #3d3013; color: #f3d38a; border-color: #6b5520; } :root:not([data-theme="light"]) .hwmsg.bad { background: #4a1d19; color: #ffc2bb; } }
 :root[data-theme="dark"] .chip.ok { background: #173a24; color: #9fe0b3; border-color: #2b6b40; }
@@ -347,6 +357,7 @@ const ICON = {
   full: '<svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>',
   book: '<svg viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/><path d="M8 7.5h8M8 11h5"/></svg>',
   video: '<svg viewBox="0 0 24 24"><rect x="3" y="6" width="12" height="12" rx="2"/><path d="M15 10l6-3.5v11L15 14"/></svg>',
+  mic: '<svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg>',
   chat: '<svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12.5h5"/></svg>',
   school: '<svg viewBox="0 0 24 24"><path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5"/></svg>',
   help: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7M12 17h.01"/></svg>'
@@ -1709,6 +1720,7 @@ function showMeetForm(anchor) {
       if (v && !m) { msg.textContent = 'That is not a Google Meet link. It should look like https://meet.google.com/abc-defg-hij'; msg.classList.add('err'); return; }
       prefs.meetUrl = v ? (m[0].startsWith('https://') ? m[0] : 'https://' + m[0]) : '';
       savePrefs(); closePop();
+      if (HW.code && HW.role === 'teacher') api('settings', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ meetUrl: prefs.meetUrl }) }).then((r) => { HW.meetUrl = r.settings.meetUrl || ''; }).catch(() => {});
       toast(prefs.meetUrl ? 'Meet link saved. Start the class from the ⋯ menu.' : 'Meet link removed.');
     });
     pop.append(form);
@@ -1816,7 +1828,7 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 window.addEventListener('pagehide', () => { saveNow(); });
 
 /* ---------- homework exchange (works on the Netlify version, which has the /api/hw server) ---------- */
-const HW = { code: '', pin: '', role: '', items: [], teacher: false, busy: false, msg: '', bad: false, returning: null, timer: null, view: 'work', msgs: [], lastSeen: 0, chatTimer: null };
+const HW = { code: '', pin: '', role: '', items: [], teacher: false, busy: false, msg: '', bad: false, returning: null, timer: null, view: 'work', msgs: [], lastSeen: 0, chatTimer: null, meetUrl: '', rec: null };
 try { HW.lastSeen = +localStorage.getItem('studyboard-chat-seen') || 0; } catch (e) {}
 try { const saved = JSON.parse(localStorage.getItem('studyboard-hw') || '{}'); HW.code = saved.code || ''; HW.pin = saved.pin || ''; HW.role = saved.role || ''; } catch (e) {}
 function saveHw() { try { localStorage.setItem('studyboard-hw', JSON.stringify({ code: HW.code, pin: HW.pin, role: HW.role })); } catch (e) {} }
@@ -1896,7 +1908,12 @@ async function markHw(item) {
 }
 function field(label, control) { return h('label', { class: 'hwfield' }, h('span', null, label), control); }
 function chip(text, kind) { return h('span', { class: 'chip ' + (kind || '') }, text); }
+function chatBusy() { return !!HW.rec || [...hwEl.querySelectorAll('audio')].some((a) => !a.paused); }
 function renderHw() {
+  const oldBox = hwEl.querySelector('#chatText');
+  const draft = oldBox ? oldBox.value : (HW.draft || '');
+  HW.draft = draft;
+  const hadFocus = oldBox && document.activeElement === oldBox;
   hwEl.textContent = '';
   const inner = h('div', { class: 'hwin' });
   const head = h('div', { class: 'hwhead' },
@@ -1914,7 +1931,10 @@ function renderHw() {
   else inner.append(HW.role === 'teacher' ? teacherView() : studentView());
   if (HW.code && !HW.returning && HW.view !== 'chat') inner.append(h('p', { class: 'hwfoot' }, h('button', { class: 'linkbtn', onclick: () => { HW.code = ''; HW.pin = ''; HW.role = ''; saveHw(); HW.items = []; HW.msg = ''; renderHw(); } }, 'Sign out of homework on this device')));
   hwEl.append(inner);
-  if (HW.view === 'chat') { const list = hwEl.querySelector('.chatlist'); if (list) list.scrollTop = list.scrollHeight; }
+  if (HW.view === 'chat') {
+    const list = hwEl.querySelector('.chatlist'); if (list) list.scrollTop = list.scrollHeight;
+    const box = hwEl.querySelector('#chatText'); if (box && draft) box.value = draft; if (box && hadFocus) box.focus();
+  }
 }
 function setupView() {
   const code = h('input', { class: 'hwinput', id: 'hwCode', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', placeholder: 'Class code' });
@@ -2141,7 +2161,7 @@ async function pollChat() {
     const fresh = (r.msgs || []).filter((m) => !known.has(m.id));
     if (!fresh.length) return;
     HW.msgs = HW.msgs.concat(fresh).sort((a, b) => a.at - b.at).slice(-300);
-    if (!hwEl.hidden && HW.view === 'chat') { markSeen(); renderHw(); }
+    if (!hwEl.hidden && HW.view === 'chat') { markSeen(); if (chatBusy()) HW.pendingRender = true; else renderHw(); }
     else {
       updateChatBadge();
       const theirs = fresh.filter((m) => m.from !== myRole() && m.at > HW.lastSeen);
@@ -2154,6 +2174,7 @@ function updateChatBadge() { $('#bBooks').classList.toggle('badge', unreadCount(
 function showChat() {
   HW.view = 'chat'; HW.returning = null;
   renderHw();
+  loadSettings().then(() => { if (!hwEl.hidden && HW.view === 'chat') renderHw(); });
   pollChat().then(() => { markSeen(); renderHw(); });
   clearInterval(HW.chatTimer);
   HW.chatTimer = setInterval(() => { if (!hwEl.hidden && HW.view === 'chat' && document.visibilityState === 'visible') pollChat(); }, 8000);
@@ -2170,11 +2191,13 @@ function chatView() {
     const mine = m.from === myRole();
     list.append(h('div', { class: 'bubble' + (mine ? ' mine' : '') },
       h('div', { class: 'who' }, (m.from === 'teacher' ? 'Papa' : 'Tanish') + ' · ' + d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })),
-      h('div', { class: 'txt' }, m.text)));
+      m.audio ? voicePlayer(m) : h('div', { class: 'txt' }, m.text)));
   }
   const box = h('textarea', { class: 'hwinput', id: 'chatText', rows: '2', maxlength: '2000', placeholder: myRole() === 'teacher' ? 'Write to Tanish' : 'Write to Papa' });
   const send = h('button', { class: 'hwbtn', type: 'submit' }, 'Send');
-  const form = h('form', { class: 'chatform' }, box, send);
+  const mic = h('button', { class: 'tb micbtn', type: 'button', title: 'Record a voice message', 'aria-label': 'Record a voice message', html: ICON.mic + '<span>Voice</span>' });
+  mic.addEventListener('click', () => startRecording());
+  const form = h('form', { class: 'chatform' }, mic, box, send);
   box.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); } });
   form.addEventListener('submit', async (ev) => {
     ev.preventDefault();
@@ -2183,13 +2206,97 @@ function chatView() {
     send.disabled = true;
     try {
       const r = await api('msg', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text }) });
-      HW.msgs.push(r.msg); markSeen(); HW.msg = ''; renderHw();
+      HW.msgs.push(r.msg); markSeen(); HW.msg = ''; box.value = ''; HW.draft = ''; renderHw();
       const nb2 = hwEl.querySelector('#chatText'); if (nb2) nb2.focus();
     } catch (e) { send.disabled = false; hwSay(e.message, true); }
   });
-  wrap.append(list, form, h('p', { class: 'meta' }, 'New messages appear within a few seconds while this screen is open. To talk, join the class Meet.'));
+  const call = HW.meetUrl
+    ? h('a', { class: 'hwbtn callbtn', href: HW.meetUrl, target: '_blank', rel: 'noopener', html: ICON.video + '<span>Join video call</span>' })
+    : h('span', { class: 'meta' }, myRole() === 'teacher' ? 'To show a Join video call button here, set the class Meet link in the ⋯ menu.' : 'Papa has not set a video call link yet.');
+  const recBar = HW.rec ? recordingBar() : null;
+  wrap.append(h('div', { class: 'callrow' }, call), list, recBar || form, h('p', { class: 'meta' }, 'New messages appear within a few seconds while this screen is open.'));
   return wrap;
 }
+/* voice messages */
+const voiceUrls = new Map();
+function voicePlayer(m) {
+  const wrap = h('div', { class: 'voice' }, h('span', { class: 'meta' }, 'Voice message' + (m.audio.dur ? ' · ' + fmtDur(m.audio.dur) : '')));
+  const put = (url) => {
+    const a = h('audio', { controls: true, preload: 'metadata', src: url });
+    a.addEventListener('ended', () => { if (HW.pendingRender && !chatBusy()) { HW.pendingRender = false; renderHw(); } });
+    wrap.append(a);
+  };
+  if (voiceUrls.has(m.id)) put(voiceUrls.get(m.id));
+  else {
+    const b = h('button', { class: 'tb', type: 'button' }, 'Load');
+    b.addEventListener('click', async () => {
+      b.disabled = true; b.textContent = 'Loading …';
+      try { const blob = await api('voice/' + m.id); const url = URL.createObjectURL(blob); voiceUrls.set(m.id, url); b.remove(); put(url); const a = wrap.querySelector('audio'); if (a) a.play().catch(() => {}); }
+      catch (e) { b.disabled = false; b.textContent = 'Load'; hwSay(e.message, true); }
+    });
+    wrap.append(b);
+  }
+  return wrap;
+}
+const fmtDur = (s) => Math.floor(s / 60) + ':' + String(Math.round(s % 60)).padStart(2, '0');
+function pickAudioType() {
+  if (!window.MediaRecorder) return null;
+  for (const t of ['audio/mp4;codecs=mp4a.40.2', 'audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus']) { try { if (MediaRecorder.isTypeSupported(t)) return t; } catch (e) {} }
+  return '';
+}
+async function startRecording() {
+  if (HW.rec) return;
+  const type = pickAudioType();
+  if (type === null || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { hwSay('This browser cannot record voice. Use Chrome on the laptop or Safari on the iPad.', true); return; }
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch (e) { hwSay('The microphone is blocked. Allow the microphone for this site in the browser settings, then try again.', true); return; }
+  const chunks = [];
+  const mr = type ? new MediaRecorder(stream, { mimeType: type, audioBitsPerSecond: 32000 }) : new MediaRecorder(stream);
+  mr.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+  HW.rec = { mr, stream, chunks, start: Date.now(), cancel: false, tick: null };
+  mr.onstop = async () => {
+    const r = HW.rec; HW.rec = null;
+    clearInterval(r.tick);
+    r.stream.getTracks().forEach((t) => t.stop());
+    const dur = (Date.now() - r.start) / 1000;
+    if (r.cancel || dur < 0.8) { renderHw(); return; }
+    const blob = new Blob(r.chunks, { type: (mr.mimeType || type || 'audio/webm').split(';')[0] });
+    renderHw();
+    hwSay('Sending voice message …');
+    try {
+      const fd = new FormData();
+      fd.append('file', new File([blob], 'voice', { type: blob.type }));
+      fd.append('dur', String(Math.round(dur)));
+      const res = await api('voice', { method: 'POST', body: fd });
+      voiceUrls.set(res.msg.id, URL.createObjectURL(blob));
+      HW.msgs.push(res.msg); markSeen(); HW.msg = ''; renderHw();
+    } catch (e) { hwSay(e.message, true); }
+  };
+  mr.start(1000);
+  HW.rec.tick = setInterval(() => {
+    const el = hwEl.querySelector('.rectime');
+    const secs = (Date.now() - (HW.rec ? HW.rec.start : Date.now())) / 1000;
+    if (el) el.textContent = fmtDur(secs);
+    if (secs >= 180 && HW.rec) { HW.rec.mr.stop(); }
+  }, 250);
+  renderHw();
+}
+function recordingBar() {
+  const stop = h('button', { class: 'hwbtn', type: 'button' }, 'Stop and send');
+  stop.addEventListener('click', () => { if (HW.rec) HW.rec.mr.stop(); });
+  const cancel = h('button', { class: 'tb', type: 'button' }, 'Cancel');
+  cancel.addEventListener('click', () => { if (HW.rec) { HW.rec.cancel = true; HW.rec.mr.stop(); } });
+  return h('div', { class: 'recbar' }, h('span', { class: 'recdot' }), h('span', null, 'Recording '), h('b', { class: 'rectime' }, '0:00'), h('span', { class: 'meta' }, '(up to 3 minutes)'), stop, cancel);
+}
+async function loadSettings() {
+  try { const r = await api('settings'); HW.meetUrl = (r.settings && r.settings.meetUrl) || ''; } catch (e) {}
+  // the teacher's saved Meet link is shared so Tanish can join from the chat
+  if (HW.role === 'teacher' && prefs.meetUrl && prefs.meetUrl !== HW.meetUrl) {
+    try { const r = await api('settings', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ meetUrl: prefs.meetUrl }) }); HW.meetUrl = r.settings.meetUrl || ''; } catch (e) {}
+  }
+}
+
 // check for new messages every 2 minutes while the app is open, so the ☰ button can show a dot
 setInterval(() => { if (HW.code && document.visibilityState === 'visible' && (hwEl.hidden || HW.view !== 'chat')) pollChat(); }, 120000);
 setTimeout(() => { if (HW.code) pollChat(); }, 3000);

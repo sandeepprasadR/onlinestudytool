@@ -39,13 +39,14 @@ function same(a: string, b: string) {
   return d === 0;
 }
 
-async function readFile(form: FormData) {
+async function readFile(form: FormData, audio = false) {
   const f = form.get("file");
   if (!f || typeof f === "string") return null;
   const file = f as File;
   if (file.size > MAX_BYTES) throw new Error("too_big");
-  const type = file.type || "application/octet-stream";
-  if (!/^(application\/pdf|image\/(jpeg|png|webp|heic|heif))$/.test(type)) throw new Error("bad_type");
+  const type = (file.type || "application/octet-stream").split(";")[0];
+  const ok = audio ? /^audio\/(webm|ogg|mp4|mpeg|aac|x-m4a|wav)$/.test(type) : /^(application\/pdf|image\/(jpeg|png|webp|heic|heif))$/.test(type);
+  if (!ok) throw new Error("bad_type");
   return { data: await file.arrayBuffer(), meta: { name: clean(file.name, 120) || "homework", type, size: file.size } };
 }
 
@@ -87,6 +88,39 @@ export default async (req: Request, context: Context) => {
       const msg = { id: String(at).padStart(13, "0") + "-" + Math.random().toString(36).slice(2, 8), at, from: teacher ? "teacher" : "student", text };
       await s.setJSON("msg/" + msg.id, msg);
       return json({ msg });
+    }
+
+    if (req.method === "POST" && action === "voice") {
+      const form = await req.formData();
+      const f = await readFile(form, true);
+      if (!f) return fail(400, "No recording received.");
+      const at = Date.now();
+      const msgId = String(at).padStart(13, "0") + "-" + Math.random().toString(36).slice(2, 8);
+      const dur = Math.max(0, Math.min(600, Number(form.get("dur")) || 0));
+      await s.set("voice/" + msgId, f.data);
+      const msg = { id: msgId, at, from: teacher ? "teacher" : "student", text: "", audio: { type: f.meta.type, size: f.meta.size, dur } };
+      await s.setJSON("msg/" + msgId, msg);
+      return json({ msg });
+    }
+
+    if (req.method === "GET" && action === "voice" && id) {
+      const rec = (await s.get("msg/" + id, { type: "json" })) as { audio?: { type: string } } | null;
+      const data = await s.get("voice/" + id, { type: "arrayBuffer" });
+      if (!rec || !rec.audio || !data) return fail(404, "Recording not found.");
+      return new Response(data, { headers: { "content-type": rec.audio.type, "cache-control": "no-store" } });
+    }
+
+    if (req.method === "GET" && action === "settings") {
+      return json({ settings: (await s.get("settings", { type: "json" })) || {} });
+    }
+
+    if (req.method === "POST" && action === "settings") {
+      if (!teacher) return fail(403, "Only the teacher can change this.");
+      const body = await req.json();
+      const m = /^https:\/\/meet\.google\.com\/[a-z0-9-]+$/i.exec(clean(body.meetUrl, 200));
+      const settings = { meetUrl: m ? m[0] : "" };
+      await s.setJSON("settings", settings);
+      return json({ settings });
     }
 
     if (req.method === "GET" && action === "file" && id) {
@@ -148,8 +182,8 @@ export default async (req: Request, context: Context) => {
     return fail(404, "Unknown request.");
   } catch (e) {
     const msg = e instanceof Error ? e.message : "";
-    if (msg === "too_big") return fail(413, "The file is larger than 4 MB. Send fewer pages at a time.");
-    if (msg === "bad_type") return fail(415, "Send a PDF or photos.");
+    if (msg === "too_big") return fail(413, "The file is larger than 4 MB. Send fewer pages, or a shorter recording.");
+    if (msg === "bad_type") return fail(415, "That kind of file cannot be sent here.");
     console.error(e);
     return fail(500, "The server could not save that. Try again.");
   }
