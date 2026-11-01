@@ -118,8 +118,10 @@ export default async (req: Request, context: Context) => {
     }
 
     if (req.method === "GET" && action === "lib" && id) {
-      const meta = await s.get("libmeta/" + id, { type: "json" });
-      const data = await s.get("lib/" + id, { type: "arrayBuffer" });
+      // large chapters are stored in parts (each under the function payload limit); the client fetches part by part
+      const meta = (await s.get("libmeta/" + id, { type: "json" })) as { parts?: number } | null;
+      const part = Math.max(0, Math.round(Number(new URL(req.url).searchParams.get("part") || 0)));
+      const data = meta && meta.parts ? await s.get("libpart/" + id + "/" + part, { type: "arrayBuffer" }) : await s.get("lib/" + id, { type: "arrayBuffer" });
       if (!meta || !data) return fail(404, "That chapter is not in the shared library.");
       return new Response(data, { headers: { "content-type": "application/pdf", "cache-control": "no-store" } });
     }
@@ -133,15 +135,26 @@ export default async (req: Request, context: Context) => {
       const ch = Math.round(Number(form.get("ch")));
       if (!/^(maths|science)$/.test(subject) || !(ch >= 1 && ch <= 20)) return fail(400, "Unknown chapter.");
       const key = subject + "-" + ch;
-      await s.set("lib/" + key, f.data);
-      const meta = { key, subject, ch, name: f.meta.name, size: f.meta.size, at: Date.now() };
+      const parts = Math.max(1, Math.min(40, Math.round(Number(form.get("parts")) || 1)));
+      const part = Math.max(0, Math.round(Number(form.get("part")) || 0));
+      if (part >= parts) return fail(400, "Bad part number.");
+      await s.set("libpart/" + key + "/" + part, f.data);
+      if (part < parts - 1) return json({ received: part });
+      // last part: check every part arrived, then publish the chapter
+      for (let i = 0; i < parts - 1; i++) {
+        if (!(await s.getMetadata("libpart/" + key + "/" + i))) return fail(409, "Some parts did not arrive. Share the chapter again.");
+      }
+      const size = Math.round(Number(form.get("size")) || f.meta.size);
+      const meta = { key, subject, ch, name: clean(form.get("name"), 120) || f.meta.name, size, parts, at: Date.now() };
       await s.setJSON("libmeta/" + key, meta);
+      await s.delete("lib/" + key);
       return json({ item: meta });
     }
 
     if (req.method === "DELETE" && action === "lib" && id) {
       if (!teacher) return fail(403, "Only the teacher can remove from the shared library.");
-      await Promise.all([s.delete("lib/" + id), s.delete("libmeta/" + id)]);
+      const { blobs } = await s.list({ prefix: "libpart/" + id + "/" });
+      await Promise.all([s.delete("lib/" + id), s.delete("libmeta/" + id), ...blobs.map((b) => s.delete(b.key))]);
       return json({ ok: true });
     }
 
