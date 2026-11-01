@@ -167,6 +167,16 @@ body.finger #scroller { touch-action: none; }
 .help { padding: 6px 12px 10px; max-width: 320px; -webkit-user-select: text; user-select: text; }
 .help p { margin: 6px 0; }
 .help b { font-weight: 600; }
+#pop.wide { min-width: min(400px, calc(100vw - 16px)); max-width: min(440px, calc(100vw - 16px)); }
+.chn { width: 22px; flex: none; text-align: right; color: var(--ui-muted); font-variant-numeric: tabular-nums; }
+.cht { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tick {
+  width: 26px; height: 26px; flex: none; margin: 0 4px 0 6px; border-radius: 7px; border: 2px solid var(--ui-line);
+  background: transparent; display: grid; place-items: center; padding: 0;
+}
+.tick.on { background: var(--accent); border-color: var(--accent); }
+.tick.on::after { content: ""; width: 10px; height: 6px; border: solid var(--ui-panel); border-width: 0 0 2.5px 2.5px; transform: translate(0, -1px) rotate(-45deg); }
+.filesel { max-width: 150px; height: 36px; border: 1px solid var(--ui-line); border-radius: 8px; background: var(--ui-panel); color: var(--ui-fg); font: inherit; padding: 0 6px; }
 
 /* Toast */
 #toast {
@@ -208,7 +218,7 @@ body.finger #scroller { touch-action: none; }
   </div>
   <div class="grp x">
     <button class="ib" id="bAdd" title="Add or change page" aria-label="Add page"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M12 10.5v6M9 13.5h6"/></svg></button>
-    <button class="ib" id="bPdf" title="Insert a PDF" aria-label="Insert PDF"><svg viewBox="0 0 24 24"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/><path d="M12 10v7M9 14l3 3 3-3"/></svg></button>
+    <button class="ib" id="bPdf" title="Insert a PDF or photos" aria-label="Insert PDF or photos"><svg viewBox="0 0 24 24"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/><path d="M12 10v7M9 14l3 3 3-3"/></svg></button>
   </div>
   <div class="grp x">
     <button class="tb" id="bPage" title="Go to page" aria-label="Go to page">1 / 1</button>
@@ -221,7 +231,7 @@ body.finger #scroller { touch-action: none; }
 <main id="scroller"><div id="pages"></div></main>
 <div id="pop" hidden></div>
 <div id="toast" role="status" aria-live="polite" hidden></div>
-<input type="file" id="pdfInput" accept="application/pdf,.pdf" hidden>
+<input type="file" id="pdfInput" accept="application/pdf,.pdf,image/*" multiple hidden>
 <script src="vendor/pdf.min.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script>
@@ -239,6 +249,18 @@ const HL = ['#ffe24a', '#7dee8b', '#ff8fd6', '#80cbff', '#ffb34d'];
 const HL_NAMES = ['Yellow', 'Green', 'Pink', 'Blue', 'Orange'];
 const SIZES = { pen: [2, 3.5, 6], hl: [16, 26, 40], eraser: [10, 22, 45] };
 const BG_TYPES = [['blank', 'Blank'], ['ruled', 'Ruled'], ['graph', 'Graph (squares)'], ['dot', 'Dotted'], ['board', 'Blackboard']];
+// NCERT Class 10 (English medium) textbooks, current rationalised editions
+const CATALOG = {
+  maths: ['Real Numbers', 'Polynomials', 'Pair of Linear Equations in Two Variables', 'Quadratic Equations',
+    'Arithmetic Progressions', 'Triangles', 'Coordinate Geometry', 'Introduction to Trigonometry',
+    'Some Applications of Trigonometry', 'Circles', 'Areas Related to Circles', 'Surface Areas and Volumes',
+    'Statistics', 'Probability'],
+  science: ['Chemical Reactions and Equations', 'Acids, Bases and Salts', 'Metals and Non-metals', 'Carbon and its Compounds',
+    'Life Processes', 'Control and Coordination', 'How do Organisms Reproduce', 'Heredity',
+    'Light Reflection and Refraction', 'The Human Eye and the Colourful World', 'Electricity',
+    'Magnetic Effects of Electric Current', 'Our Environment']
+};
+const SUBJECT_NAMES = { maths: 'Maths', science: 'Science' };
 const SHAPES = [['line', 'Straight line'], ['arrow', 'Arrow'], ['rect', 'Rectangle'], ['ellipse', 'Circle or ellipse']];
 const ICON = {
   line: '<svg viewBox="0 0 24 24"><path d="M5 19L19 5"/></svg>',
@@ -253,6 +275,7 @@ const ICON = {
   hand: '<svg viewBox="0 0 24 24"><path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V11M11 10V4.5a1.5 1.5 0 0 1 3 0V11M14 10.5V6a1.5 1.5 0 0 1 3 0v8a7 7 0 0 1-7 7h-.5a6 6 0 0 1-5-2.7L3 15.5a1.6 1.6 0 0 1 2.6-1.8L8 16"/></svg>',
   compact: '<svg viewBox="0 0 24 24"><path d="M4 7h16M8 12h8M10 17h4"/></svg>',
   full: '<svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>',
+  book: '<svg viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/><path d="M8 7.5h8M8 11h5"/></svg>',
   help: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7M12 17h.01"/></svg>'
 };
 
@@ -948,7 +971,9 @@ function deletePage() {
 function isUntouchedSinglePage(n) { return n.pages.length === 1 && n.pages[0].bg !== 'pdf' && !n.pages[0].strokes.length; }
 
 let pdfMode = 'insert';
-function pickPdf(mode) {
+let forcedChapter = null;
+function pickPdf(mode, chapter) {
+  forcedChapter = chapter || null;
   if (!pdfReady()) { toast('The PDF reader did not load. Check the internet connection and reload the page.'); return; }
   pdfMode = mode;
   const inp = $('#pdfInput');
@@ -956,12 +981,89 @@ function pickPdf(mode) {
   inp.click();
 }
 $('#pdfInput').addEventListener('change', async (e) => {
-  const file = e.target.files && e.target.files[0];
-  if (!file) return;
+  const files = [...(e.target.files || [])];
+  if (!files.length) return;
   closePop();
-  try { await importPdf(file, pdfMode); }
+  try {
+    const pdf = files.find((f) => /pdf$/i.test(f.type) || /\.pdf$/i.test(f.name));
+    const images = files.filter((f) => /^image\//i.test(f.type) || /\.(jpe?g|png|heic|heif|webp|gif)$/i.test(f.name));
+    if (pdf) await importPdf(pdf, pdfMode);
+    else if (images.length) await importPdf(await imagesToPdf(images), pdfMode);
+    else toast('Choose a PDF or photos.');
+  }
   catch (err) { console.warn(err); toast('Could not open that PDF: ' + (err && err.message ? err.message : 'unknown error')); }
 });
+/* photos (homework pages) become a PDF so they behave like any other PDF page */
+function loadImage(f) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(f);
+    const im = new Image();
+    im.onload = () => { URL.revokeObjectURL(url); res(im); };
+    im.onerror = () => { URL.revokeObjectURL(url); rej(new Error(f.name + ' is not a photo this browser can open')); };
+    im.src = url;
+  });
+}
+async function imagesToPdf(files) {
+  if (!window.jspdf) throw new Error('The PDF writer did not load. Check the internet connection and reload the page.');
+  const { jsPDF } = window.jspdf;
+  let doc = null;
+  for (let i = 0; i < files.length; i++) {
+    toast('Preparing photo ' + (i + 1) + ' of ' + files.length + ' …', null, 60000);
+    const img = await loadImage(files[i]);
+    const k = Math.min(1, 2000 / Math.max(img.naturalWidth, img.naturalHeight));
+    const w = Math.max(1, Math.round(img.naturalWidth * k)), hh = Math.max(1, Math.round(img.naturalHeight * k));
+    const cv = document.createElement('canvas');
+    cv.width = w; cv.height = hh;
+    const c = cv.getContext('2d');
+    c.fillStyle = '#fff'; c.fillRect(0, 0, w, hh);
+    c.drawImage(img, 0, 0, w, hh);
+    const data = cv.toDataURL('image/jpeg', 0.85);
+    cv.width = 0; cv.height = 0;
+    const wpt = 595.28, hpt = wpt * hh / w, orient = hpt >= wpt ? 'portrait' : 'landscape';
+    if (!doc) doc = new jsPDF({ unit: 'pt', format: [wpt, hpt], orientation: orient, compress: true });
+    else doc.addPage([wpt, hpt], orient);
+    doc.addImage(data, 'JPEG', 0, 0, wpt, hpt);
+  }
+  const day = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  const name = 'Homework ' + day + (files.length > 1 ? ' (' + files.length + ' photos)' : '') + '.pdf';
+  return new File([doc.output('arraybuffer')], name, { type: 'application/pdf' });
+}
+
+/* ---------- NCERT chapter recognition ---------- */
+const normText = (s) => ' ' + String(s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() + ' ';
+const chapterOf = (b) => b && CATALOG[b.subject] && CATALOG[b.subject][b.ch - 1];
+const chapterName = (b) => SUBJECT_NAMES[b.subject] + ' Ch ' + b.ch + ' · ' + chapterOf(b);
+async function pageText(pdf, n) {
+  try { const tc = await (await pdf.getPage(n)).getTextContent(); return tc.items.map((it) => it.str).join(' '); }
+  catch (e) { return ''; }
+}
+function matchTitle(text) {
+  // the chapter title printed earliest on the page wins; ties go to the longer title
+  const t = normText(text);
+  let best = null;
+  for (const subject of Object.keys(CATALOG)) {
+    CATALOG[subject].forEach((title, i) => {
+      const key = normText(title);
+      const at = t.indexOf(key);
+      if (at < 0) return;
+      if (!best || at < best.at || (at === best.at && key.length > best.len)) best = { subject, ch: i + 1, at, len: key.length };
+    });
+  }
+  return best && { subject: best.subject, ch: best.ch };
+}
+async function detectChapter(pdf, fileName) {
+  for (let i = 1; i <= Math.min(2, pdf.numPages); i++) {
+    const m = matchTitle(await pageText(pdf, i));
+    if (m) return m;
+  }
+  const f = /j[eh](mh|sc)1(\d\d)/i.exec(fileName || '');
+  if (f) {
+    const b = { subject: f[1].toLowerCase() === 'mh' ? 'maths' : 'science', ch: parseInt(f[2], 10) };
+    if (chapterOf(b)) return b;
+  }
+  return null;
+}
+
 async function importPdf(file, mode) {
   toast('Opening ' + file.name + ' …', null, 60000);
   const bytes = await file.arrayBuffer();
@@ -976,10 +1078,15 @@ async function importPdf(file, mode) {
     pages.push({ id: uid(), bg: 'pdf', pdfId, pdfPage: i, h: Math.round(U * vp.height / vp.width), strokes: [] });
     if (i % 20 === 0) toast('Reading page ' + i + ' of ' + pdf.numPages + ' …', null, 60000);
   }
-  const title = file.name.replace(/\.pdf$/i, '').slice(0, 60) || 'PDF notes';
+  const forced = forcedChapter;
+  forcedChapter = null;
+  const found = await detectChapter(pdf, file.name);
+  const book = forced || found;
+  const title = book ? chapterName(book) : (file.name.replace(/\.pdf$/i, '').slice(0, 60) || 'PDF notes');
   if (mode === 'new') {
     await saveNow();
     const n = { id: uid(), name: title, created: Date.now(), updated: Date.now(), pdfIds: [pdfId], pages };
+    if (book) n.book = { subject: book.subject, ch: book.ch };
     await DB.put('notebooks', n);
     setNotebook(n, true);
   } else {
@@ -988,11 +1095,80 @@ async function importPdf(file, mode) {
     if (isUntouchedSinglePage(nb)) {
       doOp({ k: 'pages', idx: 0, removed: [nb.pages[0]], added: pages });
       if (/^Untitled/.test(nb.name)) { nb.name = title; $('#nbName').value = title; }
+      if (book && !nb.book) nb.book = { subject: book.subject, ch: book.ch };
     } else {
       doOp({ k: 'pages', idx: currentIdx + 1, removed: [], added: pages });
     }
   }
-  toast(pdf.numPages + (pdf.numPages === 1 ? ' page' : ' pages') + ' added from ' + file.name + '.');
+  const pagesMsg = pdf.numPages + (pdf.numPages === 1 ? ' page' : ' pages');
+  if (forced && found && (found.subject !== forced.subject || found.ch !== forced.ch)) {
+    toast(pagesMsg + ' added. This PDF looks like ' + chapterName(found) + ', not ' + chapterName(forced) + '. Check you picked the right file.', null, 9000);
+  } else if (book) {
+    toast(pagesMsg + ' added as ' + chapterName(book) + '.', null, 5000);
+  } else if (/^Homework /.test(file.name)) {
+    toast(pagesMsg + ' of homework added. Mark it with the pen, then export it from the ⋯ menu to send back.', null, 6000);
+  } else {
+    toast(pagesMsg + ' added from ' + file.name + '. Chapter not recognised; open the chapter library to file it under a chapter.', null, 7000);
+  }
+}
+
+/* ---------- chapter library ---------- */
+function toggleDone(key) {
+  prefs.done = prefs.done || {};
+  if (prefs.done[key]) delete prefs.done[key]; else prefs.done[key] = Date.now();
+  savePrefs();
+}
+async function showLibrary(anchor) {
+  await saveNow();
+  const all = await DB.all('notebooks').catch(() => []);
+  const byKey = {};
+  for (const n of all) if (n.book) { const k = n.book.subject + '-' + n.book.ch; if (!byKey[k] || n.updated > byKey[k].updated) byKey[k] = n; }
+  const loose = all.filter((n) => !n.book && n.pages.some((p) => p.bg === 'pdf'));
+  const build = (pop) => {
+    pop.classList.add('wide');
+    for (const subject of Object.keys(CATALOG)) {
+      const done = CATALOG[subject].filter((t, i) => prefs.done && prefs.done[subject + '-' + (i + 1)]).length;
+      pop.append(h('div', { class: 'ph' }, SUBJECT_NAMES[subject] + ' · ' + done + ' of ' + CATALOG[subject].length + ' taught'));
+      CATALOG[subject].forEach((title, i) => {
+        const ch = i + 1, key = subject + '-' + ch, n = byKey[key], isDone = !!(prefs.done && prefs.done[key]);
+        const tick = h('button', {
+          class: 'tick' + (isDone ? ' on' : ''), 'aria-pressed': isDone ? 'true' : 'false',
+          'aria-label': (isDone ? 'Mark not taught: ' : 'Mark taught: ') + title, title: isDone ? 'Taught' : 'Mark as taught',
+          onclick: () => { toggleDone(key); showLibrary(anchor); }
+        });
+        const main = h('button', {
+          class: 'pi' + (nb && n && n.id === nb.id ? ' on' : ''),
+          onclick: () => {
+            if (n) openNotebook(n.id);
+            else pickPdf('new', { subject, ch });
+          }
+        }, h('span', { class: 'chn' }, String(ch)), h('span', { class: 'cht' }, title), h('span', { class: 'sub' }, n ? 'Open' : 'Add PDF'));
+        pop.append(h('div', { class: 'nbrow' }, tick, main));
+      });
+    }
+    if (loose.length) {
+      pop.append(h('div', { class: 'ph' }, 'PDF notebooks not filed under a chapter'));
+      for (const n of loose) {
+        const sel = h('select', { class: 'filesel', 'aria-label': 'File ' + n.name + ' under a chapter' }, h('option', { value: '' }, 'File under…'));
+        for (const subject of Object.keys(CATALOG)) CATALOG[subject].forEach((t, i) => sel.append(h('option', { value: subject + '-' + (i + 1) }, SUBJECT_NAMES[subject] + ' ' + (i + 1) + ' · ' + t)));
+        sel.addEventListener('change', async () => {
+          if (!sel.value) return;
+          const [subject, ch] = sel.value.split('-');
+          const rec = (nb && nb.id === n.id) ? nb : await DB.get('notebooks', n.id);
+          rec.book = { subject, ch: +ch };
+          if (!/ Ch \d+ · /.test(rec.name)) rec.name = chapterName(rec.book);
+          if (nb && nb.id === rec.id) { $('#nbName').value = rec.name; await saveNow(); } else await DB.put('notebooks', rec);
+          showLibrary(anchor);
+        });
+        pop.append(h('div', { class: 'nbrow' }, h('button', { class: 'pi', onclick: () => openNotebook(n.id) }, h('span', null, n.name)), sel));
+      }
+    }
+    pop.append(h('div', { class: 'help' }, h('p', null, 'Tap a chapter to open it, or to add its PDF from Files. Study Board reads the chapter title from the PDF and files it automatically. Tick a chapter once it has been taught.')));
+  };
+  const keep = pop.hidden ? 0 : pop.scrollTop;
+  popAnchor = null;
+  openPop(anchor, build);
+  pop.scrollTop = keep;
 }
 
 /* ---------- notebooks ---------- */
@@ -1247,7 +1423,8 @@ $('#bBooks').addEventListener('click', async (e) => {
   openPop(anchor, (pop) => {
     pop.append(h('div', { class: 'ph' }, 'New'));
     pop.append(h('button', { class: 'pi', html: ICON.plus + '<span>New notebook (' + labelOf(prefs.lastBg) + ' paper)</span>', onclick: () => createNotebook(prefs.lastBg) }));
-    pop.append(h('button', { class: 'pi', html: ICON.pdf + '<span>Open a PDF as a new notebook</span>', onclick: () => pickPdf('new') }));
+    pop.append(h('button', { class: 'pi', html: ICON.pdf + '<span>Open a PDF or photos as a new notebook</span>', onclick: () => pickPdf('new') }));
+    pop.append(h('button', { class: 'pi', html: ICON.book + '<span>Chapter library: Maths and Science</span>', onclick: () => showLibrary(anchor) }));
     pop.append(h('div', { class: 'ph' }, 'Notebooks on this iPad'));
     for (const n of all) {
       const open = h('button', { class: 'pi' + (nb && n.id === nb.id ? ' on' : ''), onclick: () => openNotebook(n.id) },
@@ -1307,7 +1484,7 @@ function showHelp(anchor) {
     d.innerHTML =
       '<p><b>Write</b> with Apple Pencil. Your hand and fingers never draw, so you can rest your palm on the screen.</p>' +
       '<p><b>Scroll</b> with one finger. <b>Zoom</b> by pinching with two fingers. Tap <b>Fit</b> to return to full width.</p>' +
-      '<p><b>PDF:</b> the page-with-arrow button adds a PDF after the current page. Each PDF page becomes a page you can write on.</p>' +
+      '<p><b>PDF or photos:</b> the page-with-arrow button adds a PDF, or one or more photos (for example homework pages), after the current page. Each becomes a page you can write on.</p>' +
       '<p><b>Blank paper:</b> the page-with-plus button adds a blank, ruled, graph, dotted or blackboard page, or changes the current one.</p>' +
       '<p><b>Laser</b> shows a red trail that fades, for pointing without leaving marks.</p>' +
       '<p><b>Shapes:</b> tap the shape button, then tap it again to choose line, arrow, rectangle or circle.</p>' +
@@ -1331,6 +1508,7 @@ let popAnchor = null;
 function openPop(anchor, build) {
   if (popAnchor === anchor && !pop.hidden) { closePop(); return; }
   pop.textContent = '';
+  pop.className = '';
   build(pop);
   pop.hidden = false;
   popAnchor = anchor;
