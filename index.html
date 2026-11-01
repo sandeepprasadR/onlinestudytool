@@ -226,6 +226,14 @@ textarea.hwinput { resize: vertical; }
 .bubble .txt { white-space: pre-wrap; overflow-wrap: anywhere; }
 .chatform { display: flex; gap: 8px; align-items: flex-end; }
 .chatform textarea { flex: 1; }
+.tutornote { margin: 0; padding: 8px 12px; border-radius: 9px; background: var(--accent-soft); font-size: 14px; }
+.bubble.tutor { max-width: 92%; }
+.rich .para { margin: 2px 0; }
+.rich .gap { height: 6px; }
+.rich .li { display: flex; gap: 6px; margin: 2px 0 2px 4px; }
+.rich .mark { color: var(--accent); font-weight: 700; flex: none; min-width: 14px; }
+.suggest { align-self: flex-start; border: 1px solid var(--ui-line); height: auto; min-height: 36px; padding: 6px 10px; text-align: left; white-space: normal; }
+details summary { cursor: pointer; color: var(--accent); }
 .micbtn { display: flex; align-items: center; gap: 4px; height: 42px; border: 1px solid var(--ui-line); }
 .micbtn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
 .callrow { display: flex; align-items: center; gap: 10px; }
@@ -1102,9 +1110,11 @@ $('#pdfInput').addEventListener('change', async (e) => {
   if (!files.length) return;
   closePop();
   try {
-    const pdf = files.find((f) => /pdf$/i.test(f.type) || /\.pdf$/i.test(f.name));
+    const pdfs = files.filter((f) => /pdf$/i.test(f.type) || /\.pdf$/i.test(f.name));
+    const pdf = pdfs[0];
     const images = files.filter((f) => /^image\//i.test(f.type) || /\.(jpe?g|png|heic|heif|webp|gif)$/i.test(f.name));
-    if (pdf) await importPdf(pdf, pdfMode);
+    if (pdfs.length > 1 || pdfMode === 'bulk') await importManyPdfs(pdfs);
+    else if (pdf) await importPdf(pdf, pdfMode);
     else if (images.length) await importPdf(await imagesToPdf(images), pdfMode);
     else toast('Choose a PDF or photos.');
   }
@@ -1322,6 +1332,50 @@ async function importPdf(file, mode) {
   }
 }
 
+/* many chapter PDFs at once: each becomes its own notebook, named and filed by chapter */
+async function importManyPdfs(files) {
+  if (!files.length) { toast('Choose the chapter PDFs.'); return; }
+  await saveNow();
+  const all = await DB.all('notebooks').catch(() => []);
+  const have = new Set(all.filter((n) => n.book).map((n) => n.book.subject + '-' + n.book.ch));
+  const added = [], skipped = [], unknown = [], failed = [];
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    toast('Reading ' + (i + 1) + ' of ' + files.length + ': ' + file.name + ' …', null, 120000);
+    try {
+      const bytes = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(bytes.slice(0)) }).promise;
+      const book = await detectChapter(pdf, file.name);
+      const key = book ? book.subject + '-' + book.ch : null;
+      if (key && have.has(key)) { skipped.push(chapterName(book)); await pdf.destroy(); continue; }
+      const pdfId = uid();
+      const pages = [];
+      for (let j = 1; j <= pdf.numPages; j++) {
+        const vp = (await pdf.getPage(j)).getViewport({ scale: 1 });
+        pages.push({ id: uid(), bg: 'pdf', pdfId, pdfPage: j, h: Math.round(U * vp.height / vp.width), strokes: [] });
+      }
+      await pdf.destroy();
+      await DB.put('pdfs', { bytes, name: file.name }, pdfId);
+      const title = book ? chapterName(book) : (file.name.replace(/\.pdf$/i, '').slice(0, 60) || 'PDF notes');
+      const n = { id: uid(), name: title, created: Date.now(), updated: Date.now(), pdfIds: [pdfId], pages };
+      if (book) { n.book = { subject: book.subject, ch: book.ch }; have.add(key); added.push(book); }
+      else unknown.push(file.name);
+      await DB.put('notebooks', n);
+    } catch (e) { console.warn(e); failed.push(file.name); }
+  }
+  added.sort((a, b) => (a.subject + a.ch).localeCompare(b.subject + b.ch, undefined, { numeric: true }));
+  const parts = [];
+  for (const subject of Object.keys(CATALOG)) {
+    const chs = added.filter((b) => b.subject === subject).map((b) => b.ch).sort((a, b) => a - b);
+    if (chs.length) parts.push(SUBJECT_NAMES[subject] + ' ' + chs.join(', '));
+  }
+  let msg = added.length ? 'Filed ' + added.length + (added.length === 1 ? ' chapter: ' : ' chapters: ') + parts.join('; ') + '.' : 'No new chapters filed.';
+  if (skipped.length) msg += ' Already there: ' + skipped.length + '.';
+  if (unknown.length) msg += ' Not recognised, kept under their file names: ' + unknown.join(', ') + '.';
+  if (failed.length) msg += ' Could not open: ' + failed.join(', ') + '.';
+  toast(msg, { label: 'Open chapter library', fn: () => showLibrary($('#bBooks')), ms: 20000 });
+}
+
 /* ---------- chapter library ---------- */
 function toggleDone(key) {
   prefs.done = prefs.done || {};
@@ -1336,6 +1390,7 @@ async function showLibrary(anchor) {
   const loose = all.filter((n) => !n.book && n.pages.some((p) => p.bg === 'pdf'));
   const build = (pop) => {
     pop.classList.add('wide');
+    pop.append(h('button', { class: 'pi on', html: ICON.pdf + '<span>Add many chapter PDFs at once</span>', onclick: () => pickPdf('bulk') }));
     for (const subject of Object.keys(CATALOG)) {
       const done = CATALOG[subject].filter((t, i) => prefs.done && prefs.done[subject + '-' + (i + 1)]).length;
       pop.append(h('div', { class: 'ph' }, SUBJECT_NAMES[subject] + ' · ' + done + ' of ' + CATALOG[subject].length + ' taught'));
@@ -1373,7 +1428,7 @@ async function showLibrary(anchor) {
         pop.append(h('div', { class: 'nbrow' }, h('button', { class: 'pi', onclick: () => openNotebook(n.id) }, h('span', null, n.name)), sel));
       }
     }
-    pop.append(h('div', { class: 'help' }, h('p', null, 'Tap a chapter to open it, or to add its PDF from Files. Study Board reads the chapter title from the PDF and files it automatically. Tick a chapter once it has been taught.')));
+    pop.append(h('div', { class: 'help' }, h('p', null, 'Select all the chapter PDFs of a book together (for example jemh101 to jemh114). Each one is read, named and filed under its chapter. Chapters already in the library are skipped. You can also tap one chapter to open it or add just its PDF. Tick a chapter once it has been taught.')));
   };
   const keep = pop.hidden ? 0 : pop.scrollTop;
   popAnchor = null;
@@ -1645,6 +1700,7 @@ $('#bBooks').addEventListener('click', async (e) => {
   openPop(anchor, (pop) => {
     pop.append(h('div', { class: 'ph' }, 'Homework'));
     pop.append(h('button', { class: 'pi', html: ICON.school + '<span>Homework: give, hand in, check</span>', onclick: () => openHw() }));
+    pop.append(h('button', { class: 'pi', html: ICON.help + '<span>' + (HW.role === 'teacher' ? 'AI tutor log' : 'AI tutor (Study Buddy)') + '</span>', onclick: () => { openHw(null, 'tutor'); } }));
     pop.append(h('button', { class: 'pi', html: ICON.chat + '<span>Chat' + (unreadCount() ? ' (' + unreadCount() + ' new)' : '') + '</span>', onclick: () => openHw(null, 'chat') }));
     pop.append(h('div', { class: 'ph' }, 'New'));
     pop.append(h('button', { class: 'pi', html: ICON.plus + '<span>New notebook (' + labelOf(prefs.lastBg) + ' paper)</span>', onclick: () => createNotebook(prefs.lastBg) }));
@@ -1864,6 +1920,7 @@ function openHw(returnId, view) {
   HW.view = view || 'work';
   hwEl.hidden = false;
   if (HW.view === 'chat' && HW.code) showChat();
+  else if (HW.view === 'tutor' && HW.code) showTutor();
   else renderHw();
   if (HW.code) refreshHw();
   clearInterval(HW.timer);
@@ -1873,7 +1930,7 @@ function closeHw() {
   hwEl.hidden = true;
   clearInterval(HW.timer);
   clearInterval(HW.chatTimer);
-  if (location.hash === '#homework' || location.hash === '#chat') { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }
+  if (/^#(homework|chat|tutor)$/.test(location.hash)) { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }
 }
 async function refreshHw() {
   try { const r = await api('items'); HW.items = r.items || []; HW.teacher = !!r.teacher; if (HW.bad) { HW.msg = ''; HW.bad = false; } }
@@ -1910,30 +1967,36 @@ function field(label, control) { return h('label', { class: 'hwfield' }, h('span
 function chip(text, kind) { return h('span', { class: 'chip ' + (kind || '') }, text); }
 function chatBusy() { return !!HW.rec || [...hwEl.querySelectorAll('audio')].some((a) => !a.paused); }
 function renderHw() {
-  const oldBox = hwEl.querySelector('#chatText');
+  const oldBox = hwEl.querySelector('#chatText, #tutorText');
   const draft = oldBox ? oldBox.value : (HW.draft || '');
   HW.draft = draft;
   const hadFocus = oldBox && document.activeElement === oldBox;
   hwEl.textContent = '';
   const inner = h('div', { class: 'hwin' });
   const head = h('div', { class: 'hwhead' },
-    h('h2', null, HW.view === 'chat' ? 'Chat' : 'Homework'),
+    h('h2', null, HW.view === 'chat' ? 'Chat' : HW.view === 'tutor' ? (HW.role === 'teacher' ? 'Tutor log' : 'Study Buddy') : 'Homework'),
     HW.code ? h('span', { class: 'sub' }, HW.role === 'teacher' ? 'Teacher' : 'Student') : null,
     HW.code ? h('button', { class: 'tb' + (HW.view === 'work' ? ' on' : ''), onclick: () => { HW.view = 'work'; HW.returning = null; clearInterval(HW.chatTimer); renderHw(); refreshHw(); } }, 'Homework') : null,
     HW.code ? h('button', { class: 'tb' + (HW.view === 'chat' ? ' on' : ''), onclick: () => showChat() }, 'Chat' + (unreadCount() ? ' (' + unreadCount() + ')' : '')) : null,
+    HW.code ? h('button', { class: 'tb' + (HW.view === 'tutor' ? ' on' : ''), onclick: () => showTutor() }, HW.role === 'teacher' ? 'Tutor log' : 'AI tutor') : null,
     h('button', { class: 'tb', onclick: closeHw }, 'Close'));
   const msg = h('p', { class: 'hwmsg' + (HW.bad ? ' bad' : ''), role: 'status' }, HW.msg);
   msg.hidden = !HW.msg;
   inner.append(head, msg);
   if (!HW.code) inner.append(setupView());
   else if (HW.view === 'chat') inner.append(chatView());
+  else if (HW.view === 'tutor') inner.append(HW.role === 'teacher' ? tutorLogView() : tutorView());
   else if (HW.returning) inner.append(returnView());
   else inner.append(HW.role === 'teacher' ? teacherView() : studentView());
-  if (HW.code && !HW.returning && HW.view !== 'chat') inner.append(h('p', { class: 'hwfoot' }, h('button', { class: 'linkbtn', onclick: () => { HW.code = ''; HW.pin = ''; HW.role = ''; saveHw(); HW.items = []; HW.msg = ''; renderHw(); } }, 'Sign out of homework on this device')));
+  if (HW.code && !HW.returning && HW.view === 'work') inner.append(h('p', { class: 'hwfoot' }, h('button', { class: 'linkbtn', onclick: () => { HW.code = ''; HW.pin = ''; HW.role = ''; saveHw(); HW.items = []; HW.msg = ''; renderHw(); } }, 'Sign out of homework on this device')));
   hwEl.append(inner);
   if (HW.view === 'chat') {
     const list = hwEl.querySelector('.chatlist'); if (list) list.scrollTop = list.scrollHeight;
     const box = hwEl.querySelector('#chatText'); if (box && draft) box.value = draft; if (box && hadFocus) box.focus();
+  }
+  if (HW.view === 'tutor') {
+    const list = hwEl.querySelector('.tutorlist'); if (list) list.scrollTop = list.scrollHeight;
+    const box = hwEl.querySelector('#tutorText'); if (box && draft) box.value = draft; if (box && hadFocus) box.focus();
   }
 }
 function setupView() {
@@ -1962,7 +2025,7 @@ function setupView() {
       const r = await api('whoami');
       if (HW.role === 'teacher' && !r.teacher) throw new Error('That teacher PIN is wrong.');
       saveHw(); HW.msg = '';
-      if (HW.view === 'chat') showChat(); else renderHw();
+      if (HW.view === 'chat') showChat(); else if (HW.view === 'tutor') showTutor(); else renderHw();
       refreshHw();
     } catch (e) { HW.code = ''; HW.pin = ''; HW.role = ''; go.disabled = false; hwSay(e.message, true); }
   });
@@ -2217,6 +2280,142 @@ function chatView() {
   wrap.append(h('div', { class: 'callrow' }, call), list, recBar || form, h('p', { class: 'meta' }, 'New messages appear within a few seconds while this screen is open.'));
   return wrap;
 }
+/* ---------- AI tutor ("Study Buddy") ---------- */
+const TUTOR = { msgs: [], busy: false, photo: null, log: null };
+try { TUTOR.msgs = JSON.parse(localStorage.getItem('studyboard-tutor') || '[]'); } catch (e) {}
+function saveTutor() { try { localStorage.setItem('studyboard-tutor', JSON.stringify(TUTOR.msgs.slice(-40))); } catch (e) {} }
+function showTutor() {
+  clearInterval(HW.chatTimer);
+  HW.view = 'tutor'; HW.returning = null;
+  renderHw();
+  if (HW.role === 'teacher') loadTutorLog();
+}
+// light formatting for tutor replies: **bold**, numbered and bullet lines; built from text nodes only
+function richText(text) {
+  const box = h('div', { class: 'rich' });
+  for (const line of String(text).split('\n')) {
+    const m = /^\s*([-*•]|\d+[.)])\s+(.*)$/.exec(line);
+    const el = h('div', { class: m ? 'li' : (line.trim() ? 'para' : 'gap') });
+    if (m) el.append(h('span', { class: 'mark' }, /\d/.test(m[1]) ? m[1] : '•'));
+    const body = h('span');
+    String(m ? m[2] : line).split(/(\*\*[^*]+\*\*)/).forEach((part) => {
+      if (/^\*\*[^*]+\*\*$/.test(part)) body.append(h('b', null, part.slice(2, -2)));
+      else if (part) body.append(document.createTextNode(part));
+    });
+    el.append(body);
+    box.append(el);
+  }
+  return box;
+}
+function tutorView() {
+  const wrap = h('div', { class: 'chat' });
+  wrap.append(h('p', { class: 'tutornote' }, 'Study Buddy is an AI tutor. Ask it to explain anything from your Maths or Science chapters, or send a photo of a question. It can make mistakes, so check important answers with Papa or the NCERT book. Papa can read what you ask here.'));
+  const list = h('div', { class: 'chatlist tutorlist' });
+  if (!TUTOR.msgs.length) {
+    list.append(h('p', { class: 'empty' }, 'Try asking:'));
+    for (const q of ['Why is sin 30° exactly 1/2?', 'Explain displacement reactions with a kitchen example', 'How do I find the height of a tower using trigonometry?', 'What is the difference between series and parallel circuits?']) {
+      list.append(h('button', { class: 'tb suggest', type: 'button', onclick: () => { const b = hwEl.querySelector('#tutorText'); if (b) { b.value = q; b.focus(); } } }, q));
+    }
+  }
+  for (const m of TUTOR.msgs) {
+    const bub = h('div', { class: 'bubble' + (m.role === 'user' ? ' mine' : ' tutor') },
+      h('div', { class: 'who' }, m.role === 'user' ? 'Tanish' : 'Study Buddy'));
+    if (m.photo) bub.append(h('div', { class: 'meta' }, '📷 Photo sent'));
+    bub.append(m.role === 'user' ? h('div', { class: 'txt' }, m.text) : richText(m.text || (TUTOR.busy ? 'Thinking …' : '')));
+    list.append(bub);
+  }
+  const box = h('textarea', { class: 'hwinput', id: 'tutorText', rows: '2', maxlength: '2000', placeholder: 'Ask Study Buddy anything from your chapters' });
+  const photoIn = h('input', { type: 'file', accept: 'image/*', hidden: true });
+  const photoBtn = h('button', { class: 'tb micbtn', type: 'button', title: 'Attach a photo of a question or your working' }, TUTOR.photo ? '📷 1 photo' : '📷 Photo');
+  photoBtn.addEventListener('click', () => photoIn.click());
+  photoIn.addEventListener('change', async () => {
+    const f = photoIn.files && photoIn.files[0];
+    if (!f) return;
+    try {
+      const img = await loadImage(f);
+      const k = Math.min(1, 1400 / Math.max(img.naturalWidth, img.naturalHeight));
+      const cv = document.createElement('canvas');
+      cv.width = Math.round(img.naturalWidth * k); cv.height = Math.round(img.naturalHeight * k);
+      const c = cv.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, cv.width, cv.height); c.drawImage(img, 0, 0, cv.width, cv.height);
+      TUTOR.photo = cv.toDataURL('image/jpeg', 0.8).split(',')[1];
+      cv.width = 0;
+      renderHw();
+    } catch (e) { hwSay(e.message, true); }
+  });
+  const ask = h('button', { class: 'hwbtn', type: 'submit', disabled: TUTOR.busy }, TUTOR.busy ? 'Thinking …' : 'Ask');
+  const form = h('form', { class: 'chatform' }, photoBtn, photoIn, box, ask);
+  box.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); } });
+  form.addEventListener('submit', (ev) => { ev.preventDefault(); askTutor(box.value.trim()); });
+  const fresh = h('button', { class: 'linkbtn', type: 'button', onclick: () => { TUTOR.msgs = []; TUTOR.photo = null; saveTutor(); renderHw(); } }, 'Start a new topic');
+  wrap.append(list, form, h('p', { class: 'meta' }, 'Enter sends. ', fresh));
+  return wrap;
+}
+async function askTutor(text) {
+  if (TUTOR.busy) return;
+  if (!text && !TUTOR.photo) { hwSay('Type a question first.', true); return; }
+  const photo = TUTOR.photo;
+  TUTOR.photo = null;
+  TUTOR.msgs.push({ role: 'user', text: text || 'Please help me with this photo.', photo: !!photo });
+  const history = TUTOR.msgs.slice(-12).map((m) => ({ role: m.role, text: m.text }));
+  if (photo) history[history.length - 1].image = { type: 'image/jpeg', data: photo };
+  const reply = { role: 'assistant', text: '' };
+  TUTOR.msgs.push(reply);
+  TUTOR.busy = true; HW.draft = ''; HW.msg = '';
+  const tb = hwEl.querySelector('#tutorText'); if (tb) tb.value = '';
+  renderHw();
+  const paint = () => {
+    const bubs = hwEl.querySelectorAll('.tutorlist .bubble.tutor');
+    const last = bubs[bubs.length - 1];
+    if (!last) return;
+    const old = last.querySelector('.rich'); if (old) old.replaceWith(richText(reply.text || 'Thinking …'));
+    const list = hwEl.querySelector('.tutorlist'); if (list) list.scrollTop = list.scrollHeight;
+  };
+  try {
+    const r = await fetch('api/tutor/ask', { method: 'POST', headers: { 'content-type': 'application/json', 'x-class-code': HW.code }, body: JSON.stringify({ messages: history }) });
+    if (!r.ok) {
+      let msg = 'The tutor could not answer (' + r.status + ').';
+      try { msg = (await r.json()).error || msg; } catch (e) { if (r.status === 404) msg = 'The AI tutor works only on the Netlify version of Study Board.'; }
+      throw new Error(msg);
+    }
+    const reader = r.body.getReader(); const dec = new TextDecoder();
+    let last = 0;
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      reply.text += dec.decode(value, { stream: true });
+      if (Date.now() - last > 120) { paint(); last = Date.now(); }
+    }
+    reply.text += dec.decode();
+  } catch (e) {
+    reply.text = reply.text || ('Sorry: ' + (e && e.message ? e.message : 'no connection. Try again.'));
+  }
+  TUTOR.busy = false;
+  saveTutor();
+  if (!hwEl.hidden && HW.view === 'tutor') { renderHw(); }
+}
+async function loadTutorLog() {
+  try {
+    const r = await fetch('api/tutor/log', { headers: { 'x-class-code': HW.code, 'x-teacher-pin': HW.pin }, cache: 'no-store' });
+    if (!r.ok) { let m = 'Could not load the tutor log (' + r.status + ').'; try { m = (await r.json()).error || m; } catch (e) {} throw new Error(m); }
+    TUTOR.log = (await r.json()).items || [];
+  } catch (e) { TUTOR.log = []; hwSay(e.message, true); }
+  if (!hwEl.hidden && HW.view === 'tutor') renderHw();
+}
+function tutorLogView() {
+  const wrap = h('div');
+  wrap.append(h('p', { class: 'tutornote' }, 'Everything Tanish has asked the AI tutor, newest first, with its answers.'), h('button', { class: 'tb', type: 'button', onclick: () => loadTutorLog() }, 'Refresh log'));
+  if (!TUTOR.log) { wrap.append(h('p', { class: 'empty' }, 'Loading …')); return wrap; }
+  if (!TUTOR.log.length) wrap.append(h('p', { class: 'empty' }, 'No questions yet.'));
+  for (const it of TUTOR.log) {
+    const card = h('div', { class: 'hwcard' },
+      h('p', { class: 'meta' }, new Date(it.at).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) + (it.hadImage ? ' · with photo' : '')),
+      h('p', null, h('b', null, 'Q: '), it.question),
+      h('details', null, h('summary', null, 'Answer'), richText(it.answer || '')));
+    wrap.append(card);
+  }
+  return wrap;
+}
+
 /* voice messages */
 const voiceUrls = new Map();
 function voicePlayer(m) {
@@ -2319,6 +2518,7 @@ async function init() {
   setNotebook(n, true);
   if (location.hash === '#homework') openHw();
   if (location.hash === '#chat') openHw(null, 'chat');
+  if (location.hash === '#tutor') openHw(null, 'tutor');
   window.addEventListener('hashchange', () => { if (location.hash === '#homework') openHw(); if (location.hash === '#chat') openHw(null, 'chat'); });
   if (!prefs.seenTip) {
     prefs.seenTip = true; savePrefs();
