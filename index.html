@@ -184,7 +184,7 @@ body.finger #scroller { touch-action: none; }
 .notepage::after { content: none; }
 #hw { position: fixed; inset: 0; z-index: 45; overflow: auto; background: var(--ui-bg); color: var(--ui-fg); -webkit-user-select: text; user-select: text; }
 .hwin { max-width: 760px; margin: 0 auto; padding-block: 16px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 10px; }
-.hwhead { display: flex; align-items: center; gap: 8px; position: sticky; top: 0; background: var(--ui-bg); padding-block: 6px; z-index: 1; }
+.hwhead { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; position: sticky; top: 0; background: var(--ui-bg); padding-block: 6px; z-index: 1; }
 .hwhead h2 { margin: 0 auto 0 0; font-size: 22px; }
 .hwhead .sub { color: var(--ui-muted); }
 #hw h3 { margin: 14px 0 2px; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--ui-muted); font-weight: 600; }
@@ -239,6 +239,9 @@ details summary { cursor: pointer; color: var(--accent); }
 .callrow { display: flex; align-items: center; gap: 10px; }
 .callbtn { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; line-height: 40px; }
 .callbtn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+@media (max-width: 560px) { .micbtn span { display: none; } .micbtn { padding: 0 10px; } }
+.chatpic { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.chatpic img { max-width: min(320px, 70vw); max-height: 360px; border-radius: 8px; border: 1px solid var(--ui-line); cursor: zoom-in; background: #fff; }
 .voice { display: flex; flex-direction: column; gap: 4px; min-width: 220px; }
 .voice audio { width: 100%; max-width: 300px; height: 36px; }
 .recbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--danger); border-radius: 12px; background: var(--ui-panel); }
@@ -366,6 +369,7 @@ const ICON = {
   full: '<svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>',
   book: '<svg viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/><path d="M8 7.5h8M8 11h5"/></svg>',
   video: '<svg viewBox="0 0 24 24"><rect x="3" y="6" width="12" height="12" rx="2"/><path d="M15 10l6-3.5v11L15 14"/></svg>',
+  image: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-8 8"/></svg>',
   mic: '<svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg>',
   chat: '<svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12.5h5"/></svg>',
   school: '<svg viewBox="0 0 24 24"><path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5"/></svg>',
@@ -2345,7 +2349,7 @@ async function pollChat() {
     else {
       updateChatBadge();
       const theirs = fresh.filter((m) => m.from !== myRole() && m.at > HW.lastSeen);
-      if (theirs.length && since) toast((myRole() === 'teacher' ? 'Tanish' : 'Papa') + ': ' + theirs[theirs.length - 1].text.slice(0, 80), { label: 'Open chat', fn: () => openHw(null, 'chat') });
+      if (theirs.length && since) { const lm = theirs[theirs.length - 1]; toast((myRole() === 'teacher' ? 'Tanish' : 'Papa') + ': ' + (lm.image ? '📷 picture' : lm.audio ? '🎤 voice message' : lm.text.slice(0, 80)), { label: 'Open chat', fn: () => openHw(null, 'chat') }); }
       if (!hwEl.hidden) renderHw();
     }
   } catch (e) { /* offline or not set up: try again later */ }
@@ -2371,13 +2375,21 @@ function chatView() {
     const mine = m.from === myRole();
     list.append(h('div', { class: 'bubble' + (mine ? ' mine' : '') },
       h('div', { class: 'who' }, (m.from === 'teacher' ? 'Papa' : 'Tanish') + ' · ' + d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })),
-      m.audio ? voicePlayer(m) : h('div', { class: 'txt' }, m.text)));
+      m.audio ? voicePlayer(m) : m.image ? chatPicture(m) : h('div', { class: 'txt' }, m.text)));
   }
   const box = h('textarea', { class: 'hwinput', id: 'chatText', rows: '2', maxlength: '2000', placeholder: myRole() === 'teacher' ? 'Write to Tanish' : 'Write to Papa' });
   const send = h('button', { class: 'hwbtn', type: 'submit' }, 'Send');
   const mic = h('button', { class: 'tb micbtn', type: 'button', title: 'Record a voice message', 'aria-label': 'Record a voice message', html: ICON.mic + '<span>Voice</span>' });
   mic.addEventListener('click', () => startRecording());
-  const form = h('form', { class: 'chatform' }, mic, box, send);
+  const picIn = h('input', { type: 'file', accept: 'image/*', multiple: true, hidden: true });
+  const pic = h('button', { class: 'tb micbtn', type: 'button', title: 'Send a screenshot or photo (you can also paste one with Ctrl or Cmd + V)', 'aria-label': 'Send a picture', html: ICON.image + '<span>Picture</span>' });
+  pic.addEventListener('click', () => picIn.click());
+  picIn.addEventListener('change', () => { sendPictures([...(picIn.files || [])], box.value.trim()); });
+  box.addEventListener('paste', (e) => {
+    const imgs = [...((e.clipboardData && e.clipboardData.files) || [])].filter((f) => /^image\//.test(f.type));
+    if (imgs.length) { e.preventDefault(); sendPictures(imgs, box.value.trim()); }
+  });
+  const form = h('form', { class: 'chatform' }, mic, pic, picIn, box, send);
   box.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); } });
   form.addEventListener('submit', async (ev) => {
     ev.preventDefault();
@@ -2531,6 +2543,54 @@ function tutorLogView() {
     wrap.append(card);
   }
   return wrap;
+}
+
+/* pictures in chat: screenshots and photos */
+const picUrls = new Map();
+function chatPicture(m) {
+  const wrap = h('div', { class: 'chatpic' });
+  if (m.text) wrap.append(h('div', { class: 'txt' }, m.text));
+  const img = h('img', { alt: 'Picture from ' + (m.from === 'teacher' ? 'Papa' : 'Tanish'), loading: 'lazy' });
+  const show = (url) => { img.src = url; };
+  if (picUrls.has(m.id)) show(picUrls.get(m.id));
+  else api('photo/' + m.id).then((b) => { const u = URL.createObjectURL(b); picUrls.set(m.id, u); show(u); }).catch(() => { img.replaceWith(h('span', { class: 'meta' }, 'Picture could not load. Tap Chat to retry.')); });
+  img.addEventListener('click', () => { if (img.src) window.open(img.src, '_blank'); });
+  wrap.append(img);
+  if (myRole() === 'teacher') {
+    wrap.append(h('button', { class: 'tb', type: 'button', onclick: async () => {
+      try {
+        const blob = await api('photo/' + m.id);
+        const file = await imagesToPdf([new File([blob], 'picture.jpg', { type: blob.type })]);
+        await importPdf(new File([file], 'Homework ' + new Date(m.at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) + ' (picture).pdf', { type: 'application/pdf' }), 'new');
+        closeHw();
+      } catch (e) { hwSay(e.message, true); }
+    } }, 'Open in Study Board to mark'));
+  }
+  return wrap;
+}
+async function sendPictures(files, text) {
+  files = files.filter((f) => /^image\//.test(f.type) || /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name));
+  if (!files.length) return;
+  for (let i = 0; i < files.length; i++) {
+    hwSay('Sending picture ' + (i + 1) + ' of ' + files.length + ' …');
+    try {
+      const img = await loadImage(files[i]);
+      const k = Math.min(1, 2000 / Math.max(img.naturalWidth, img.naturalHeight));
+      const cv = document.createElement('canvas');
+      cv.width = Math.round(img.naturalWidth * k); cv.height = Math.round(img.naturalHeight * k);
+      const c = cv.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, cv.width, cv.height); c.drawImage(img, 0, 0, cv.width, cv.height);
+      const blob = await new Promise((r) => cv.toBlob(r, 'image/jpeg', 0.85));
+      cv.width = 0;
+      const fd = new FormData();
+      fd.append('file', new File([blob], 'picture.jpg', { type: 'image/jpeg' }));
+      if (i === 0 && text) fd.append('text', text);
+      const r = await api('photo', { method: 'POST', body: fd });
+      picUrls.set(r.msg.id, URL.createObjectURL(blob));
+      HW.msgs.push(r.msg);
+    } catch (e) { hwSay(e.message, true); return; }
+  }
+  const box = hwEl.querySelector('#chatText'); if (box && text) box.value = '';
+  HW.draft = ''; HW.msg = ''; markSeen(); renderHw();
 }
 
 /* voice messages */
