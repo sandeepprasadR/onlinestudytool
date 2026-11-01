@@ -218,7 +218,7 @@ body.finger #scroller { touch-action: none; }
   </div>
   <div class="grp x">
     <button class="ib" id="bAdd" title="Add or change page" aria-label="Add page"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M12 10.5v6M9 13.5h6"/></svg></button>
-    <button class="ib" id="bPdf" title="Insert a PDF" aria-label="Insert PDF"><svg viewBox="0 0 24 24"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/><path d="M12 10v7M9 14l3 3 3-3"/></svg></button>
+    <button class="ib" id="bPdf" title="Insert a PDF or photos" aria-label="Insert PDF or photos"><svg viewBox="0 0 24 24"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/><path d="M12 10v7M9 14l3 3 3-3"/></svg></button>
   </div>
   <div class="grp x">
     <button class="tb" id="bPage" title="Go to page" aria-label="Go to page">1 / 1</button>
@@ -231,7 +231,7 @@ body.finger #scroller { touch-action: none; }
 <main id="scroller"><div id="pages"></div></main>
 <div id="pop" hidden></div>
 <div id="toast" role="status" aria-live="polite" hidden></div>
-<input type="file" id="pdfInput" accept="application/pdf,.pdf" hidden>
+<input type="file" id="pdfInput" accept="application/pdf,.pdf,image/*" multiple hidden>
 <script src="vendor/pdf.min.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script>
@@ -981,12 +981,54 @@ function pickPdf(mode, chapter) {
   inp.click();
 }
 $('#pdfInput').addEventListener('change', async (e) => {
-  const file = e.target.files && e.target.files[0];
-  if (!file) return;
+  const files = [...(e.target.files || [])];
+  if (!files.length) return;
   closePop();
-  try { await importPdf(file, pdfMode); }
+  try {
+    const pdf = files.find((f) => /pdf$/i.test(f.type) || /\.pdf$/i.test(f.name));
+    const images = files.filter((f) => /^image\//i.test(f.type) || /\.(jpe?g|png|heic|heif|webp|gif)$/i.test(f.name));
+    if (pdf) await importPdf(pdf, pdfMode);
+    else if (images.length) await importPdf(await imagesToPdf(images), pdfMode);
+    else toast('Choose a PDF or photos.');
+  }
   catch (err) { console.warn(err); toast('Could not open that PDF: ' + (err && err.message ? err.message : 'unknown error')); }
 });
+/* photos (homework pages) become a PDF so they behave like any other PDF page */
+function loadImage(f) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(f);
+    const im = new Image();
+    im.onload = () => { URL.revokeObjectURL(url); res(im); };
+    im.onerror = () => { URL.revokeObjectURL(url); rej(new Error(f.name + ' is not a photo this browser can open')); };
+    im.src = url;
+  });
+}
+async function imagesToPdf(files) {
+  if (!window.jspdf) throw new Error('The PDF writer did not load. Check the internet connection and reload the page.');
+  const { jsPDF } = window.jspdf;
+  let doc = null;
+  for (let i = 0; i < files.length; i++) {
+    toast('Preparing photo ' + (i + 1) + ' of ' + files.length + ' …', null, 60000);
+    const img = await loadImage(files[i]);
+    const k = Math.min(1, 2000 / Math.max(img.naturalWidth, img.naturalHeight));
+    const w = Math.max(1, Math.round(img.naturalWidth * k)), hh = Math.max(1, Math.round(img.naturalHeight * k));
+    const cv = document.createElement('canvas');
+    cv.width = w; cv.height = hh;
+    const c = cv.getContext('2d');
+    c.fillStyle = '#fff'; c.fillRect(0, 0, w, hh);
+    c.drawImage(img, 0, 0, w, hh);
+    const data = cv.toDataURL('image/jpeg', 0.85);
+    cv.width = 0; cv.height = 0;
+    const wpt = 595.28, hpt = wpt * hh / w, orient = hpt >= wpt ? 'portrait' : 'landscape';
+    if (!doc) doc = new jsPDF({ unit: 'pt', format: [wpt, hpt], orientation: orient, compress: true });
+    else doc.addPage([wpt, hpt], orient);
+    doc.addImage(data, 'JPEG', 0, 0, wpt, hpt);
+  }
+  const day = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  const name = 'Homework ' + day + (files.length > 1 ? ' (' + files.length + ' photos)' : '') + '.pdf';
+  return new File([doc.output('arraybuffer')], name, { type: 'application/pdf' });
+}
+
 /* ---------- NCERT chapter recognition ---------- */
 const normText = (s) => ' ' + String(s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() + ' ';
 const chapterOf = (b) => b && CATALOG[b.subject] && CATALOG[b.subject][b.ch - 1];
@@ -1063,6 +1105,8 @@ async function importPdf(file, mode) {
     toast(pagesMsg + ' added. This PDF looks like ' + chapterName(found) + ', not ' + chapterName(forced) + '. Check you picked the right file.', null, 9000);
   } else if (book) {
     toast(pagesMsg + ' added as ' + chapterName(book) + '.', null, 5000);
+  } else if (/^Homework /.test(file.name)) {
+    toast(pagesMsg + ' of homework added. Mark it with the pen, then export it from the ⋯ menu to send back.', null, 6000);
   } else {
     toast(pagesMsg + ' added from ' + file.name + '. Chapter not recognised; open the chapter library to file it under a chapter.', null, 7000);
   }
@@ -1379,7 +1423,7 @@ $('#bBooks').addEventListener('click', async (e) => {
   openPop(anchor, (pop) => {
     pop.append(h('div', { class: 'ph' }, 'New'));
     pop.append(h('button', { class: 'pi', html: ICON.plus + '<span>New notebook (' + labelOf(prefs.lastBg) + ' paper)</span>', onclick: () => createNotebook(prefs.lastBg) }));
-    pop.append(h('button', { class: 'pi', html: ICON.pdf + '<span>Open a PDF as a new notebook</span>', onclick: () => pickPdf('new') }));
+    pop.append(h('button', { class: 'pi', html: ICON.pdf + '<span>Open a PDF or photos as a new notebook</span>', onclick: () => pickPdf('new') }));
     pop.append(h('button', { class: 'pi', html: ICON.book + '<span>Chapter library: Maths and Science</span>', onclick: () => showLibrary(anchor) }));
     pop.append(h('div', { class: 'ph' }, 'Notebooks on this iPad'));
     for (const n of all) {
@@ -1440,7 +1484,7 @@ function showHelp(anchor) {
     d.innerHTML =
       '<p><b>Write</b> with Apple Pencil. Your hand and fingers never draw, so you can rest your palm on the screen.</p>' +
       '<p><b>Scroll</b> with one finger. <b>Zoom</b> by pinching with two fingers. Tap <b>Fit</b> to return to full width.</p>' +
-      '<p><b>PDF:</b> the page-with-arrow button adds a PDF after the current page. Each PDF page becomes a page you can write on.</p>' +
+      '<p><b>PDF or photos:</b> the page-with-arrow button adds a PDF, or one or more photos (for example homework pages), after the current page. Each becomes a page you can write on.</p>' +
       '<p><b>Blank paper:</b> the page-with-plus button adds a blank, ruled, graph, dotted or blackboard page, or changes the current one.</p>' +
       '<p><b>Laser</b> shows a red trail that fades, for pointing without leaving marks.</p>' +
       '<p><b>Shapes:</b> tap the shape button, then tap it again to choose line, arrow, rectangle or circle.</p>' +
