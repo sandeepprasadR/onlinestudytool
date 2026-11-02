@@ -243,6 +243,12 @@ details summary { cursor: pointer; color: var(--accent); }
 .callbtn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; }
 @media (max-width: 560px) { .micbtn span { display: none; } .micbtn { padding: 0 10px; } }
 .bigpic { position: fixed; inset: 0; z-index: 70; background: rgba(10,14,20,.92); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 16px; }
+.docview { position: fixed; inset: 0; z-index: 70; background: rgba(10,14,20,.95); display: flex; flex-direction: column; }
+.dochead { display: flex; align-items: center; gap: 10px; padding: 10px 14px; padding-top: max(10px, env(safe-area-inset-top)); color: #fff; }
+.dochead strong { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dochead .tb { color: #fff; }
+.docpages { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 4px 12px 24px; }
+.docpages canvas, .docpages img { max-width: 100%; height: auto; background: #fff; border-radius: 4px; }
 .bigpic img { max-width: 100%; max-height: calc(100% - 70px); object-fit: contain; background: #fff; border-radius: 6px; }
 .chatpic img { min-height: 120px; min-width: 120px; }
 .chatpic { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
@@ -2122,15 +2128,40 @@ async function refreshHw() {
   if (!hwEl.hidden) renderHw();
 }
 function hwSay(text, bad) { HW.msg = text; HW.bad = !!bad; const m = hwEl.querySelector('.hwmsg'); if (m) { m.textContent = text; m.classList.toggle('bad', !!bad); m.hidden = !text; } }
+// opens a homework file inside the app (a new window shows a blank page in the iPad/iPhone Home Screen app)
 async function viewHwFile(id, marked) {
-  const w = window.open('', '_blank');
+  hwSay('Opening …');
   try {
     const blob = await api('file/' + id + (marked ? '?v=marked' : ''));
-    const url = URL.createObjectURL(blob);
-    if (w) w.location.href = url;
-    else { const a = h('a', { href: url, target: '_blank', rel: 'noopener' }); document.body.append(a); a.click(); a.remove(); }
-    setTimeout(() => URL.revokeObjectURL(url), 120000);
-  } catch (e) { if (w) w.close(); hwSay(e.message, true); }
+    const item = HW.items.find((x) => x.id === id);
+    HW.msg = ''; renderHw();
+    await showDoc(blob, (item ? item.title : 'Homework') + (marked ? ' (marked)' : ''), !marked && HW.role === 'teacher' && item && item.kind === 'sub' ? item : null);
+  } catch (e) { hwSay(e.message, true); }
+}
+async function showDoc(blob, title, markItem) {
+  const pagesEl = h('div', { class: 'docpages' });
+  const close = () => { box.remove(); pagesEl.querySelectorAll('canvas').forEach((c) => { c.width = 0; c.height = 0; }); };
+  const head = h('div', { class: 'dochead' }, h('strong', null, title));
+  if (markItem) head.append(h('button', { class: 'hwbtn', type: 'button', onclick: () => { close(); markHw(markItem); } }, 'Open and mark'));
+  head.append(h('button', { class: 'tb', type: 'button', onclick: close }, 'Close'));
+  const box = h('div', { class: 'docview', role: 'dialog', 'aria-label': title }, head, pagesEl);
+  document.body.append(box);
+  if (/^image\//.test(blob.type)) { pagesEl.append(h('img', { src: URL.createObjectURL(blob), alt: title })); return; }
+  if (!pdfReady()) { pagesEl.append(h('p', { class: 'empty' }, 'The PDF reader did not load. Reload the page and try again.')); return; }
+  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) }).promise;
+  const n = Math.min(pdf.numPages, 40);
+  const cssW = Math.min(1000, window.innerWidth - 24);
+  for (let i = 1; i <= n && box.isConnected; i++) {
+    const page = await pdf.getPage(i);
+    const v1 = page.getViewport({ scale: 1 });
+    const scale = (cssW * Math.min(2, window.devicePixelRatio || 1)) / v1.width;
+    const vp = page.getViewport({ scale });
+    const cv = h('canvas', { width: String(Math.round(vp.width)), height: String(Math.round(vp.height)) });
+    cv.style.width = cssW + 'px';
+    pagesEl.append(cv);
+    await page.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+  }
+  if (pdf.numPages > n) pagesEl.append(h('p', { class: 'empty' }, 'Showing the first ' + n + ' of ' + pdf.numPages + ' pages.'));
 }
 async function markHw(item) {
   hwSay('Opening ' + item.title + ' …');
