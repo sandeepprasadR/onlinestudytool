@@ -174,6 +174,66 @@ export default async (req: Request, context: Context) => {
       return new Response(data, { headers: { "content-type": rec.audio.type, "cache-control": "no-store" } });
     }
 
+    // live page: both write on the same page. The teacher starts it with a picture of the page;
+    // each side sends the strokes it added or removed and gets the other side's changes (polling).
+    if (req.method === "POST" && action === "live" && id === "start") {
+      if (!teacher) return fail(403, "Only the teacher can start a live page.");
+      const form = await req.formData();
+      const f = await readFile(form);
+      if (!f || !/^image\//.test(f.meta.type)) return fail(400, "Send a picture of the page.");
+      const old = await s.list({ prefix: "live/" });
+      await Promise.all(old.blobs.map((b) => s.delete(b.key)));
+      const at = Date.now();
+      const session = { sid: at.toString(36) + Math.random().toString(36).slice(2, 6), title: clean(form.get("title"), 120) || "Live page", h: Math.max(100, Math.min(20000, Math.round(Number(form.get("h")) || 1414))), at, active: true };
+      await s.set("live/bg", f.data);
+      await s.setJSON("live/session", session);
+      const msgId = String(at).padStart(13, "0") + "-" + Math.random().toString(36).slice(2, 8);
+      const msg = { id: msgId, at, from: "teacher", text: "🖊️ Live page: " + session.title + ". Tap Join to write on it with Papa.", live: session.sid };
+      await s.setJSON("msg/" + msgId, msg);
+      await notify(s, "student", "Papa", "🖊️ Live page started. Open Study Board and tap Join.", "chat");
+      return json({ session, msg });
+    }
+
+    if (req.method === "GET" && action === "live" && !id) {
+      const session = await s.get("live/session", { type: "json" });
+      return json({ session: session || null });
+    }
+
+    if (req.method === "GET" && action === "live" && id === "bg") {
+      const data = await s.get("live/bg", { type: "arrayBuffer" });
+      if (!data) return fail(404, "No live page.");
+      return new Response(data, { headers: { "content-type": "image/jpeg", "cache-control": "no-store" } });
+    }
+
+    if (req.method === "POST" && action === "live" && id === "end") {
+      if (!teacher) return fail(403, "Only the teacher can end the live page.");
+      const session = (await s.get("live/session", { type: "json" })) as { active?: boolean } | null;
+      if (session) { session.active = false; await s.setJSON("live/session", session); }
+      return json({ ok: true });
+    }
+
+    if (req.method === "POST" && action === "live" && id === "sync") {
+      const body = await req.json();
+      const session = (await s.get("live/session", { type: "json" })) as { sid: string; active: boolean } | null;
+      const now = Date.now();
+      if (!session || !session.active || session.sid !== clean(body.sid, 40)) return json({ active: false, now, events: [] });
+      const role = teacher ? "teacher" : "student";
+      const okStroke = (x: any) => x && /^(pen|hl|line|arrow|rect|ellipse)$/.test(x.t) && typeof x.c === "string" && x.c.length < 30 && Number.isFinite(+x.w) && Array.isArray(x.pts) && x.pts.length >= 3 && x.pts.length <= 30000 && x.pts.every((v: unknown) => Number.isFinite(v as number));
+      const adds = (Array.isArray(body.adds) ? body.adds : []).slice(0, 100)
+        .filter((a: any) => a && typeof a.id === "string" && a.id.length < 60 && okStroke(a.s))
+        .map((a: any) => ({ id: a.id, s: { t: a.s.t, c: a.s.c, w: +a.s.w, pts: a.s.pts } }));
+      const dels = (Array.isArray(body.dels) ? body.dels : []).filter((x: unknown) => typeof x === "string" && (x as string).length < 60).slice(0, 2000);
+      if (adds.length || dels.length) {
+        await s.setJSON("live/e/" + session.sid + "/" + String(now).padStart(13, "0") + "-" + Math.random().toString(36).slice(2, 8), { by: role, adds, dels });
+      }
+      const since = Math.max(0, Number(body.since) || 0);
+      const { blobs } = await s.list({ prefix: "live/e/" + session.sid + "/" });
+      const pre = ("live/e/" + session.sid + "/").length;
+      const keys = blobs.map((b) => b.key).filter((k) => Number(k.slice(pre, pre + 13)) >= since).sort();
+      const evs = (await Promise.all(keys.map(async (k) => ({ key: k.slice(pre), ...((await s.get(k, { type: "json" })) as object) })))) as { key: string; by: string }[];
+      return json({ active: true, now, events: evs.filter((e) => e.by && e.by !== role) });
+    }
+
     // shared chapter library: the teacher uploads each chapter PDF once; every device can download it
     if (req.method === "GET" && action === "lib" && !id) {
       const { blobs } = await s.list({ prefix: "libmeta/" });
