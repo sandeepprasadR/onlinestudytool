@@ -223,6 +223,15 @@ textarea.hwinput { resize: vertical; }
 .livepill .dot.bad { background: #f5a623; }
 @keyframes livedot { 50% { opacity: .35; } }
 .livepill button { border: 0; border-radius: 999px; padding: 4px 10px; background: rgba(255,255,255,.18); color: #fff; font: inherit; cursor: pointer; }
+.qrview { position: fixed; inset: 0; z-index: 75; background: rgba(10,14,20,.55); display: grid; place-items: center; padding: 16px; }
+.qrcard { background: var(--ui-panel); color: var(--ui-fg); border-radius: 14px; padding: 18px 20px; max-width: 360px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,.3); }
+.qrcard h3 { margin: 0 0 10px; }
+.qrcard p { font-size: 15px; line-height: 1.45; }
+.qrpic { background: #fff; padding: 8px; border-radius: 8px; width: 240px; height: 240px; margin: 0 auto; }
+.qrpic svg { width: 100%; height: 100%; display: block; }
+.snapview { position: fixed; inset: 0; z-index: 80; background: var(--ui-bg); color: var(--ui-fg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 24px; text-align: center; }
+.snapview .big { font-size: 20px; padding: 18px 28px; }
+.snapmsg { max-width: 420px; font-size: 17px; line-height: 1.45; }
 .pushbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 10px; margin: 0 0 8px; border-radius: 10px; background: #fff7d6; font-size: 14px; }
 .pushbar[hidden] { display: none; }
 .hwroles { display: flex; flex-wrap: wrap; gap: 16px; }
@@ -651,11 +660,19 @@ function scheduleRepaint() {
 // pen/hl pts: x, y, pressure triples; shapes: x1, y1, x2, y2
 const pw = (pr) => 0.45 + 0.95 * pr;
 function drawInk(ctx, strokes) {
+  for (const s of strokes) if (s.t === 'img') drawStroke(ctx, s);
   for (const s of strokes) if (s.t === 'hl') drawStroke(ctx, s);
-  for (const s of strokes) if (s.t !== 'hl') drawStroke(ctx, s);
+  for (const s of strokes) if (s.t !== 'hl' && s.t !== 'img') drawStroke(ctx, s);
 }
 function drawStroke(ctx, s) {
   const p = s.pts;
+  if (s.t === 'img') { // a photo placed on the page: pts are two opposite corners
+    const x = Math.min(p[0], p[2]), y = Math.min(p[1], p[3]), w = Math.abs(p[2] - p[0]), hh = Math.abs(p[3] - p[1]);
+    const e = imgEl(s.src);
+    if (e.el) ctx.drawImage(e.el, x, y, w, hh);
+    else { ctx.save(); ctx.fillStyle = '#eef1f5'; ctx.fillRect(x, y, w, hh); ctx.strokeStyle = '#b8c0cc'; ctx.lineWidth = 1; ctx.strokeRect(x, y, w, hh); ctx.restore(); }
+    return;
+  }
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   ctx.strokeStyle = s.c; ctx.fillStyle = s.c;
   if (s.t === 'pen') {
@@ -713,7 +730,7 @@ function polyline(s) {
   const [x1, y1, x2, y2] = p;
   if (s.t === 'line') return [x1, y1, x2, y2];
   if (s.t === 'arrow') { const hd = arrowHead(s); return [x1, y1, x2, y2, hd[0], hd[1], x2, y2, hd[2], hd[3]]; }
-  if (s.t === 'rect') return [x1, y1, x2, y1, x2, y2, x1, y2, x1, y1];
+  if (s.t === 'rect' || s.t === 'img') return [x1, y1, x2, y1, x2, y2, x1, y2, x1, y1];
   const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2, rx = Math.abs(x2 - x1) / 2, ry = Math.abs(y2 - y1) / 2, out = [];
   for (let i = 0; i <= 48; i++) { const t = i / 48 * Math.PI * 2; out.push(cx + rx * Math.cos(t), cy + ry * Math.sin(t)); }
   return out;
@@ -772,8 +789,19 @@ function selPoly(a) {
   if (prefs.selMode === 'rect') { const [x0, y0] = a.start, [x1, y1] = a.cur; return [x0, y0, x1, y0, x1, y1, x0, y1]; }
   return a.path;
 }
+const HANDLE = 22;
 function selDown(v, x, y) {
   const b = sel && sel.pid === v.p.id ? sel.box : null;
+  if (b && Math.abs(x - b[2]) < HANDLE && Math.abs(y - b[3]) < HANDLE) {
+    Object.assign(act, { mode: 'resize', box0: b.slice(), snap: sel.strokes.map((s) => Float32Array.from(s.pts)) });
+    selBar.hidden = true;
+    return;
+  }
+  if (!(b && x > b[0] - 12 && x < b[2] + 12 && y > b[1] - 12 && y < b[3] + 12)) {
+    // tapping a photo selects it straight away, ready to drag
+    const ph = [...v.p.strokes].reverse().find((s) => s.t === 'img' && x >= Math.min(s.pts[0], s.pts[2]) && x <= Math.max(s.pts[0], s.pts[2]) && y >= Math.min(s.pts[1], s.pts[3]) && y <= Math.max(s.pts[1], s.pts[3]));
+    if (ph) { sel = { pid: v.p.id, strokes: [ph], box: selBox([ph]) }; Object.assign(act, { mode: 'move', last: [x, y], dx: 0, dy: 0 }); selBar.hidden = true; return; }
+  }
   if (b && x > b[0] - 12 && x < b[2] + 12 && y > b[1] - 12 && y < b[3] + 12) {
     Object.assign(act, { mode: 'move', last: [x, y], dx: 0, dy: 0 });
     selBar.hidden = true;
@@ -782,7 +810,21 @@ function selDown(v, x, y) {
   clearSel();
   Object.assign(act, { mode: 'pick', start: [x, y], cur: [x, y], path: [x, y] });
 }
+function scaleStroke(s, q, ax, ay, k) {
+  const out = new Float32Array(q.length), step = (s.t === 'pen' || s.t === 'hl') ? 3 : 2;
+  for (let i = 0; i < q.length; i += step) { out[i] = ax + (q[i] - ax) * k; out[i + 1] = ay + (q[i + 1] - ay) * k; if (step === 3) out[i + 2] = q[i + 2]; }
+  s.pts = out; bbCache.delete(s); delete s.lid;
+}
 function selMove(x, y) {
+  if (act.mode === 'resize') {
+    const [ax, ay, bx, by] = act.box0;
+    const k = clamp(Math.max((x - ax) / Math.max(1, bx - ax), (y - ay) / Math.max(1, by - ay)), 0.05, 20);
+    sel.strokes.forEach((s, i) => scaleStroke(s, act.snap[i], ax, ay, k));
+    sel.box = [ax, ay, ax + (bx - ax) * k, ay + (by - ay) * k];
+    act.k = k;
+    renderInk(act.v);
+    return;
+  }
   if (act.mode === 'move') {
     const dx = x - act.last[0], dy = y - act.last[1];
     act.last = [x, y]; act.dx += dx; act.dy += dy;
@@ -797,6 +839,12 @@ function selMove(x, y) {
 }
 function selUp(a) {
   const v = a.v, p = v.p;
+  if (a.mode === 'resize') {
+    if (a.k && Math.abs(a.k - 1) > 0.005) { pushUndo({ k: 'edit', pid: p.id, items: sel.strokes.map((s, i) => ({ s, a: a.snap[i], b: Float32Array.from(s.pts) })) }); dirty(); }
+    sel.box = selBox(sel.strokes);
+    placeSelBar(v);
+    return;
+  }
   if (a.mode === 'move') {
     if (Math.abs(a.dx) + Math.abs(a.dy) > 0.5) { pushUndo({ k: 'move', pid: p.id, strokes: sel.strokes.slice(), dx: a.dx, dy: a.dy }); dirty(); }
     placeSelBar(v);
@@ -843,10 +891,168 @@ function drawSel(ctx, v) {
   if (sel && sel.pid === v.p.id) {
     const b = sel.box;
     ctx.save(); ctx.setLineDash([7, 5]); ctx.lineWidth = 1.8; ctx.strokeStyle = '#1f6feb'; ctx.fillStyle = 'rgba(31,111,235,.07)';
-    ctx.fillRect(b[0], b[1], b[2] - b[0], b[3] - b[1]); ctx.strokeRect(b[0], b[1], b[2] - b[0], b[3] - b[1]); ctx.restore();
+    ctx.fillRect(b[0], b[1], b[2] - b[0], b[3] - b[1]); ctx.strokeRect(b[0], b[1], b[2] - b[0], b[3] - b[1]);
+    // resize handle at the bottom-right corner
+    ctx.setLineDash([]); ctx.fillStyle = '#fff'; ctx.lineWidth = 2.2;
+    ctx.fillRect(b[2] - 9, b[3] - 9, 18, 18); ctx.strokeRect(b[2] - 9, b[3] - 9, 18, 18);
+    ctx.restore();
   }
 }
 scroller.addEventListener('scroll', () => { if (sel && !selBar.hidden) { const v = views.get(sel.pid); if (v) placeSelBar(v); } }, { passive: true });
+
+/* ---------- photos on pages ---------- */
+// A photo is stored once (on this device and, when signed in, on the server) and drawn by its id.
+const IMG = new Map();
+let PLACE = null; // a photo waiting to be put on the page: { src, w, h }
+function imgEl(src) {
+  let e = IMG.get(src);
+  if (e) return e;
+  e = { el: null };
+  IMG.set(src, e);
+  e.p = loadImgBlob(src).then((b) => new Promise((res) => {
+    const im = new Image();
+    im.onload = () => { e.el = im; res(im); scheduleRepaint(); };
+    im.onerror = () => res(null);
+    im.src = URL.createObjectURL(b);
+  })).catch(() => { setTimeout(() => IMG.delete(src), 15000); return null; });
+  return e;
+}
+async function loadImgBlob(src) {
+  const id = src.slice(4);
+  const rec = await DB.get('pdfs', 'img:' + id).catch(() => null);
+  if (rec && rec.bytes) return new Blob([rec.bytes], { type: rec.type || 'image/jpeg' });
+  const b = await api('img/' + id);
+  try { await DB.put('pdfs', { bytes: await b.arrayBuffer(), name: 'photo', type: b.type || 'image/jpeg' }, 'img:' + id); } catch (err) {}
+  return b;
+}
+async function shrinkPhoto(file, max = 1600) {
+  const im = await loadImage(file);
+  const k = Math.min(1, max / Math.max(im.naturalWidth, im.naturalHeight));
+  const cv = document.createElement('canvas');
+  cv.width = Math.max(1, Math.round(im.naturalWidth * k)); cv.height = Math.max(1, Math.round(im.naturalHeight * k));
+  const c = cv.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, cv.width, cv.height); c.drawImage(im, 0, 0, cv.width, cv.height);
+  const blob = await new Promise((r) => cv.toBlob(r, 'image/jpeg', 0.85));
+  const out = { blob, w: cv.width, h: cv.height };
+  cv.width = 0; cv.height = 0;
+  return out;
+}
+async function storePhoto(file) { // returns { src, w, h }
+  const { blob, w, h: hh } = await shrinkPhoto(file);
+  const id = uid().replace(/[^a-z0-9]/g, '').slice(0, 20).padEnd(8, '0');
+  await DB.put('pdfs', { bytes: await blob.arrayBuffer(), name: 'photo', type: 'image/jpeg' }, 'img:' + id);
+  if (HW.code) {
+    const fd = new FormData();
+    fd.append('file', new File([blob], 'photo.jpg', { type: 'image/jpeg' }));
+    fd.append('id', id);
+    try { await api('img', { method: 'POST', body: fd }); }
+    catch (e) { if (LV.sid) throw e; } // on a live page the other side needs it from the server
+  }
+  return { src: 'img/' + id, w, h: hh };
+}
+function placeImage(ph, page, cx, cy) {
+  const fit = Math.min(440 / ph.w, 440 / ph.h), W = ph.w * fit, H = ph.h * fit; // fits a 440 x 440 box
+  const s = { t: 'img', c: '', w: 0, src: ph.src, pts: Float32Array.from([cx - W / 2, cy - H / 2, cx + W / 2, cy + H / 2]) };
+  doOp({ k: 'add', pid: page.id, s });
+  setTool('select');
+  sel = { pid: page.id, strokes: [s], box: selBox([s]) };
+  const v = views.get(page.id);
+  if (v && v.mounted) { attachLive(v); placeSelBar(v); }
+  requestDraw();
+  toast('Drag the photo to move it. Drag its corner square to make it smaller. Delete removes it.', null, 7000);
+}
+function visibleSpot() { // the current page and the middle of the part of it that is on screen
+  const p = nb.pages[currentIdx], v = p && views.get(p.id);
+  if (!v) return null;
+  const r = v.el.getBoundingClientRect(), sr = scroller.getBoundingClientRect(), f = U / r.width;
+  const top = Math.max(r.top, sr.top), bot = Math.min(r.bottom, sr.bottom);
+  return { page: p, x: U / 2, y: clamp(((top + bot) / 2 - r.top) * f, 60, p.h - 60) };
+}
+const photoIn = h('input', { type: 'file', accept: 'image/*', hidden: true });
+document.body.append(photoIn);
+photoIn.addEventListener('change', async () => {
+  const f = photoIn.files[0]; photoIn.value = '';
+  if (!f) return;
+  try {
+    toast('Adding the photo …', null, 60000);
+    const ph = await storePhoto(f);
+    const spot = visibleSpot();
+    if (spot) placeImage(ph, spot.page, spot.x, spot.y);
+  } catch (e) { toast('Could not add the photo: ' + (e && e.message ? e.message : 'try again'), null, 8000); }
+});
+// photos snapped on the phone (same sign-in) are picked up here
+let snapBusy = false;
+async function checkSnaps(token) {
+  if (snapBusy || !HW.code) return;
+  snapBusy = true;
+  const q = token ? '?token=' + token : '';
+  try {
+    const r = await api('snaps' + q);
+    const list = (r.snaps || []).sort((a, b) => a.at - b.at);
+    if (!list.length) return;
+    const sn = list[list.length - 1];
+    await api('snap/' + sn.id + q, { method: 'DELETE' }).catch(() => {});
+    for (const old of list.slice(0, -1)) api('snap/' + old.id + q, { method: 'DELETE' }).catch(() => {});
+    const qr = document.querySelector('.qrview'); if (qr) qr.remove();
+    const e = imgEl('img/' + sn.id);
+    const im = await e.p;
+    if (!im) throw new Error('the photo did not arrive');
+    PLACE = { src: 'img/' + sn.id, w: im.naturalWidth, h: im.naturalHeight };
+    toast('📷 Photo from ' + (token ? 'the phone' : 'your phone') + '. Tap the page where it should go.', { label: 'Put it here', fn: () => { const pl = PLACE, spot = visibleSpot(); PLACE = null; if (pl && spot) placeImage(pl, spot.page, spot.x, spot.y); }, ms: 60000 });
+  } catch (e) { /* try again later */ }
+  finally { snapBusy = false; }
+}
+// QR code: any phone can scan it and send a photo to this board, without signing in (30 minutes)
+let qrLib = null, QR = { token: '', until: 0, timer: 0 };
+function loadQrLib() {
+  if (!qrLib) qrLib = new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'vendor/qrcode.js'; sc.onload = () => res(window.qrcode); sc.onerror = () => { qrLib = null; rej(new Error('the QR maker did not load')); }; document.head.append(sc); });
+  return qrLib;
+}
+async function showSnapQR() {
+  if (!HW.code) { toast('Sign in under Homework first.'); return; }
+  try {
+    const [make, r] = await Promise.all([loadQrLib(), QR.token && Date.now() < QR.until - 60000 ? Promise.resolve({ token: QR.token }) : api('snaptoken', { method: 'POST' })]);
+    if (r.token !== QR.token) { QR.token = r.token; QR.until = Date.now() + 30 * 60000; }
+    const url = location.origin + location.pathname + '#snap=' + QR.token;
+    const code = make(0, 'M'); code.addData(url); code.make();
+    const pic = h('div', { class: 'qrpic', html: code.createSvgTag({ cellSize: 6, margin: 2, scalable: true }) });
+    const box = h('div', { class: 'qrview', role: 'dialog', 'aria-label': 'QR code for a photo' },
+      h('div', { class: 'qrcard' },
+        h('h3', null, 'Scan to send a photo here'), pic,
+        h('p', null, 'Open the camera on any phone and point it at this code. Take the photo of the book; it appears on this board. The code works for 30 minutes.'),
+        h('button', { class: 'tb', type: 'button', onclick: () => box.remove() }, 'Close')));
+    box.addEventListener('click', (e) => { if (e.target === box) box.remove(); });
+    document.querySelectorAll('.qrview').forEach((x) => x.remove());
+    document.body.append(box);
+    clearTimeout(QR.timer);
+    const tick = () => { if (!QR.token || Date.now() > QR.until) return; checkSnaps(QR.token).finally(() => { QR.timer = setTimeout(tick, document.querySelector('.qrview') ? 2500 : 6000); }); };
+    tick();
+  } catch (e) { toast('Could not make the QR code: ' + (e && e.message ? e.message : 'try again'), null, 8000); }
+}
+function showSnapScreen(token) { // on the phone
+  if (!token && !HW.code) { openHw(); toast('Sign in first (same class code as on the laptop), or scan the QR code on the board.', null, 7000); return; }
+  const status = h('p', { class: 'snapmsg' }, 'Point at the part of the book and take the photo. It goes to ' + (token ? 'the board that showed the QR code.' : 'your board on the laptop.'));
+  const cam = h('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: true });
+  const close = () => { box.remove(); if (/^#snap/.test(location.hash)) { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} } };
+  const box = h('div', { class: 'snapview', role: 'dialog', 'aria-label': 'Snap a photo' },
+    h('h2', null, token ? 'Send a photo to the board' : 'Snap a photo for my board'), status,
+    h('button', { class: 'hwbtn big', type: 'button', onclick: () => cam.click() }, '📷 Take a photo'),
+    h('button', { class: 'tb', type: 'button', onclick: close }, 'Close'), cam);
+  cam.addEventListener('change', async () => {
+    const f = cam.files[0]; cam.value = '';
+    if (!f) return;
+    status.textContent = 'Sending …';
+    try {
+      const { blob } = await shrinkPhoto(f, 1800);
+      const fd = new FormData(); fd.append('file', new File([blob], 'snap.jpg', { type: 'image/jpeg' }));
+      if (token) {
+        const r = await fetch('api/hw/snap', { method: 'POST', headers: { 'x-snap-token': token }, body: fd, cache: 'no-store' });
+        if (!r.ok) { let m = 'Could not send (' + r.status + ').'; try { m = (await r.json()).error || m; } catch (e) {} throw new Error(m); }
+      } else await api('snap', { method: 'POST', body: fd });
+      status.textContent = '✓ Sent. On the board, tap the page where it should go. Take another if you need.';
+    } catch (e) { status.textContent = 'Could not send: ' + (e && e.message ? e.message : 'try again'); }
+  });
+  document.body.append(box);
+}
 
 /* ---------- live overlay (stroke in progress, eraser ring, laser) ---------- */
 const live = { cv: h('canvas', { class: 'live' }), view: null };
@@ -940,6 +1146,10 @@ function toPage(e) {
   return [(e.clientX - r.left) * f, (e.clientY - r.top) * f];
 }
 function onInkDown(e) {
+  if (!act && PLACE && e.target.closest('.page')) { // put a waiting photo where the page was tapped
+    const el = e.target.closest('.page'), v = views.get(el.dataset.id);
+    if (v && v.mounted) { e.preventDefault(); const r = el.getBoundingClientRect(), f = U / r.width; const pl = PLACE; PLACE = null; placeImage(pl, v.p, (e.clientX - r.left) * f, (e.clientY - r.top) * f); return; }
+  }
   if (act || !allowed(e)) return;
   if (e.target.closest('.notepin')) return;
   const el = e.target.closest('.page');
@@ -1031,7 +1241,7 @@ function eraseAt(x, y) {
   let changed = false;
   for (let i = p.strokes.length - 1; i >= 0; i--) {
     const s = p.strokes[i];
-    if (!hit(s, x, y, act.r)) continue;
+    if (s.t === 'img' || !hit(s, x, y, act.r)) continue; // photos are removed with Select, then Delete
     p.strokes.splice(i, 1); changed = true;
     if (act.added && act.added.has(s)) act.added.delete(s); else act.removed.push({ s, i });
     if (prefs.eraseMode === 'part' && (s.t === 'pen' || s.t === 'hl')) {
@@ -1225,6 +1435,8 @@ function applyOp(op, inverse) {
       for (const it of op.items) { const i = p.strokes.indexOf(it.s); if (i >= 0) p.strokes.splice(i, 1); }
       for (const s of added) p.strokes.push(s);
     }
+  } else if (op.k === 'edit') {
+    for (const it of op.items) { it.s.pts = Float32Array.from(inverse ? it.a : it.b); bbCache.delete(it.s); delete it.s.lid; }
   } else if (op.k === 'move') {
     const d = inverse ? -1 : 1;
     for (const s of op.strokes) shiftStroke(s, op.dx * d, op.dy * d);
@@ -1813,6 +2025,7 @@ function drawPattern(ctx, bg, hh) {
   }
 }
 async function renderPageImage(p, W) {
+  await Promise.all(p.strokes.filter((s) => s.t === 'img').map((s) => imgEl(s.src).p));
   const H = Math.round(W * p.h / U), k = W / U;
   const cv = document.createElement('canvas');
   cv.width = W; cv.height = H;
@@ -2043,8 +2256,14 @@ $('#bMore').addEventListener('click', (e) => openPop(e.currentTarget, (pop) => {
   pop.append(h('button', { class: 'pi', html: ICON.video + '<span>' + (prefs.meetUrl ? 'Change the class Meet link' : 'Set the class Meet link') + '</span>', onclick: () => showMeetForm($('#bMore')) }));
   pop.append(h('button', { class: 'pi', html: ICON.school + '<span>Homework: give, hand in, check</span>', onclick: () => openHw() }));
   pop.append(h('button', { class: 'pi', html: ICON.help + '<span>How to share this screen</span>', onclick: () => showShareHelp($('#bMore')) }));
+  if (nb) pop.append(h('button', { class: 'pi', html: ICON.image + '<span>Insert a photo on this page</span>', onclick: () => { closePop(); photoIn.click(); } }));
+  if (HW.code) {
+    pop.append(h('button', { class: 'pi', html: ICON.image + '<span>Get a photo from a phone (QR code)</span>', onclick: () => { closePop(); showSnapQR(); } }));
+    pop.append(h('button', { class: 'pi', html: ICON.image + '<span>Snap a photo for my board (on the phone)</span>', onclick: () => { closePop(); showSnapScreen(); } }));
+  }
   if (nb && nb.hw) pop.append(h('button', { class: 'pi on', html: ICON.school + '<span>Return marked homework to Tanish</span>', onclick: () => { closePop(); openHw(nb.hw.id); } }));
   if (nb && HW.code) {
+    if (LV.sid) pop.append(h('button', { class: 'pi', html: ICON.pdf + '<span>Add a picture or PDF to the live pages</span>', onclick: () => { closePop(); liveAddIn.click(); } }));
     if (LV.sid) pop.append(h('button', { class: 'pi on', html: ICON.together + '<span>' + (HW.role === 'teacher' ? 'End the live page' : 'Leave the live page') + '</span>', onclick: () => { closePop(); endLive(); } }));
     else if (HW.role === 'teacher') {
       pop.append(h('button', { class: 'pi', html: ICON.together + '<span>Write together: share page ' + (currentIdx + 1) + ' live with Tanish</span>', onclick: () => { closePop(); startLive(false); } }));
@@ -2921,7 +3140,7 @@ function showBig(url) {
 const LV = { sid: null, pids: [], nbId: null, title: '', known: new Set(), seen: new Set(), since: 0, lastAct: 0, busy: false, timer: null, curSent: false, remoteAt: 0, viewAt: -1, viewDirty: false, scrollAt: 0, ignoreScrollUntil: 0, nextAt: 0, askToastAt: 0, want: null };
 let lidN = 0;
 const newLid = () => (HW.role === 'teacher' ? 't' : 's') + Date.now().toString(36) + (lidN++).toString(36) + Math.random().toString(36).slice(2, 5);
-const packStroke = (s) => ({ t: s.t, c: s.c, w: s.w, pts: Array.from(s.pts, (v) => Math.round(v * 10) / 10) });
+const packStroke = (s) => Object.assign({ t: s.t, c: s.c, w: s.w, pts: Array.from(s.pts, (v) => Math.round(v * 10) / 10) }, s.src ? { src: s.src } : {});
 function livePages() { // the live pages, in order, if the live notebook is the one open
   if (!LV.sid || !nb || nb.id !== LV.nbId) return null;
   const ps = LV.pids.map((id) => nb.pages.find((p) => p.id === id) || null);
@@ -3021,6 +3240,8 @@ async function liveTick() {
     if (adds.length || dels.length) LV.lastAct = Date.now();
     applyLive(r.events || []);
     setRemote(r.cur && LV.pids[r.cur.pg] ? r.cur : null);
+    if (r.np > LV.pids.filter(Boolean).length) fetchLivePages(r.np);
+    if (r.snaps && !PLACE) checkSnaps();
     const first = LV.viewAt < 0;
     if (first) LV.viewAt = 0;
     if (sentView && HW.role === 'teacher') { if (r.view) LV.viewAt = Math.max(LV.viewAt, r.view.at); } // Papa's own scroll wins
@@ -3045,7 +3266,7 @@ function applyLive(evs) {
       LV.known.add(a.id);
       const p = ps[a.pg];
       if (!p || p.strokes.some((s) => s.lid === a.id)) continue;
-      p.strokes.push({ t: a.s.t, c: a.s.c, w: a.s.w, pts: Float32Array.from(a.s.pts), lid: a.id });
+      p.strokes.push(Object.assign({ t: a.s.t, c: a.s.c, w: a.s.w, pts: Float32Array.from(a.s.pts), lid: a.id }, a.s.src ? { src: a.s.src } : {}));
       touched.add(p);
     }
   }
@@ -3074,6 +3295,76 @@ async function startLive(all) {
     bindLive(r.session, pages);
     toast((pages.length > 1 ? pages.length + ' pages are live.' : 'Live page started.') + ' Tanish taps Join in Chat. You see his writing as he writes.', null, 10000);
   } catch (e) { toast('Could not start the live page: ' + (e && e.message ? e.message : 'try again'), null, 9000); }
+}
+// adding a picture or PDF to running live pages: the pages go at the end of both notebooks
+const liveAddIn = h('input', { type: 'file', accept: 'application/pdf,.pdf,image/*', multiple: true, hidden: true });
+document.body.append(liveAddIn);
+liveAddIn.addEventListener('change', () => { const files = [...liveAddIn.files]; liveAddIn.value = ''; if (files.length) addToLive(files); });
+async function appendPdfPages(file) { // appends without moving the view or adding an undo step
+  const bytes = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(bytes.slice(0)) }).promise;
+  const pdfId = uid();
+  await DB.put('pdfs', { bytes, name: file.name }, pdfId);
+  pdfDocs.set(pdfId, Promise.resolve(pdf));
+  const pages = [];
+  for (let i = 1; i <= Math.min(pdf.numPages, 10); i++) {
+    const vp = (await pdf.getPage(i)).getViewport({ scale: 1 });
+    pages.push({ id: uid(), bg: 'pdf', pdfId, pdfPage: i, h: Math.round(U * vp.height / vp.width), strokes: [] });
+  }
+  nb.pdfIds = nb.pdfIds || []; nb.pdfIds.push(pdfId);
+  const keep = scroller.scrollTop;
+  LV.ignoreScrollUntil = Date.now() + 900;
+  nb.pages.push(...pages);
+  buildPages();
+  scroller.scrollTop = keep;
+  dirty();
+  return pages;
+}
+async function addToLive(files) {
+  if (!LV.sid || !livePages()) { toast('Open the live page first.'); return; }
+  try {
+    const pdf = files.find((f) => /pdf$/i.test(f.type) || /\.pdf$/i.test(f.name));
+    const imgs = files.filter((f) => /^image\//.test(f.type));
+    let file = pdf || (imgs.length ? await imagesToPdf(imgs.slice(0, 10), 2000, 0.85) : null);
+    if (!file) { toast('Choose a picture or a PDF.'); return; }
+    file = new File([file], 'Live reference.pdf', { type: 'application/pdf' });
+    toast('Adding to the live pages …', null, 120000);
+    const pages = await appendPdfPages(file);
+    const r = await api('live/add', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sid: LV.sid, pages: pages.map((p) => p.h) }) });
+    pages.forEach((p, k) => { LV.pids[r.start + k] = p.id; });
+    saveLv();
+    for (let k = 0; k < pages.length; k++) {
+      toast('Sending page ' + (k + 1) + ' of ' + pages.length + ' …', null, 120000);
+      const cv = await renderPageImage(Object.assign({}, pages[k], { strokes: [] }), 1400);
+      const blob = await new Promise((res) => cv.toBlob(res, 'image/jpeg', 0.85));
+      cv.width = 0; cv.height = 0;
+      const fd = new FormData();
+      fd.append('file', new File([blob], 'page.jpg', { type: 'image/jpeg' }));
+      fd.append('n', String(r.start + k));
+      await api('live/bg', { method: 'POST', body: fd });
+    }
+    const at = nb.pages.indexOf(pages[0]);
+    toast(pages.length + (pages.length === 1 ? ' page' : ' pages') + ' added at the end for ' + liveOther() + ' too.', { label: 'Go there', fn: () => scrollToPage(at) });
+  } catch (e) { toast('Could not add: ' + (e && e.message ? e.message : 'try again'), null, 9000); }
+}
+async function fetchLivePages(np) { // the other side added pages: fetch their pictures
+  if (LV.fetching || !livePages()) return;
+  const need = [];
+  for (let i = 0; i < np; i++) if (!LV.pids[i]) need.push(i);
+  if (!need.length) return;
+  LV.fetching = true;
+  try {
+    const files = [];
+    for (const n of need) files.push(new File([await api('live/bg?n=' + n)], 'p' + n + '.jpg', { type: 'image/jpeg' }));
+    let file = await imagesToPdf(files, 2000, 0.9);
+    file = new File([file], 'Live reference.pdf', { type: 'application/pdf' });
+    const pages = await appendPdfPages(file);
+    need.forEach((n, k) => { if (pages[k]) LV.pids[n] = pages[k].id; });
+    saveLv();
+    const at = nb.pages.indexOf(pages[0]);
+    toast(liveOther() + ' added ' + need.length + (need.length === 1 ? ' page' : ' pages') + ' to the live pages.', { label: 'Go there', fn: () => scrollToPage(at), ms: 12000 });
+  } catch (e) { /* not uploaded yet: try again on the next sync */ }
+  finally { LV.fetching = false; }
 }
 async function endLive() {
   if (HW.role === 'teacher') { try { await api('live/end', { method: 'POST' }); } catch (e) {} }
@@ -3279,7 +3570,8 @@ async function init() {
   if (location.hash === '#homework') openHw();
   if (location.hash === '#chat') openHw(null, 'chat');
   if (location.hash === '#tutor') openHw(null, 'tutor');
-  window.addEventListener('hashchange', () => { if (location.hash === '#homework') openHw(); if (location.hash === '#chat') openHw(null, 'chat'); });
+  if (/^#snap/.test(location.hash)) showSnapScreen((location.hash.match(/^#snap=([a-z0-9]+)/) || [])[1]);
+  window.addEventListener('hashchange', () => { if (location.hash === '#homework') openHw(); if (location.hash === '#chat') openHw(null, 'chat'); if (/^#snap/.test(location.hash) && !document.querySelector('.snapview')) showSnapScreen((location.hash.match(/^#snap=([a-z0-9]+)/) || [])[1]); });
   if (!prefs.seenTip) {
     prefs.seenTip = true; savePrefs();
     setTimeout(() => toast('Write with Apple Pencil. Scroll with one finger, pinch with two to zoom.', null, 7000), 300);
