@@ -77,6 +77,8 @@ async function readFile(form: FormData, audio = false) {
   return { data: await file.arrayBuffer(), meta: { name: clean(file.name, 120) || "homework", type, size: file.size } };
 }
 
+// India date (YYYY-MM-DD), offset in days from today
+const istDay = (off: number) => new Date(Date.now() + 5.5 * 3600_000 + off * 86400_000).toISOString().slice(0, 10);
 export default async (req: Request, context: Context) => {
   const classCode = Netlify.env.get("CLASS_CODE") || "";
   const teacherPin = Netlify.env.get("TEACHER_PIN") || "";
@@ -396,6 +398,76 @@ export default async (req: Request, context: Context) => {
       const { blobs } = await s.list({ prefix: "libpart/" + id + "/" });
       await Promise.all([s.delete("lib/" + id), s.delete("libmeta/" + id), ...blobs.map((b) => s.delete(b.key))]);
       return json({ ok: true });
+    }
+
+    // ---- planner: back-to-school date, chapter progress, day plans, and Tanish's study time ----
+    if (req.method === "GET" && action === "plan") {
+      const days = [-13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 0, 1].map(istDay);
+      const [settings, syllabus, ...rest] = await Promise.all([
+        s.get("plan/settings", { type: "json" }), s.get("plan/syllabus", { type: "json" }),
+        ...days.map((d) => s.get("plan/day/" + d, { type: "json" })), ...days.map((d) => s.get("study/" + d, { type: "json" })),
+      ]);
+      const out: Record<string, unknown> = {};
+      days.forEach((d, i) => { out[d] = { plan: rest[i] || null, study: rest[days.length + i] || null }; });
+      return json({ today: istDay(0), settings: settings || {}, syllabus: syllabus || {}, days: out });
+    }
+
+    if (req.method === "POST" && action === "plan" && id === "settings") {
+      if (!teacher) return fail(403, "Only Papa can change this.");
+      const b = await req.json();
+      const date = (v: unknown) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || "")) ? String(v) : "");
+      const goal = Math.min(12, Math.max(0.5, Number(b.goalHours) || 4));
+      const settings = { backDate: date(b.backDate), startDate: date(b.startDate) || istDay(0), goalHours: goal, baseDone: Math.min(60, Math.max(0, Math.round(Number(b.baseDone) || 0))), at: Date.now() };
+      await s.setJSON("plan/settings", settings);
+      return json({ settings });
+    }
+
+    if (req.method === "POST" && action === "plan" && id === "chapter") {
+      const b = await req.json();
+      const subject = b.subject === "science" ? "science" : b.subject === "maths" ? "maths" : "";
+      const ch = Math.round(Number(b.ch));
+      const status = ["todo", "doing", "done", "revised"].includes(b.status) ? b.status : "";
+      if (!subject || !(ch >= 1 && ch <= 20) || !status) return fail(400, "Bad chapter.");
+      const syl = ((await s.get("plan/syllabus", { type: "json" })) || {}) as Record<string, Record<string, unknown>>;
+      syl[subject] = syl[subject] || {};
+      syl[subject][ch] = { status, by: teacher ? "teacher" : "student", at: Date.now() };
+      await s.setJSON("plan/syllabus", syl);
+      return json({ syllabus: syl });
+    }
+
+    if (req.method === "POST" && action === "plan" && id === "day") {
+      const b = await req.json();
+      const date = String(b.date || "");
+      const allowed = [-1, 0, 1, 2, 3, 4, 5, 6, 7].map(istDay);
+      if (!allowed.includes(date)) return fail(400, "You can plan from yesterday up to a week ahead.");
+      const tasks = (Array.isArray(b.tasks) ? b.tasks : []).slice(0, 25).map((t: any) => ({
+        id: clean(t.id, 20) || newId(),
+        text: clean(t.text, 140),
+        subject: t.subject === "maths" || t.subject === "science" ? t.subject : "",
+        ch: Math.round(Number(t.ch)) || 0,
+        mins: Math.min(240, Math.max(5, Math.round(Number(t.mins)) || 30)),
+        done: !!t.done,
+        by: t.by === "teacher" || t.by === "student" ? t.by : (teacher ? "teacher" : "student"),
+      })).filter((t: any) => t.text);
+      const plan = { date, tasks, at: Date.now(), by: teacher ? "teacher" : "student" };
+      await s.setJSON("plan/day/" + date, plan);
+      return json({ plan });
+    }
+
+    if (req.method === "POST" && action === "study") {
+      if (teacher) return json({ ok: true }); // only Tanish's time is counted
+      const b = await req.json();
+      const date = String(b.date || "");
+      if (![-1, 0, 1].map(istDay).includes(date)) return fail(400, "Bad date.");
+      const st = Object.assign({ secs: 0, pomos: 0, breaks: 0, first: 0, last: 0, hours: {} as Record<string, number> }, (await s.get("study/" + date, { type: "json" })) || {});
+      const add = Math.min(900, Math.max(0, Math.round(Number(b.add) || 0)));
+      const now = Date.now();
+      st.secs += add;
+      if (add) { if (!st.first) st.first = now; st.last = now; const hr = String(new Date(now + 5.5 * 3600_000).getUTCHours()); st.hours[hr] = (st.hours[hr] || 0) + add; }
+      st.pomos += Math.min(4, Math.max(0, Math.round(Number(b.pomo) || 0)));
+      st.breaks += Math.min(4, Math.max(0, Math.round(Number(b.brk) || 0)));
+      await s.setJSON("study/" + date, st);
+      return json({ study: st });
     }
 
     if (req.method === "GET" && action === "settings") {
