@@ -790,6 +790,15 @@ function selPoly(a) {
   return a.path;
 }
 const HANDLE = 22;
+function photoUnder(cx, cy) { // is there a photo, or the current selection, under this screen point?
+  const hit = document.elementFromPoint(cx, cy);
+  const el = hit && hit.closest && hit.closest('.page');
+  const v = el && views.get(el.dataset.id);
+  if (!v || !v.mounted) return false;
+  const r = el.getBoundingClientRect(), f = U / r.width, x = (cx - r.left) * f, y = (cy - r.top) * f;
+  if (sel && sel.pid === v.p.id) { const b = sel.box; if (x > b[0] - 12 && x < b[2] + HANDLE && y > b[1] - 12 && y < b[3] + HANDLE) return true; }
+  return v.p.strokes.some((s) => s.t === 'img' && x >= Math.min(s.pts[0], s.pts[2]) && x <= Math.max(s.pts[0], s.pts[2]) && y >= Math.min(s.pts[1], s.pts[3]) && y <= Math.max(s.pts[1], s.pts[3]));
+}
 function selDown(v, x, y) {
   const b = sel && sel.pid === v.p.id ? sel.box : null;
   if (b && Math.abs(x - b[2]) < HANDLE && Math.abs(y - b[3]) < HANDLE) {
@@ -800,7 +809,7 @@ function selDown(v, x, y) {
   if (!(b && x > b[0] - 12 && x < b[2] + 12 && y > b[1] - 12 && y < b[3] + 12)) {
     // tapping a photo selects it straight away, ready to drag
     const ph = [...v.p.strokes].reverse().find((s) => s.t === 'img' && x >= Math.min(s.pts[0], s.pts[2]) && x <= Math.max(s.pts[0], s.pts[2]) && y >= Math.min(s.pts[1], s.pts[3]) && y <= Math.max(s.pts[1], s.pts[3]));
-    if (ph) { sel = { pid: v.p.id, strokes: [ph], box: selBox([ph]) }; Object.assign(act, { mode: 'move', last: [x, y], dx: 0, dy: 0 }); selBar.hidden = true; return; }
+    if (ph) { sel = { pid: v.p.id, strokes: [ph], box: selBox([ph]) }; Object.assign(act, { mode: 'move', last: [x, y], dx: 0, dy: 0, picked: true }); selBar.hidden = true; return; }
   }
   if (b && x > b[0] - 12 && x < b[2] + 12 && y > b[1] - 12 && y < b[3] + 12) {
     Object.assign(act, { mode: 'move', last: [x, y], dx: 0, dy: 0 });
@@ -847,6 +856,7 @@ function selUp(a) {
   }
   if (a.mode === 'move') {
     if (Math.abs(a.dx) + Math.abs(a.dy) > 0.5) { pushUndo({ k: 'move', pid: p.id, strokes: sel.strokes.slice(), dx: a.dx, dy: a.dy }); dirty(); }
+    else if (a.picked) toast('Photo selected. Drag it to move, drag the corner square to resize, or tap Delete.', null, 4000);
     placeSelBar(v);
     return;
   }
@@ -1150,7 +1160,10 @@ function onInkDown(e) {
     const el = e.target.closest('.page'), v = views.get(el.dataset.id);
     if (v && v.mounted) { e.preventDefault(); const r = el.getBoundingClientRect(), f = U / r.width; const pl = PLACE; PLACE = null; placeImage(pl, v.p, (e.clientX - r.left) * f, (e.clientY - r.top) * f); return; }
   }
-  if (act || !allowed(e)) return;
+  // a finger on a photo (or on the current selection) picks it up, whatever tool is active
+  const fingerPhoto = !act && e.pointerType === 'touch' && !prefs.fingerDraw && !pinch && photoUnder(e.clientX, e.clientY);
+  if (fingerPhoto && prefs.tool !== 'select') setTool('select');
+  if (act || !(allowed(e) || fingerPhoto)) return;
   if (e.target.closest('.notepin')) return;
   const el = e.target.closest('.page');
   if (!el) return;
@@ -1295,6 +1308,7 @@ const isStylus = (list) => { for (const t of list) if (t.touchType === 'stylus')
 const tdist = (a, b) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
 scroller.addEventListener('touchstart', (e) => {
   if (isStylus(e.changedTouches)) { if (e.cancelable) e.preventDefault(); return; }
+  if (e.touches.length === 1 && !prefs.fingerDraw && photoUnder(e.touches[0].clientX, e.touches[0].clientY)) { if (e.cancelable) e.preventDefault(); return; } // drag the photo, not the page
   if (e.touches.length === 2 && !(act && act.type === 'pen')) {
     if (act && act.type === 'touch') cancelActive();
     const [a, b] = e.touches;
