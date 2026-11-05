@@ -259,6 +259,61 @@ body.t-select #pages .page { cursor: crosshair; }
   @keyframes wave { 0%, 60%, 100% { transform: rotate(0); } 15% { transform: rotate(16deg); } 30% { transform: rotate(-8deg); } 45% { transform: rotate(12deg); } }
   @keyframes flash { 0% { box-shadow: 0 0 0 0 rgba(36,87,214,.55); } 100% { box-shadow: 0 0 0 14px rgba(36,87,214,0); } }
 }
+/* Study Buddy mascot */
+.mascot { position: fixed; z-index: 58; right: 16px; bottom: max(16px, env(safe-area-inset-bottom)); width: 94px; height: 106px; padding: 0; border: 0; background: none; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; cursor: pointer; transition: opacity .35s; }
+.mascot[hidden] { display: none; }
+.mascot:focus-visible { outline: 3px solid #7048e8; outline-offset: 2px; border-radius: 50%; }
+.msvg { display: block; width: 100%; height: 100%; overflow: visible; }
+.mascot .msvg { filter: drop-shadow(0 6px 8px rgba(60,30,140,.28)); }
+.mascot.drawing { opacity: .18; pointer-events: none; }
+.mascot.dragging { cursor: grabbing; }
+.mascot .say { position: absolute; right: 86px; bottom: 64px; width: max-content; max-width: min(230px, 60vw); padding: 8px 12px; border-radius: 14px 14px 4px 14px; background: #fff; color: #2b2140; font: 600 14px/1.35 var(--font-ui); text-align: left; box-shadow: 0 4px 16px rgba(40,20,90,.22); border: 1px solid rgba(112,72,232,.25); opacity: 0; transform: translateY(6px) scale(.92); transform-origin: 100% 100%; transition: opacity .25s, transform .25s; pointer-events: none; }
+.mascot.left .say { right: auto; left: 86px; border-radius: 14px 14px 14px 4px; transform-origin: 0 100%; }
+.mascot.low .say { bottom: auto; top: 72px; }
+.mascot.talk .say { opacity: 1; transform: none; }
+.mascot .badge { position: absolute; top: 2px; right: 0; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px; background: #f03e3e; color: #fff; font: 700 13px/22px var(--font-ui); box-shadow: 0 0 0 2px #fff; }
+.mascot .badge[hidden] { display: none; }
+.msvg .mo { display: none; }
+.think .msvg .mo { display: inline; }
+.think .msvg .msmile, .think .msvg .mtongue { display: none; }
+.msvg .mpupil { transition: transform .3s ease-out; }
+.buddyhead .buddy { width: 54px; height: 60px; border-radius: 0; background: none; box-shadow: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .msvg .mbody { animation: mbob 3.2s ease-in-out infinite; transform-box: view-box; transform-origin: 50px 104px; }
+  .msvg .mshadow { animation: mshadow 3.2s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+  .msvg .meye { animation: mblink 4.6s infinite; transform-box: fill-box; transform-origin: center; }
+  .msvg .mtassel { animation: mswing 2.4s ease-in-out infinite; transform-box: view-box; transform-origin: 50px 28px; }
+  .msvg .mspark { animation: mspark 3.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+  .mascot.wave .mr { animation: mwave .45s ease-in-out 3; transform-box: fill-box; transform-origin: 20% 90%; }
+  .mascot.hop .mbody { animation: mhop .7s cubic-bezier(.3,1.5,.5,1) 1; }
+  .mascot.wink .meye.r { animation: mwink .5s 1; }
+  .think .msvg .mspark { animation-duration: .9s; }
+  .think .msvg .mbody { animation: mthink 1.1s ease-in-out infinite; }
+  @keyframes mbob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px) scale(1.015, .985); } }
+  @keyframes mshadow { 50% { transform: scaleX(.8); opacity: .6; } }
+  @keyframes mblink { 0%, 91%, 97%, 100% { transform: scaleY(1); } 94% { transform: scaleY(.08); } }
+  @keyframes mwink { 50% { transform: scaleY(.08); } }
+  @keyframes mswing { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(9deg); } }
+  @keyframes mspark { 0%, 100% { transform: scale(.3) rotate(0); opacity: 0; } 50% { transform: scale(1) rotate(45deg); opacity: 1; } }
+  @keyframes mwave { 50% { transform: rotate(-38deg) translate(-2px, -7px); } }
+  @keyframes mhop { 0% { transform: none; } 35% { transform: translateY(-20px) scale(.95, 1.06); } 70% { transform: translateY(0) scale(1.08, .92); } 100% { transform: none; } }
+  @keyframes mthink { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg) translateY(-3px); } }
+}
+@media print { .mascot { display: none; } }
+.usagecard { background: linear-gradient(120deg, rgba(250,176,5,.10), rgba(12,166,120,.10)); border-color: rgba(250,176,5,.35); }
+.usagecard.compact { padding: 8px 12px; }
+.usagecard.compact p { margin: 0; font-size: 14px; }
+.usagecard .urow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(90px, 40%); align-items: center; gap: 10px; margin: 6px 0; font-size: 14px; }
+.ubar { height: 12px; border-radius: 999px; background: rgba(127,127,127,.18); overflow: hidden; }
+.ubar span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #12b886, #40c057); transition: width .5s ease; }
+.ubar.warm span { background: linear-gradient(90deg, #fab005, #fd7e14); }
+.ubar.hot span { background: linear-gradient(90deg, #fd7e14, #f03e3e); }
+.usagecard .quip { margin: 6px 0 0; font-weight: 600; font-size: 14px; }
+.utable { width: 100%; border-collapse: collapse; margin: 8px 0 4px; font-size: 14px; }
+.utable th, .utable td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--ui-line); }
+.utable th { font-size: 13px; color: var(--ui-muted); font-weight: 600; }
+.utable tr.tot td { font-weight: 700; border-bottom: 0; }
+.papatabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 12px; }
 .hwacts { display: flex; flex-wrap: wrap; gap: 8px; }
 .hwbtn { height: 40px; padding: 0 14px; border: 0; border-radius: 10px; background: var(--accent); color: #fff; font-weight: 600; }
 .hwbtn:disabled { opacity: .5; }
@@ -2312,7 +2367,9 @@ $('#bBooks').addEventListener('click', async (e) => {
   openPop(anchor, (pop) => {
     pop.append(h('div', { class: 'ph' }, 'Homework'));
     pop.append(h('button', { class: 'pi', html: ICON.school + '<span>Homework: give, hand in, check</span>', onclick: () => openHw() }));
-    pop.append(h('button', { class: 'pi', html: ICON.help + '<span>' + (HW.role === 'teacher' ? 'Study Buddy log (AI tutor)' : 'Study Buddy (AI tutor)') + '</span>', onclick: () => { openHw(null, 'tutor'); } }));
+    pop.append(h('button', { class: 'pi', html: ICON.help + '<span>Study Buddy (AI tutor)</span>', onclick: () => { TUTOR.papaTab = 'ask'; openHw(null, 'tutor'); } }));
+    if (HW.role === 'teacher') pop.append(h('button', { class: 'pi', html: ICON.help + "<span>Tanish's Study Buddy questions</span>", onclick: () => { TUTOR.papaTab = 'log'; openHw(null, 'tutor'); } }));
+    pop.append(h('button', { class: 'pi', html: ICON.help + '<span>' + (MASCOT.hidden ? 'Show the Study Buddy mascot' : 'Hide the Study Buddy mascot') + '</span>', onclick: () => { closePop(); mascotSetHidden(!MASCOT.hidden); } }));
     pop.append(h('button', { class: 'pi', html: ICON.chat + '<span>Chat' + (unreadCount() ? ' (' + unreadCount() + ' new)' : '') + '</span>', onclick: () => openHw(null, 'chat') }));
     if (HW.code) { const nb2 = h('button', { class: 'pi', html: ICON.chat + '<span>Phone notifications on this device …</span>', onclick: async () => { closePop(); if (await pushIsOn()) await disablePush(); else await enablePush(); } }); pop.append(nb2); pushIsOn().then((on) => { nb2.querySelector('span').textContent = on ? 'Turn off notifications on this device' : 'Turn on notifications on this device'; }); }
     pop.append(h('div', { class: 'ph' }, 'New'));
@@ -2517,6 +2574,7 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 window.addEventListener('pagehide', () => { saveNow(); });
 
 /* ---------- homework exchange (works on the Netlify version, which has the /api/hw server) ---------- */
+const MASCOT = { el: null, n: 0, hidden: false, x: null, y: null, moved: false, said: 0, lastLook: 0, drawT: null };
 const HW = { code: '', pin: '', role: '', items: [], teacher: false, busy: false, msg: '', bad: false, returning: null, timer: null, view: 'work', msgs: [], lastSeen: 0, chatTimer: null, meetUrl: '', rec: null };
 try { HW.lastSeen = +localStorage.getItem('studyboard-chat-seen') || 0; } catch (e) {}
 try { const saved = JSON.parse(localStorage.getItem('studyboard-hw') || '{}'); HW.code = saved.code || ''; HW.pin = saved.pin || ''; HW.role = saved.role || ''; } catch (e) {}
@@ -2616,6 +2674,7 @@ function closeHw() {
   hwEl.hidden = true;
   clearInterval(HW.timer);
   clearInterval(HW.chatTimer);
+  mascotSync();
   if (/^#(homework|chat|tutor)$/.test(location.hash)) { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }
 }
 async function refreshHw() {
@@ -2688,7 +2747,7 @@ function patchHwList() {
   const sel = HW.view === 'chat' ? '.chatlist' : '.tutorlist';
   const old = hwEl.querySelector(sel);
   if (!old) return false;
-  const fresh = (HW.view === 'chat' ? chatView() : (HW.role === 'teacher' ? tutorLogView() : tutorView())).querySelector(sel);
+  const fresh = (HW.view === 'chat' ? chatView() : (HW.role === 'teacher' && !papaAsks() ? tutorLogView() : tutorView())).querySelector(sel);
   if (!fresh) return false;
   const atEnd = old.scrollHeight - old.scrollTop - old.clientHeight < 40;
   old.replaceWith(fresh);
@@ -2709,22 +2768,23 @@ function renderHw(force) {
   hwEl.textContent = '';
   const inner = h('div', { class: 'hwin' });
   const head = h('div', { class: 'hwhead' },
-    h('h2', null, HW.view === 'chat' ? 'Chat' : HW.view === 'tutor' ? (HW.role === 'teacher' ? 'Tutor log' : 'Study Buddy') : 'Homework'),
+    h('h2', null, HW.view === 'chat' ? 'Chat' : HW.view === 'tutor' ? 'Study Buddy' : 'Homework'),
     HW.code ? h('span', { class: 'sub' }, HW.role === 'teacher' ? 'Teacher' : 'Student') : null,
     HW.code ? h('button', { class: 'tb' + (HW.view === 'work' ? ' on' : ''), onclick: () => { HW.view = 'work'; HW.returning = null; clearInterval(HW.chatTimer); renderHw(); refreshHw(); } }, 'Homework') : null,
     HW.code ? h('button', { class: 'tb' + (HW.view === 'chat' ? ' on' : ''), onclick: () => showChat() }, 'Chat' + (unreadCount() ? ' (' + unreadCount() + ')' : '')) : null,
-    HW.code ? h('button', { class: 'tb' + (HW.view === 'tutor' ? ' on' : ''), onclick: () => showTutor() }, HW.role === 'teacher' ? 'Tutor log' : 'Study Buddy') : null,
+    HW.code ? h('button', { class: 'tb' + (HW.view === 'tutor' ? ' on' : ''), onclick: () => showTutor() }, 'Study Buddy') : null,
     h('button', { class: 'tb', onclick: closeHw }, 'Close'));
   const msg = h('p', { class: 'hwmsg' + (HW.bad ? ' bad' : ''), role: 'status' }, HW.msg);
   msg.hidden = !HW.msg;
   inner.append(head, msg);
   if (!HW.code) inner.append(setupView());
   else if (HW.view === 'chat') inner.append(chatView());
-  else if (HW.view === 'tutor') inner.append(HW.role === 'teacher' ? tutorLogView() : tutorView());
+  else if (HW.view === 'tutor') { if (HW.role === 'teacher') inner.append(papaTabs()); inner.append(HW.role === 'teacher' && !papaAsks() ? tutorLogView() : tutorView()); }
   else if (HW.returning) inner.append(returnView());
   else inner.append(HW.role === 'teacher' ? teacherView() : studentView());
   if (HW.code && !HW.returning && HW.view === 'work') inner.append(h('p', { class: 'hwfoot' }, h('button', { class: 'linkbtn', onclick: () => { HW.code = ''; HW.pin = ''; HW.role = ''; saveHw(); HW.items = []; HW.msg = ''; renderHw(); } }, 'Sign out of homework on this device')));
   hwEl.append(inner);
+  mascotSync();
   if (HW.view === 'chat') {
     const list = hwEl.querySelector('.chatlist'); if (list) list.scrollTop = list.scrollHeight;
     const box = hwEl.querySelector('#chatText'); if (box && draft) box.value = draft; if (box && hadFocus) box.focus();
@@ -3156,15 +3216,25 @@ function chatView() {
   return wrap;
 }
 /* ---------- AI tutor ("Study Buddy") ---------- */
-const TUTOR = { msgs: [], busy: false, photo: null, log: null };
-try { TUTOR.msgs = JSON.parse(localStorage.getItem('studyboard-tutor') || '[]'); } catch (e) {}
-function saveTutor() { try { localStorage.setItem('studyboard-tutor', JSON.stringify(TUTOR.msgs.slice(-40))); } catch (e) {} }
-function showTutor() {
+const TUTOR = { msgs: [], busy: false, photo: null, log: null, papaTab: 'ask', msgsKey: null };
+const tutorKey = () => (HW.role === 'teacher' ? 'studyboard-tutor-papa' : 'studyboard-tutor'); // Papa's own questions are kept apart from Tanish's
+function loadTutorMsgs() {
+  if (TUTOR.msgsKey === tutorKey() || TUTOR.busy) return;
+  TUTOR.msgsKey = tutorKey();
+  try { TUTOR.msgs = JSON.parse(localStorage.getItem(TUTOR.msgsKey) || '[]'); } catch (e) { TUTOR.msgs = []; }
+}
+loadTutorMsgs();
+function saveTutor() { try { localStorage.setItem(TUTOR.msgsKey || tutorKey(), JSON.stringify(TUTOR.msgs.slice(-40))); } catch (e) {} }
+const papaAsks = () => HW.role === 'teacher' && TUTOR.papaTab === 'ask';
+function showTutor(tab) {
   clearInterval(HW.chatTimer);
+  if (tab) TUTOR.papaTab = tab;
+  loadTutorMsgs();
   HW.view = 'tutor'; HW.returning = null;
   renderHw(true);
-  if (HW.role === 'teacher') loadTutorLog(); else focusHwBox('#tutorText');
+  if (HW.role === 'teacher' && !papaAsks()) loadTutorLog(); else focusHwBox('#tutorText');
   if (!TUTOR.books) loadBooks();
+  loadUsage();
 }
 // light formatting for tutor replies: **bold**, numbered and bullet lines; built from text nodes only
 function richText(text) {
@@ -3183,26 +3253,39 @@ function richText(text) {
   }
   return box;
 }
+function papaTabs() {
+  return h('div', { class: 'papatabs', role: 'tablist' },
+    h('button', { class: 'tb' + (papaAsks() ? ' on' : ''), type: 'button', role: 'tab', 'aria-selected': String(papaAsks()), onclick: () => showTutor('ask') }, '✨ Ask Study Buddy'),
+    h('button', { class: 'tb' + (papaAsks() ? '' : ' on'), type: 'button', role: 'tab', 'aria-selected': String(!papaAsks()), onclick: () => showTutor('log') }, "📒 Tanish's questions"));
+}
 function tutorView() {
   const wrap = h('div', { class: 'chat' });
-  wrap.append(h('div', { class: 'buddyhead' }, h('div', { class: 'buddy', 'aria-hidden': 'true' }, '✨'),
-    h('p', null, h('b', null, 'Hi Tanish, I am Study Buddy. '), h('span', { class: 'booksline' }, booksLine()), 'Ask me to explain anything from your Maths or Science chapters, or send a photo of a question. I give hints first so you can work it out. I can make mistakes, so check important answers with Papa or the NCERT book. Papa can read what you ask here.')));
+  const papa = HW.role === 'teacher';
+  const head = h('div', { class: 'buddy' + (TUTOR.busy ? ' think' : ''), 'aria-hidden': 'true' }); head.append(mascotSvg());
+  wrap.append(h('div', { class: 'buddyhead' }, head,
+    papa
+      ? h('p', null, h('b', null, 'Hi Papa, I am Study Buddy. '), h('span', { class: 'booksline' }, booksLine().replace('your NCERT', "Tanish's NCERT").replace('your book', 'his book')), 'Ask me anything: an explanation to use in class, practice questions with answers, or a check of a solution. With you I give full answers straight away. These questions stay out of Tanish\'s list.')
+      : h('p', null, h('b', null, 'Hi Tanish, I am Study Buddy. '), h('span', { class: 'booksline' }, booksLine()), 'Ask me to explain anything from your Maths or Science chapters, or send a photo of a question. I give hints first so you can work it out. I can make mistakes, so check important answers with Papa or the NCERT book. Papa can read what you ask here.')));
   wrap.append(booksCard(true));
+  wrap.append(usageCard(papa));
   const list = h('div', { class: 'chatlist tutorlist' });
   if (!TUTOR.msgs.length) {
     list.append(h('p', { class: 'empty' }, 'Try asking:'));
-    for (const [q, kind] of [['📐 Why is sin 30° exactly 1/2?', 'sm'], ['🧪 Explain displacement reactions with a kitchen example', 'ss'], ['🗼 How do I find the height of a tower using trigonometry?', 'sm'], ['💡 What is the difference between series and parallel circuits?', 'ss']]) {
+    const tries = papa
+      ? [['📝 Make 5 practice questions on quadratic equations, with answers', 'sm'], ['🧪 How can I explain refraction to Tanish with things at home?', 'ss'], ['🎯 Which Class 10 Maths topics carry the most marks?', 'sm'], ['🔍 Common mistakes students make in balancing chemical equations', 'ss']]
+      : [['📐 Why is sin 30° exactly 1/2?', 'sm'], ['🧪 Explain displacement reactions with a kitchen example', 'ss'], ['🗼 How do I find the height of a tower using trigonometry?', 'sm'], ['💡 What is the difference between series and parallel circuits?', 'ss']];
+    for (const [q, kind] of tries) {
       list.append(h('button', { class: 'tb suggest ' + kind, type: 'button', onclick: () => { const b = hwEl.querySelector('#tutorText'); if (b) { b.value = q.replace(/^\S+\s+/, ''); b.focus(); } } }, q));
     }
   }
   for (const m of TUTOR.msgs) {
     const bub = h('div', { class: 'bubble' + (m.role === 'user' ? ' mine' : ' tutor') },
-      h('div', { class: 'who' }, h('span', { class: 'av ' + (m.role === 'user' ? 's' : 'b') }, m.role === 'user' ? 'T' : '✨'), m.role === 'user' ? 'Tanish' : 'Study Buddy'));
+      h('div', { class: 'who' }, h('span', { class: 'av ' + (m.role === 'user' ? (papa ? 't' : 's') : 'b') }, m.role === 'user' ? (papa ? 'P' : 'T') : '✨'), m.role === 'user' ? (papa ? 'Papa' : 'Tanish') : 'Study Buddy'));
     if (m.photo) bub.append(h('div', { class: 'meta' }, '📷 Photo sent'));
     bub.append(m.role === 'user' ? h('div', { class: 'txt' }, m.text) : richText(m.text || (TUTOR.busy ? 'Thinking …' : '')));
     list.append(bub);
   }
-  const box = h('textarea', { class: 'hwinput', id: 'tutorText', rows: '2', maxlength: '2000', placeholder: 'Ask Study Buddy anything from your chapters' });
+  const box = h('textarea', { class: 'hwinput', id: 'tutorText', rows: '2', maxlength: '2000', placeholder: papa ? 'Ask Study Buddy anything (an explanation, practice questions, a check)' : 'Ask Study Buddy anything from your chapters' });
   const photoIn = h('input', { type: 'file', accept: 'image/*', hidden: true });
   const photoBtn = h('button', { class: 'tb micbtn', type: 'button', title: 'Attach a photo of a question or your working' }, TUTOR.photo ? '📷 1 photo' : '📷 Photo');
   photoBtn.addEventListener('click', () => photoIn.click());
@@ -3217,7 +3300,8 @@ function tutorView() {
       const c = cv.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, cv.width, cv.height); c.drawImage(img, 0, 0, cv.width, cv.height);
       TUTOR.photo = cv.toDataURL('image/jpeg', 0.8).split(',')[1];
       cv.width = 0;
-      renderHw();
+      photoIn.value = '';
+      renderHw(); refreshUsageCard();
     } catch (e) { hwSay(e.message, true); }
   });
   const ask = h('button', { class: 'hwbtn', type: 'submit', disabled: TUTOR.busy }, TUTOR.busy ? 'Thinking …' : 'Ask');
@@ -3238,7 +3322,7 @@ async function askTutor(text) {
   if (photo) history[history.length - 1].image = { type: 'image/jpeg', data: photo };
   const reply = { role: 'assistant', text: '' };
   TUTOR.msgs.push(reply);
-  TUTOR.busy = true; HW.draft = ''; HW.msg = '';
+  TUTOR.busy = true; HW.draft = ''; HW.msg = ''; mascotThink(true);
   const tb = hwEl.querySelector('#tutorText'); if (tb) tb.value = '';
   renderHw();
   const paint = () => {
@@ -3249,7 +3333,7 @@ async function askTutor(text) {
     const list = hwEl.querySelector('.tutorlist'); if (list) list.scrollTop = list.scrollHeight;
   };
   try {
-    const r = await fetch('api/tutor/ask', { method: 'POST', headers: { 'content-type': 'application/json', 'x-class-code': HW.code }, body: JSON.stringify({ messages: history }) });
+    const r = await fetch('api/tutor/ask', { method: 'POST', headers: Object.assign({ 'content-type': 'application/json', 'x-class-code': HW.code }, HW.role === 'teacher' ? { 'x-teacher-pin': HW.pin } : {}), body: JSON.stringify({ messages: history }) });
     if (!r.ok) {
       let msg = 'The tutor could not answer (' + r.status + ').';
       try { msg = (await r.json()).error || msg; } catch (e) { if (r.status === 404) msg = 'The AI tutor works only on the Netlify version of Study Board.'; }
@@ -3269,7 +3353,9 @@ async function askTutor(text) {
   }
   TUTOR.busy = false;
   saveTutor();
-  if (!hwEl.hidden && HW.view === 'tutor') { renderHw(); }
+  mascotThink(false);
+  loadUsage();
+  if (!hwEl.hidden && HW.view === 'tutor') { renderHw(); } else mascotAnswerReady();
 }
 async function loadTutorLog() {
   try {
@@ -3288,6 +3374,70 @@ async function loadBooks() {
 function refreshBooksCard() { // update the books card and header line without redrawing the box he may be typing in
   const line = hwEl.querySelector('.booksline'); if (line) line.textContent = booksLine();
   const old = hwEl.querySelector('.bookscard'); if (old) old.replaceWith(booksCard(true));
+}
+// how much of Study Buddy is used: Tanish sees a "brain battery", Papa sees counts and the estimated spend
+function money(usd) {
+  const rate = (TUTOR.usage && TUTOR.usage.usdInr) || 88, inr = (usd || 0) * rate;
+  return '₹' + (inr < 10 ? inr.toFixed(1) : Math.round(inr).toLocaleString('en-IN')) + ' ($' + ((usd || 0) < 1 ? (usd || 0).toFixed(3) : usd.toFixed(2)) + ')';
+}
+async function loadUsage() {
+  if (!HW.code) return;
+  try { const r = await fetch('api/tutor/usage', { headers: Object.assign({ 'x-class-code': HW.code }, HW.role === 'teacher' ? { 'x-teacher-pin': HW.pin } : {}), cache: 'no-store' }); if (r.ok) TUTOR.usage = await r.json(); } catch (e) {}
+  refreshUsageCard();
+}
+function refreshUsageCard() { for (const old of hwEl.querySelectorAll('.usagecard')) old.replaceWith(usageCard(old.classList.contains('compact'))); }
+function usageNums() {
+  const u = TUTOR.usage; if (!u) return null;
+  const z = { q: 0, photos: 0, usd: 0, photoUsd: 0, textUsd: 0 };
+  const s = Object.assign({}, z, u.today.student), p = Object.assign({}, z, u.today.teacher);
+  const ts = Object.assign({}, z, u.total.student), tp = Object.assign({}, z, u.total.teacher);
+  const photos = ts.photos + tp.photos, texts = ts.q + tp.q - photos;
+  const ratio = photos >= 2 && texts >= 2 && ts.textUsd + tp.textUsd > 0 ? ((ts.photoUsd + tp.photoUsd) / photos) / ((ts.textUsd + tp.textUsd) / texts) : 0;
+  return { lim: u.limits, s, p, ts, tp, since: u.total.since, qLeft: Math.max(0, u.limits.q - s.q), pLeft: Math.max(0, u.limits.photos - s.photos), ratio };
+}
+function usageBar(used, max, kind) {
+  const f = Math.min(1, used / Math.max(1, max));
+  const el = h('div', { class: 'ubar ' + kind + (f >= 0.8 ? ' hot' : f >= 0.5 ? ' warm' : ''), role: 'meter', 'aria-valuemin': '0', 'aria-valuemax': String(max), 'aria-valuenow': String(used) });
+  const fill = h('span'); fill.style.width = Math.round(f * 100) + '%'; el.append(fill);
+  return el;
+}
+function batteryQuip(n) {
+  const f = Math.max(n.s.q / Math.max(1, n.lim.q), n.s.photos / Math.max(1, n.lim.photos));
+  if (n.qLeft === 0) return 'I am out of brain battery for today 😵 Write the rest down for Papa!';
+  if (f >= 0.8) return 'Battery running low 🪫 Save the last few for real head-scratchers!';
+  if (f >= 0.5) return 'Whoa, you are on fire 🔥 Try the easy ones yourself first?';
+  return 'Plenty of brain battery. Ask away! 🚀';
+}
+function photoTip(n) {
+  const x = n && n.ratio >= 1.15 ? ' A photo question costs about ' + n.ratio.toFixed(1) + '× a typed one.' : '';
+  return '📸 Photos make me read the whole picture, so they cost Papa more.' + x + ' If it is short, typing it is cheaper 😉';
+}
+function usageCard(compact) {
+  const n = usageNums();
+  const card = h('div', { class: 'hwcard usagecard' + (compact ? ' compact' : '') });
+  if (!n) { card.append(h('p', { class: 'meta' }, 'Checking today’s count …')); return card; }
+  const dt = (t) => new Date(t).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  if (HW.role !== 'teacher') {
+    card.append(h('b', null, '🔋 My brain battery today'),
+      h('div', { class: 'urow' }, h('span', null, '💬 ' + n.qLeft + ' of ' + n.lim.q + ' questions left'), usageBar(n.s.q, n.lim.q, 'q')),
+      h('div', { class: 'urow' }, h('span', null, '📷 ' + n.pLeft + ' of ' + n.lim.photos + ' photos left'), usageBar(n.s.photos, n.lim.photos, 'p')),
+      h('p', { class: 'quip' }, TUTOR.photo ? photoTip(n) : batteryQuip(n)));
+    return card;
+  }
+  if (compact) {
+    card.append(h('p', null, '🔋 Today: Tanish ' + n.s.q + '/' + n.lim.q + ' questions (' + n.s.photos + '/' + n.lim.photos + ' 📷), you ' + n.p.q + ' · estimated spend today ' + money(n.s.usd + n.p.usd) + ' · ', h('button', { class: 'linkbtn', type: 'button', onclick: () => showTutor('log') }, 'details')));
+    return card;
+  }
+  card.append(h('b', null, '🔋 Study Buddy use and estimated spend'),
+    h('div', { class: 'urow' }, h('span', null, 'Tanish today: ' + n.s.q + ' of ' + n.lim.q + ' questions'), usageBar(n.s.q, n.lim.q, 'q')),
+    h('div', { class: 'urow' }, h('span', null, 'with a photo: ' + n.s.photos + ' of ' + n.lim.photos), usageBar(n.s.photos, n.lim.photos, 'p')),
+    h('table', { class: 'utable' },
+      h('tr', null, h('th', null, ''), h('th', null, 'Today'), h('th', null, n.since ? 'Since ' + dt(n.since) : 'So far')),
+      h('tr', null, h('td', null, 'Tanish'), h('td', null, money(n.s.usd)), h('td', null, money(n.ts.usd) + ' · ' + n.ts.q + ' q')),
+      h('tr', null, h('td', null, 'Papa'), h('td', null, money(n.p.usd)), h('td', null, money(n.tp.usd) + ' · ' + n.tp.q + ' q')),
+      h('tr', { class: 'tot' }, h('td', null, 'Total'), h('td', null, money(n.s.usd + n.p.usd)), h('td', null, money(n.ts.usd + n.tp.usd)))),
+    h('p', { class: 'meta' }, (n.ratio ? 'On average a photo question costs ' + n.ratio.toFixed(1) + '× a typed one. ' : '') + 'Estimated from the tokens each answer used, at Anthropic’s list prices, ₹' + ((TUTOR.usage && TUTOR.usage.usdInr) || 88) + ' to the dollar. Counting started when this was added, so earlier questions are not included. The actual bill is in Netlify (AI Gateway usage) and can differ.'));
+  return card;
 }
 async function pdfPagesText(bytes) {
   const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(bytes.slice(0)) }).promise;
@@ -3363,12 +3513,13 @@ function tutorLogView() {
   const wrap = h('div');
   if (!TUTOR.books) loadBooks();
   wrap.append(booksCard(true));
+  wrap.append(usageCard(false));
   wrap.append(h('p', { class: 'tutornote' }, 'Everything Tanish has asked the AI tutor, newest first, with its answers.'), h('button', { class: 'tb', type: 'button', onclick: () => loadTutorLog() }, 'Refresh log'));
   if (!TUTOR.log) { wrap.append(h('p', { class: 'empty' }, 'Loading …')); return wrap; }
-  if (!TUTOR.log.length) wrap.append(h('p', { class: 'empty' }, 'No questions yet.'));
-  for (const it of TUTOR.log) {
+  if (!TUTOR.log.filter((x) => x.by !== 'teacher').length) wrap.append(h('p', { class: 'empty' }, 'No questions yet.'));
+  for (const it of TUTOR.log.filter((x) => x.by !== 'teacher')) {
     const card = h('div', { class: 'hwcard' },
-      h('p', { class: 'meta' }, new Date(it.at).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) + (it.hadImage ? ' · with photo' : '')),
+      h('p', { class: 'meta' }, new Date(it.at).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) + (it.hadImage ? ' · with photo' : '') + (typeof it.usd === 'number' ? ' · about ' + money(it.usd) : '')),
       h('p', null, h('b', null, 'Q: '), it.question),
       it.book && it.book.length ? h('p', { class: 'meta' }, '📖 Book pages used: ' + it.book.join(', ')) : h('p', { class: 'meta' }, 'No book pages matched this question.'),
       h('details', null, h('summary', null, 'Answer'), richText(it.answer || '')));
@@ -3835,6 +3986,197 @@ async function loadSettings() {
 setInterval(() => { if (HW.code && document.visibilityState === 'visible' && (hwEl.hidden || HW.view !== 'chat')) pollChat(); }, 120000);
 setTimeout(() => { if (HW.code) pollChat(); }, 3000);
 
+/* ---------- Study Buddy mascot: floats on the screen, blinks and looks around, opens Study Buddy when tapped ---------- */
+function mascotSvg() {
+  const id = 'mg' + (++MASCOT.n);
+  const w = document.createElement('div');
+  w.innerHTML = '<svg class="msvg" viewBox="0 0 100 112" aria-hidden="true" focusable="false">'
+    + '<defs><linearGradient id="' + id + '" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8b5cf6"/><stop offset="1" stop-color="#14b8a6"/></linearGradient></defs>'
+    + '<ellipse class="mshadow" cx="50" cy="107" rx="26" ry="4" fill="rgba(40,20,90,.22)"/>'
+    + '<g class="mbody">'
+    + '<g class="marm ml"><ellipse cx="13" cy="74" rx="7" ry="11" fill="#7c4ddb"/></g>'
+    + '<g class="marm mr"><ellipse cx="87" cy="74" rx="7" ry="11" fill="#1aa592"/></g>'
+    + '<ellipse cx="50" cy="67" rx="39" ry="37" fill="url(#' + id + ')"/>'
+    + '<ellipse cx="50" cy="84" rx="22" ry="13" fill="rgba(255,255,255,.16)"/>'
+    + '<ellipse cx="33" cy="45" rx="9" ry="5" fill="rgba(255,255,255,.28)" transform="rotate(-20 33 45)"/>'
+    + '<g class="meye l"><circle cx="36" cy="61" r="11" fill="#fff"/><g class="mpupil"><circle cx="36" cy="62" r="5.6" fill="#21183a"/><circle cx="38.2" cy="59.8" r="1.9" fill="#fff"/></g></g>'
+    + '<g class="meye r"><circle cx="64" cy="61" r="11" fill="#fff"/><g class="mpupil"><circle cx="64" cy="62" r="5.6" fill="#21183a"/><circle cx="66.2" cy="59.8" r="1.9" fill="#fff"/></g></g>'
+    + '<ellipse cx="24" cy="76" rx="6" ry="3.5" fill="#ff8fab" opacity=".8"/><ellipse cx="76" cy="76" rx="6" ry="3.5" fill="#ff8fab" opacity=".8"/>'
+    + '<path class="msmile" d="M40 77 Q50 89 60 77 Z" fill="#21183a"/>'
+    + '<path class="mtongue" d="M45.5 81.6 Q50 86.4 54.5 81.6 Q50 79.6 45.5 81.6 Z" fill="#ff6b8b"/>'
+    + '<ellipse class="mo" cx="50" cy="81" rx="3.6" ry="4.4" fill="#21183a"/>'
+    + '<g class="mcap"><path d="M36 30 v7 q14 8 28 0 v-7 z" fill="#2b2140"/><polygon points="21,28 50,16 79,28 50,40" fill="#3d2f62"/>'
+    + '<g class="mtassel"><path d="M50 28 L72 31 L72 42" stroke="#ffd43b" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="72" cy="44" r="3.2" fill="#ffd43b"/></g>'
+    + '<circle cx="50" cy="28" r="2.3" fill="#ffd43b"/></g>'
+    + '<path class="mspark" d="M90 20 l2 5 5 2 -5 2 -2 5 -2 -5 -5 -2 5 -2 z" fill="#ffd43b"/>'
+    + '</g></svg>';
+  return w.firstElementChild;
+}
+const MASCOT_LINES = {
+  student: [
+    'Stuck on a sum? Tap me! 🙋',
+    'Psst… sin²θ + cos²θ = 1. Always. 😎',
+    'Fun fact: sunlight takes about 8 minutes to reach Earth ☀️',
+    'A 140 km/h ball crosses the cricket pitch in about half a second 🏏',
+    'π = 3.14159… and its digits never end 🥧',
+    'Your body has about 37 lakh crore cells 🧬',
+    'I never get tired of questions. Try me! 💪',
+    'Send me a photo of your working and I will find the slip 📷',
+    'Tap me, I am getting bored 😴',
+  ],
+  teacher: [
+    'Need a quick explanation, Papa? Tap me 🙂',
+    'I can make practice questions for Tanish 📝',
+    'Want a real-life example for the next class? 💡',
+    'I can check a solution for mistakes. Send a photo 📷',
+    'Tanish’s questions are in my log 📒',
+  ],
+};
+function mascotInit() {
+  try { const st = JSON.parse(localStorage.getItem('studyboard-mascot') || '{}'); MASCOT.hidden = !!st.hidden; MASCOT.x = typeof st.x === 'number' ? st.x : null; MASCOT.y = typeof st.y === 'number' ? st.y : null; } catch (e) {}
+  const el = h('button', { class: 'mascot', type: 'button', 'aria-label': 'Study Buddy: tap to ask a question', title: 'Study Buddy: tap to ask. Drag to move me.' });
+  const badge = h('span', { class: 'badge', 'aria-hidden': 'true' }, '!'); badge.hidden = true;
+  el.append(mascotSvg(), h('span', { class: 'say', 'aria-hidden': 'true' }), badge);
+  document.body.append(el);
+  MASCOT.el = el;
+  let drag = null;
+  el.addEventListener('pointerdown', (e) => {
+    drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, r: el.getBoundingClientRect(), moved: false };
+    try { el.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
+    if (!drag.moved && Math.hypot(dx, dy) < 8) return;
+    drag.moved = true; el.classList.add('dragging');
+    mascotPlace(drag.r.left + dx, drag.r.top + dy);
+  });
+  const end = (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    MASCOT.moved = drag.moved; drag = null; el.classList.remove('dragging');
+    if (MASCOT.moved) mascotSave();
+  };
+  el.addEventListener('pointerup', end);
+  el.addEventListener('pointercancel', end);
+  el.addEventListener('contextmenu', (e) => e.preventDefault());
+  el.addEventListener('click', () => { if (MASCOT.moved) { MASCOT.moved = false; return; } mascotTap(); });
+  window.addEventListener('resize', () => mascotRestore());
+  // fade away while a pen is writing on the page, so he never covers the work
+  document.addEventListener('pointerdown', (e) => {
+    if (e.target && e.target.closest && e.target.closest('#pages')) { clearTimeout(MASCOT.drawT); el.classList.add('drawing'); }
+    mascotLookAt(e.clientX, e.clientY);
+  }, true);
+  const lift = () => { clearTimeout(MASCOT.drawT); MASCOT.drawT = setTimeout(() => el.classList.remove('drawing'), 1500); };
+  document.addEventListener('pointerup', lift, true);
+  document.addEventListener('pointercancel', lift, true);
+  let raf = 0, px = 0, py = 0;
+  document.addEventListener('pointermove', (e) => {
+    if (e.pointerType !== 'mouse') return;
+    px = e.clientX; py = e.clientY;
+    if (!raf) raf = requestAnimationFrame(() => { raf = 0; mascotLookAt(px, py); });
+  }, { passive: true });
+  mascotRestore();
+  mascotSync();
+  setTimeout(() => mascotSay(mascotHello(), 6000), 2500);
+  mascotIdle();
+}
+function mascotHello() {
+  if (!HW.code) return 'Hi! I am Study Buddy 👋 Tap me to ask anything.';
+  return HW.role === 'teacher' ? 'Namaste Papa! 👋 Tap me to ask anything.' : 'Hi Tanish! 👋 Tap me to ask anything.';
+}
+function mascotPlace(x, y) {
+  const el = MASCOT.el; if (!el) return;
+  const w = el.offsetWidth || 94, hh = el.offsetHeight || 106;
+  const top = 8 + ((document.getElementById('bar') || { offsetHeight: 0 }).offsetHeight || 0);
+  x = Math.max(4, Math.min(innerWidth - w - 4, x)); y = Math.max(top, Math.min(innerHeight - hh - 4, y));
+  Object.assign(el.style, { left: x + 'px', top: y + 'px', right: 'auto', bottom: 'auto' });
+  el.classList.toggle('left', x + w / 2 < innerWidth / 2);
+  el.classList.toggle('low', y < 150);
+}
+function mascotSave() {
+  const el = MASCOT.el, r = el.getBoundingClientRect();
+  MASCOT.x = Math.max(0, Math.min(1, r.left / Math.max(1, innerWidth - r.width)));
+  MASCOT.y = Math.max(0, Math.min(1, r.top / Math.max(1, innerHeight - r.height)));
+  try { localStorage.setItem('studyboard-mascot', JSON.stringify({ hidden: MASCOT.hidden, x: MASCOT.x, y: MASCOT.y })); } catch (e) {}
+}
+function mascotRestore() {
+  const el = MASCOT.el; if (!el || MASCOT.x == null) return;
+  const w = el.offsetWidth || 94, hh = el.offsetHeight || 106;
+  mascotPlace(MASCOT.x * (innerWidth - w), MASCOT.y * (innerHeight - hh));
+}
+function mascotSetHidden(hide) {
+  MASCOT.hidden = !!hide;
+  try { localStorage.setItem('studyboard-mascot', JSON.stringify({ hidden: MASCOT.hidden, x: MASCOT.x, y: MASCOT.y })); } catch (e) {}
+  mascotSync();
+  toast(hide ? 'Study Buddy is hiding. Bring him back from the ☰ menu.' : 'Study Buddy is back 👋', null, 5000);
+  if (!hide) setTimeout(() => { mascotHop(); mascotSay(mascotHello(), 5000); }, 300);
+}
+function mascotSync() { // hidden when switched off, and while the Homework / Chat / Study Buddy panel is open (it has its own Study Buddy tab)
+  const el = MASCOT.el; if (!el) return;
+  el.hidden = MASCOT.hidden || !hwEl.hidden;
+  if (!hwEl.hidden && HW.view === 'tutor') el.querySelector('.badge').hidden = true;
+}
+function mascotVisible() { return MASCOT.el && !MASCOT.el.hidden && !MASCOT.el.classList.contains('drawing') && hwEl.hidden && !document.querySelector('.snapview, .bigpic, .docview, .qrview'); }
+function mascotTap() {
+  MASCOT.el.classList.remove('talk');
+  if (HW.role === 'teacher') TUTOR.papaTab = 'ask';
+  openHw(null, 'tutor');
+}
+function mascotHop() {
+  const el = MASCOT.el; if (!el) return;
+  el.classList.remove('hop'); void el.offsetWidth; el.classList.add('hop');
+  setTimeout(() => el.classList.remove('hop'), 800);
+}
+function mascotSay(text, ms) {
+  const el = MASCOT.el; if (!el || !mascotVisible()) return false;
+  el.querySelector('.say').textContent = text;
+  el.classList.add('talk', 'wave');
+  MASCOT.said = Date.now();
+  clearTimeout(MASCOT.sayT);
+  MASCOT.sayT = setTimeout(() => el.classList.remove('talk', 'wave'), ms || 5000);
+  return true;
+}
+function mascotLookAt(x, y) {
+  const el = MASCOT.el; if (!el || el.hidden) return;
+  const r = el.getBoundingClientRect();
+  const dx = x - (r.left + r.width / 2), dy = y - (r.top + r.height * 0.55);
+  const d = Math.hypot(dx, dy) || 1, k = Math.min(1, d / 120) * 3.6;
+  mascotPupils(dx / d * k, dy / d * k);
+  MASCOT.lastLook = Date.now();
+}
+function mascotPupils(x, y) {
+  for (const p of MASCOT.el.querySelectorAll('.mpupil')) p.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)';
+}
+function mascotIdle() { // little signs of life: glance around, hop, wink, and now and then say something
+  const el = MASCOT.el;
+  const tick = () => {
+    if (mascotVisible() && !TUTOR.busy) {
+      const now = Date.now(), r = Math.random();
+      if (now - MASCOT.lastLook > 2500) { const a = Math.random() * Math.PI * 2, k = Math.random() * 3.4; mascotPupils(Math.cos(a) * k, Math.sin(a) * k * 0.7); }
+      if (r < 0.07) mascotHop();
+      else if (r < 0.12) { el.classList.add('wink'); setTimeout(() => el.classList.remove('wink'), 600); }
+      if (now - MASCOT.said > 55000 && Math.random() < 0.18) {
+        const lines = MASCOT_LINES[HW.role === 'teacher' ? 'teacher' : 'student'].slice();
+        const un = usageNums(); if (un && HW.role !== 'teacher') lines.push(un.qLeft ? 'My brain battery: ' + un.qLeft + ' questions left today 🔋' : 'I am sleeping till tomorrow 😴🔋', 'Typed questions are cheaper than photos. Just saying 😉');
+        if (TUTOR.books && TUTOR.books.length) lines.push('I have read ' + TUTOR.books.length + (TUTOR.books.length === 1 ? ' chapter' : ' chapters') + ' of the NCERT books 📚');
+        mascotSay(lines[Math.floor(Math.random() * lines.length)], 5500);
+      }
+    }
+    setTimeout(tick, 2600 + Math.random() * 2400);
+  };
+  setTimeout(tick, 4000);
+}
+function mascotThink(on) {
+  if (MASCOT.el) MASCOT.el.classList.toggle('think', !!on);
+  const head = hwEl.querySelector('.buddyhead .buddy'); if (head) head.classList.toggle('think', !!on);
+}
+function mascotAnswerReady() {
+  const el = MASCOT.el; if (!el) return;
+  el.querySelector('.badge').hidden = false;
+  mascotHop();
+  mascotSay('Your answer is ready! Tap me 👀', 8000);
+}
+
 /* ---------- start ---------- */
 async function init() {
   if (pdfReady()) pdfjsLib.GlobalWorkerOptions.workerSrc = WORKER_SRC;
@@ -3851,6 +4193,7 @@ async function init() {
   if (!n) { n = seedNotebook(); await DB.put('notebooks', n).catch(() => {}); }
   renderToolbar();
   setNotebook(n, true);
+  mascotInit();
   syncPush(); resumeLive();
   if (location.hash === '#homework') openHw();
   if (location.hash === '#chat') openHw(null, 'chat');

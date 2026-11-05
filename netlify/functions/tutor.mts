@@ -7,7 +7,31 @@ import type { Config, Context } from "@netlify/functions";
 // Protected by the same class code as homework. Every question and answer is kept
 // so Papa can read them (the student is told this on screen).
 
-const DAILY_LIMIT = 60;
+const DAILY_LIMIT = Number(Netlify.env.get("TUTOR_DAILY_LIMIT")) || 60; // Tanish's questions a day (Papa's do not count)
+const PHOTO_LIMIT = Number(Netlify.env.get("TUTOR_PHOTO_LIMIT")) || 15; // of which questions with a photo
+const USD_INR = Number(Netlify.env.get("USD_INR")) || 88; // for showing rupees; approximate, set USD_INR to update
+
+// Estimated cost, at Anthropic's list prices in US dollars per million tokens (cache writes 1.25x input;
+// web search $10 per 1,000). The real bill comes from Netlify AI Gateway and can differ.
+const PRICES: Record<string, { in: number; out: number; cr: number }> = {
+  "claude-opus-5-5": { in: 4, out: 20, cr: 0.2 },
+  "claude-sonnet-5-5": { in: 2, out: 10, cr: 0.2 },
+};
+function costOf(model: string, u: any): number {
+  if (!u) return 0;
+  const p = PRICES[model] || PRICES["claude-opus-5-5"];
+  const web = (u.server_tool_use && u.server_tool_use.web_search_requests) || 0;
+  return ((u.input_tokens || 0) * p.in + (u.cache_creation_input_tokens || 0) * p.in * 1.25 + (u.cache_read_input_tokens || 0) * p.cr + (u.output_tokens || 0) * p.out) / 1e6 + web * 0.01;
+}
+type Tally = { q: number; photos: number; usd: number; photoUsd: number; textUsd: number };
+const tally = (): Tally => ({ q: 0, photos: 0, usd: 0, photoUsd: 0, textUsd: 0 });
+type Usage = { since?: number; student: Tally; teacher: Tally };
+const emptyUsage = (): Usage => ({ student: tally(), teacher: tally() });
+function addTo(u: Usage, who: "student" | "teacher", photo: boolean, usd: number) {
+  const t = u[who] = Object.assign(tally(), u[who] || {});
+  t.q++; if (photo) { t.photos++; t.photoUsd += usd; } else t.textUsd += usd;
+  t.usd += usd;
+}
 const MODELS = [Netlify.env.get("TUTOR_MODEL") || "claude-opus-5-5", "claude-sonnet-5-5"];
 
 const SYSTEM = `You are "Study Buddy", a friendly, patient tutor for Tanish, a Class 10 student in India (CBSE board, NCERT textbooks). His father teaches him Maths and Science and has set you up to help between classes. Tanish finds Maths and Science hard, so your job is to make difficult ideas click and feel interesting.
@@ -38,6 +62,9 @@ His NCERT books:
 - When you use the excerpts, end with one short line naming the chapters and pages you actually used, for example: "📖 From your NCERT book: Maths Ch 8 (page 3 of the chapter)". Page numbers count from the start of each chapter, not the printed page number. Never invent chapter or page numbers.
 - The excerpts are text taken out of PDFs, so fractions, powers and symbols may be jumbled and figures are missing. Read them sensibly, and if a figure matters, tell him which figure to look at in his book.
 - If the excerpts do not cover the question, say so in one short line ("This is not in your NCERT chapters, so here is a general explanation."), then help from your own knowledge. Use web search only for facts that need checking or are recent, and say when an answer comes from the web.`;
+
+// added when the question comes from Papa's device (signed in with the teacher PIN)
+const PAPA = `This conversation is with Papa, Tanish's father and his Maths and Science teacher, not with Tanish. Talk to him as one adult to another. Give complete answers and full working straight away (no hint-first), and help him prepare: explain ideas the way he could teach them to Tanish, suggest examples, and make practice or test questions with answers when he asks. Still use the NCERT excerpts first and name the chapter and page.`;
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
@@ -149,6 +176,13 @@ export default async (req: Request, context: Context) => {
     return json({ key: book.key, chunks: book.chunks.length });
   }
 
+  // questions and photos used today, with the estimated spend (today and since counting started)
+  if (req.method === "GET" && action === "usage") {
+    const day = today();
+    const [d, total] = await Promise.all([store.get("usage/day/" + day, { type: "json" }), store.get("usage/total", { type: "json" })]);
+    return json({ day, limits: { q: DAILY_LIMIT, photos: PHOTO_LIMIT }, usdInr: USD_INR, today: d || emptyUsage(), total: total || emptyUsage() });
+  }
+
   if (req.method !== "POST") return fail(404, "Unknown request.");
   if (!process.env.ANTHROPIC_BASE_URL && !process.env.ANTHROPIC_API_KEY) {
     return fail(503, "The AI tutor is not switched on yet. In Netlify, AI Gateway needs to be enabled for this site.");
@@ -160,8 +194,10 @@ export default async (req: Request, context: Context) => {
   if (!incoming.length || incoming[incoming.length - 1].role !== "user") return fail(400, "Type a question first.");
 
   const day = today();
-  const { blobs: todays } = await store.list({ prefix: "tutor/" + day + "/" });
-  if (todays.length >= DAILY_LIMIT) return fail(429, "That is enough questions with the tutor for today. Write the rest down and ask Papa in tomorrow's class.");
+  const used: Usage = Object.assign(emptyUsage(), (await store.get("usage/day/" + day, { type: "json" })) || {});
+  const last = incoming[incoming.length - 1];
+  if (!teacher && used.student.q >= DAILY_LIMIT) return fail(429, "I am out of brain battery for today 😵 That was " + DAILY_LIMIT + " questions! Write the rest down and ask Papa, or ask me again tomorrow.");
+  if (!teacher && last.image && used.student.photos >= PHOTO_LIMIT) return fail(429, "No more photos today 📷😴 (" + PHOTO_LIMIT + " used). Type the question instead and I will still help.");
 
   const messages: Anthropic.MessageParam[] = [];
   for (let i = 0; i < incoming.length; i++) {
@@ -201,11 +237,13 @@ export default async (req: Request, context: Context) => {
     { type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } },
     { type: "text", text: bookBlock },
   ];
+  if (teacher) system.push({ type: "text", text: PAPA });
 
   const stream = new ReadableStream({
     async start(controller) {
       let answer = "";
       let used = "";
+      let usd = 0;
       const attempts: { model: string; web: boolean }[] = [];
       for (const model of MODELS) { if (WEB_OK) attempts.push({ model, web: true }); attempts.push({ model, web: false }); }
       for (const { model, web } of attempts) {
@@ -227,6 +265,7 @@ export default async (req: Request, context: Context) => {
           }
           const final = await s.finalMessage();
           used = model + (web ? " + web" : "");
+          usd = costOf(model, final.usage);
           // list the web pages the answer quoted, if it searched
           const urls = new Map<string, string>();
           for (const b of final.content) if (b.type === "text") for (const c of (b.citations || []) as any[]) if (c.type === "web_search_result_location" && c.url) urls.set(c.url, c.title || c.url);
@@ -255,8 +294,17 @@ export default async (req: Request, context: Context) => {
       }
       controller.close();
       const at = Date.now();
+      const who = teacher ? "teacher" : "student", photo = !!question.image;
+      context.waitUntil((async () => {
+        const d: Usage = Object.assign(emptyUsage(), (await store.get("usage/day/" + day, { type: "json" })) || {});
+        addTo(d, who, photo, usd);
+        const t: Usage = Object.assign(emptyUsage(), (await store.get("usage/total", { type: "json" })) || {});
+        if (!t.since) t.since = at;
+        addTo(t, who, photo, usd);
+        await Promise.all([store.setJSON("usage/day/" + day, d), store.setJSON("usage/total", t)]);
+      })().catch((e) => console.error("usage", e)));
       context.waitUntil(store.setJSON("tutor/" + day + "/" + at + "-" + Math.random().toString(36).slice(2, 6), {
-        at, question: String(question.text || "").slice(0, 4000), hadImage: !!question.image, answer, model: used,
+        at, question: String(question.text || "").slice(0, 4000), hadImage: !!question.image, by: teacher ? "teacher" : "student", answer, model: used, usd,
         book: found.map((c) => c.label + " p." + c.p),
       }));
     },
