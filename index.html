@@ -4283,9 +4283,9 @@ function studyNowCard() {
   const goal = dayGoal(istDayC(0)), secs = tracking() ? STUDY.today : ((dayRec(istDayC(0)).study || {}).secs || 0);
   const st = dayRec(istDayC(0)).study || {}, lv = leaveOf(istDayC(0));
   const card = h('div', { class: 'hwcard studynow' });
-  card.append(h('b', null, (HW.role === 'teacher' ? '⏱️ Tanish today: ' : '⏱️ You today: ') + fmtMins(secs) + (goal ? ' of ' + goal + ' h' : '')),
+  card.append(...[h('b', null, (HW.role === 'teacher' ? '⏱️ Tanish today: ' : '⏱️ You today: ') + fmtMins(secs) + (goal ? ' of ' + goal + ' h' : '')),
     lv ? h('p', { class: 'meta' }, lv.full ? '🏖️ Day off today' + (lv.note ? ' (' + lv.note + ')' : '') + '. Enjoy! 🎉' : '🏖️ ' + lv.hours + ' h off today' + (lv.note ? ' (' + lv.note + ')' : '') + ', so today’s goal is ' + goal + ' h.') : null,
-    usageBar(Math.round(secs / 60), Math.max(1, goal * 60), 'q'));
+    usageBar(Math.round(secs / 60), Math.max(1, goal * 60), 'q')].filter(Boolean));
   const facts = [];
   const pomos = tracking() ? Math.max(POMO.n, st.pomos || 0) : (st.pomos || 0);
   facts.push('🍅 ' + pomos + (pomos === 1 ? ' Pomodoro' : ' Pomodoros'));
