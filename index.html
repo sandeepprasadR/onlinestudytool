@@ -93,6 +93,7 @@ button:focus-visible, input:focus-visible, label:focus-within { outline: 2px sol
 .sz span { display: block; border-radius: 50%; background: currentColor; }
 .dim { opacity: .45; }
 body.compact .x { display: none; }
+input, textarea, select, [contenteditable] { -webkit-user-select: text; user-select: text; }
 @media (max-width: 1300px) { .ib { width: 34px; } .sw { width: 25px; height: 25px; margin: 0 1px; } #nbName { width: 112px; } .grp { padding: 0 4px; } }
 
 /* Desk and pages */
@@ -2364,7 +2365,31 @@ async function markHw(item) {
 function field(label, control) { return h('label', { class: 'hwfield' }, h('span', null, label), control); }
 function chip(text, kind) { return h('span', { class: 'chip ' + (kind || '') }, text); }
 function chatBusy() { return !!HW.rec || [...hwEl.querySelectorAll('audio')].some((a) => !a.paused); }
-function renderHw() {
+// iPad closes the keyboard when the box being typed in is replaced, and does not reopen it for a
+// focus() that is not a tap. So while a box in this panel is in use, only the message list is
+// refreshed; anything else waits until the box is let go.
+function typingInHw() {
+  const a = document.activeElement;
+  return !!a && hwEl.contains(a) && (a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || (a.tagName === 'INPUT' && !/^(file|checkbox|radio|button|submit|reset)$/.test(a.type)));
+}
+function patchHwList() {
+  const sel = HW.view === 'chat' ? '.chatlist' : '.tutorlist';
+  const old = hwEl.querySelector(sel);
+  if (!old) return false;
+  const fresh = (HW.view === 'chat' ? chatView() : (HW.role === 'teacher' ? tutorLogView() : tutorView())).querySelector(sel);
+  if (!fresh) return false;
+  const atEnd = old.scrollHeight - old.scrollTop - old.clientHeight < 40;
+  old.replaceWith(fresh);
+  if (atEnd) fresh.scrollTop = fresh.scrollHeight;
+  return true;
+}
+function renderHw(force) {
+  if (force !== true && typingInHw()) {
+    if ((HW.view === 'chat' || HW.view === 'tutor') && patchHwList()) return;
+    HW.pendingRender = true;
+    return;
+  }
+  HW.pendingRender = false;
   const oldBox = hwEl.querySelector('#chatText, #tutorText');
   const draft = oldBox ? oldBox.value : (HW.draft || '');
   HW.draft = draft;
@@ -2648,9 +2673,17 @@ async function pollChat() {
   } catch (e) { /* offline or not set up: try again later */ }
 }
 function updateChatBadge() { $('#bBooks').classList.toggle('badge', unreadCount() > 0); }
+// pressing Enter to send a form outside Chat lets go of the box, so the panel can show the result
+hwEl.addEventListener('submit', () => { if (!(HW.code && (HW.view === 'chat' || HW.view === 'tutor')) && typingInHw()) document.activeElement.blur(); }, true);
+hwEl.addEventListener('focusout', () => setTimeout(() => { if (HW.pendingRender && !hwEl.hidden && !typingInHw() && !chatBusy()) renderHw(); }, 400));
+function focusHwBox(sel) { // inside the tap that opened the panel, so the iPad keyboard opens
+  const b = hwEl.querySelector(sel);
+  if (b) { try { b.focus({ preventScroll: true }); } catch (e) { b.focus(); } }
+}
 function showChat() {
   HW.view = 'chat'; HW.returning = null;
-  renderHw();
+  renderHw(true);
+  focusHwBox('#chatText');
   loadSettings().then(() => { if (!hwEl.hidden && HW.view === 'chat') renderHw(); });
   pollChat().then(() => { markSeen(); renderHw(); });
   clearInterval(HW.chatTimer);
@@ -2711,8 +2744,8 @@ function saveTutor() { try { localStorage.setItem('studyboard-tutor', JSON.strin
 function showTutor() {
   clearInterval(HW.chatTimer);
   HW.view = 'tutor'; HW.returning = null;
-  renderHw();
-  if (HW.role === 'teacher') loadTutorLog();
+  renderHw(true);
+  if (HW.role === 'teacher') loadTutorLog(); else focusHwBox('#tutorText');
 }
 // light formatting for tutor replies: **bold**, numbered and bullet lines; built from text nodes only
 function richText(text) {
