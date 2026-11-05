@@ -935,13 +935,13 @@ async function loadImgBlob(src) {
   try { await DB.put('pdfs', { bytes: await b.arrayBuffer(), name: 'photo', type: b.type || 'image/jpeg' }, 'img:' + id); } catch (err) {}
   return b;
 }
-async function shrinkPhoto(file, max = 1600) {
+async function shrinkPhoto(file, max = 1600, quality = 0.85) {
   const im = await loadImage(file);
   const k = Math.min(1, max / Math.max(im.naturalWidth, im.naturalHeight));
   const cv = document.createElement('canvas');
   cv.width = Math.max(1, Math.round(im.naturalWidth * k)); cv.height = Math.max(1, Math.round(im.naturalHeight * k));
   const c = cv.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, cv.width, cv.height); c.drawImage(im, 0, 0, cv.width, cv.height);
-  const blob = await new Promise((r) => cv.toBlob(r, 'image/jpeg', 0.85));
+  const blob = await new Promise((r) => cv.toBlob(r, 'image/jpeg', quality));
   const out = { blob, w: cv.width, h: cv.height };
   cv.width = 0; cv.height = 0;
   return out;
@@ -1047,19 +1047,32 @@ function showSnapScreen(token) { // on the phone
     h('h2', null, token ? 'Send a photo to the board' : 'Snap a photo for my board'), status,
     h('button', { class: 'hwbtn big', type: 'button', onclick: () => cam.click() }, '📷 Take a photo'),
     h('button', { class: 'tb', type: 'button', onclick: close }, 'Close'), cam);
+  // phone internet can be slow: send a small photo, and if it fails try again smaller
+  const tries = [[1400, 0.72], [1100, 0.62], [850, 0.55]];
   cam.addEventListener('change', async () => {
     const f = cam.files[0]; cam.value = '';
     if (!f) return;
-    status.textContent = 'Sending …';
-    try {
-      const { blob } = await shrinkPhoto(f, 1800);
-      const fd = new FormData(); fd.append('file', new File([blob], 'snap.jpg', { type: 'image/jpeg' }));
-      if (token) {
-        const r = await fetch('api/hw/snap', { method: 'POST', headers: { 'x-snap-token': token }, body: fd, cache: 'no-store' });
-        if (!r.ok) { let m = 'Could not send (' + r.status + ').'; try { m = (await r.json()).error || m; } catch (e) {} throw new Error(m); }
-      } else await api('snap', { method: 'POST', body: fd });
-      status.textContent = '✓ Sent. On the board, tap the page where it should go. Take another if you need.';
-    } catch (e) { status.textContent = 'Could not send: ' + (e && e.message ? e.message : 'try again'); }
+    let last = null;
+    for (let i = 0; i < tries.length; i++) {
+      try {
+        const { blob } = await shrinkPhoto(f, tries[i][0], tries[i][1]);
+        status.textContent = 'Sending ' + Math.max(1, Math.round(blob.size / 1024)) + ' KB' + (i ? ' (try ' + (i + 1) + ' of ' + tries.length + ', smaller)' : '') + ' …';
+        const fd = new FormData(); fd.append('file', new File([blob], 'snap.jpg', { type: 'image/jpeg' }));
+        const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 40000);
+        try {
+          const headers = token ? { 'x-snap-token': token } : Object.assign({ 'x-class-code': HW.code }, HW.role === 'teacher' ? { 'x-teacher-pin': HW.pin } : {});
+          const r = await fetch('api/hw/snap', { method: 'POST', headers, body: fd, cache: 'no-store', signal: ctl.signal });
+          if (!r.ok) {
+            let m = 'Could not send (' + r.status + ').'; try { m = (await r.json()).error || m; } catch (e) {}
+            if (r.status < 500 && r.status !== 408 && r.status !== 413) { status.textContent = m; return; } // a retry will not help
+            throw new Error(m);
+          }
+        } finally { clearTimeout(timer); }
+        status.textContent = '✓ Sent. On the board, tap the page where it should go. Take another if you need.';
+        return;
+      } catch (e) { last = e; }
+    }
+    status.textContent = 'Could not send: the phone\'s internet is too slow right now (' + (last && last.name === 'AbortError' ? 'timed out' : (last && last.message) || 'no connection') + '). Move nearer the Wi-Fi and take the photo again.';
   });
   document.body.append(box);
 }
