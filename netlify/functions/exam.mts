@@ -95,4 +95,4 @@ export default async (req: Request, context: Context) => {
   return fail(404, "Unknown request.");
 };
 
-export const config: Config = { path: "/api/exam/*" };
+export const config: Config = { path: ["/api/exam", "/api/exam/*"] }; // the list and "create" use /api/exam itself
