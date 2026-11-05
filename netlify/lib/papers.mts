@@ -9,6 +9,8 @@ const GARBLE = /H\$|[§¡¢£¤¥¦¨©ª«¬®¯±´µ¶¸¹º»¼½¾¿ÀÁÂ�
 const ENGLISH = /\b(the|of|and|is|are|find|if|in|a|an|that|which|its|from|with|then|show|prove|what|value|given|following|each|by|for|to)\b/gi;
 export function cleanText(text: string): string {
   return String(text || "").split("\n").filter((line) => {
+    const dev = (line.match(/[\u0900-\u097F]/g) || []).length; // Hindi in real Devanagari (newer papers)
+    if (dev && dev >= (line.match(/[A-Za-z]/g) || []).length) return false;
     const g = (line.match(GARBLE) || []).length;
     if (!g) return true;
     const en = (line.match(ENGLISH) || []).length;
@@ -31,8 +33,10 @@ export function paperInfo(name: string, text: string) {
 function markRules(text: string) {
   const rules: { a: number; b: number; m: number }[] = [];
   const re = /(\d{1,2})\s*(?:to|-|–)\s*(\d{1,2})\)?[^.\n]{0,120}?\b(\d)\s*marks?\s*each/gi;
+  // newer papers: "Questions No. 1 to 20 are Multiple Choice Questions. Each question carries 1 mark."
+  const re2 = /(\d{1,2})\s*(?:to|-|–)\s*(\d{1,2})\b(?:(?!\d{1,2}\s*(?:to|-|–)\s*\d)[\s\S]){0,160}?carr(?:y|ies|ying)\s+(\d)\s*marks?/gi;
   let m: RegExpExecArray | null;
-  while ((m = re.exec(text))) { const a = +m[1], b = +m[2], k = +m[3]; if (a >= 1 && b >= a && b <= 60 && k >= 1 && k <= 6) rules.push({ a, b, m: k }); }
+  for (const r of [re, re2]) while ((m = r.exec(text))) { const a = +m[1], b = +m[2], k = +m[3]; if (a >= 1 && b >= a && b <= 60 && k >= 1 && k <= 6 && !rules.some((x) => x.a === a && x.b === b)) rules.push({ a, b, m: k }); }
   return rules;
 }
 

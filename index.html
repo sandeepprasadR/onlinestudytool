@@ -4188,7 +4188,7 @@ function papersCard() {
   const by = (sub, kind) => items.filter((x) => x.subject === sub && (kind ? x.kind === kind : x.kind !== 'sample'));
   const line = (sub) => { const b = by(sub), sp = by(sub, 'sample'); return SUBJECT_NAMES[sub] + ': ' + (b.length || sp.length ? b.length + (b.length === 1 ? ' paper' : ' papers') + (sp.length ? ' + ' + sp.length + ' sample paper' + (sp.length === 1 ? '' : 's') : '') : 'none yet'); };
   const card = h('div', { class: 'hwcard paperscard' }, h('b', null, '📝 Question papers'), h('p', { class: 'meta' }, line('maths') + ' · ' + line('science')));
-  card.append(h('p', { class: 'meta' }, 'Board papers and CBSE sample papers. Study Buddy points to similar questions while helping, and uses them for mock exams. Scanned pages are read by Study Buddy (this costs a little).'));
+  card.append(h('p', { class: 'meta' }, 'Board papers and CBSE sample papers. Study Buddy points to similar questions while helping, and uses them for mock exams. Scanned pages are read by Study Buddy (this costs a little, and up to 300 pages a day).'));
   const sub = h('select', { class: 'hwinput', 'aria-label': 'Subject' }, h('option', { value: 'maths' }, 'Maths'), h('option', { value: 'science' }, 'Science'));
   sub.value = PAPERS.subject;
   sub.addEventListener('change', () => { PAPERS.subject = sub.value; });
