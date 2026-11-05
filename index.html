@@ -1865,7 +1865,7 @@ async function importManyPdfs(files, fromLib) {
 /* ---------- chapter library ---------- */
 /* shared online chapter library (needs the Netlify version and the class code) */
 const LIB = { items: null, err: '' };
-const canShare = () => HW.code && HW.role === 'teacher';
+const canShare = () => !!HW.code; // Papa and Tanish can both add chapters to the shared library
 async function loadLib() {
   if (!HW.code) { LIB.items = null; LIB.err = 'signin'; return; }
   try { const r = await api('lib'); LIB.items = r.items || []; LIB.err = ''; }
@@ -1905,7 +1905,7 @@ async function downloadLibPdf(key) {
 }
 // put every chapter that is on this device but not yet online into the shared library
 async function shareLocalChapters() {
-  if (!canShare()) { toast('Sign in as the teacher under Homework first.'); return; }
+  if (!canShare()) { toast('Sign in under Homework first.'); return; }
   await loadLib();
   if (!LIB.items) { toast(LIB.err || 'Could not reach the shared library.'); return; }
   const online = new Set(LIB.items.map((x) => x.key));
@@ -3187,6 +3187,7 @@ function tutorView() {
   const wrap = h('div', { class: 'chat' });
   wrap.append(h('div', { class: 'buddyhead' }, h('div', { class: 'buddy', 'aria-hidden': 'true' }, '✨'),
     h('p', null, h('b', null, 'Hi Tanish, I am Study Buddy. '), h('span', { class: 'booksline' }, booksLine()), 'Ask me to explain anything from your Maths or Science chapters, or send a photo of a question. I give hints first so you can work it out. I can make mistakes, so check important answers with Papa or the NCERT book. Papa can read what you ask here.')));
+  wrap.append(booksCard(true));
   const list = h('div', { class: 'chatlist tutorlist' });
   if (!TUTOR.msgs.length) {
     list.append(h('p', { class: 'empty' }, 'Try asking:'));
@@ -3282,8 +3283,11 @@ async function loadTutorLog() {
 const booksLine = () => (TUTOR.books && TUTOR.books.length ? '📚 I have read ' + TUTOR.books.length + (TUTOR.books.length === 1 ? ' chapter' : ' chapters') + ' of your NCERT books, so I answer from your book first. ' : '');
 async function loadBooks() {
   try { const r = await fetch('api/tutor/book', { headers: { 'x-class-code': HW.code }, cache: 'no-store' }); if (r.ok) TUTOR.books = (await r.json()).items || []; } catch (e) {}
-  const line = hwEl.querySelector('.booksline'); if (line) line.textContent = booksLine(); // without redrawing the box he may be typing in
-  if (!hwEl.hidden && HW.view === 'tutor' && HW.role === 'teacher') renderHw();
+  refreshBooksCard();
+}
+function refreshBooksCard() { // update the books card and header line without redrawing the box he may be typing in
+  const line = hwEl.querySelector('.booksline'); if (line) line.textContent = booksLine();
+  const old = hwEl.querySelector('.bookscard'); if (old) old.replaceWith(booksCard(true));
 }
 async function pdfPagesText(bytes) {
   const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(bytes.slice(0)) }).promise;
@@ -3305,7 +3309,7 @@ async function pdfPagesText(bytes) {
   return pages;
 }
 async function teachBooks(again) {
-  if (HW.role !== 'teacher') return;
+  if (!HW.code) { toast('Sign in under Homework first.'); return; }
   if (TUTOR.teaching) return;
   TUTOR.teaching = true;
   try {
@@ -3320,13 +3324,13 @@ async function teachBooks(again) {
     for (let i = 0; i < todo.length; i++) {
       const it = todo[i], label = chapterName({ subject: it.subject, ch: it.ch });
       TUTOR.progress = 'Reading ' + (i + 1) + ' of ' + todo.length + ': ' + label + ' …';
-      toast(TUTOR.progress, null, 600000); renderHw();
+      toast(TUTOR.progress, null, 600000); refreshBooksCard();
       try {
         const n = local.find((x) => x.book && x.book.subject === it.subject && x.book.ch === it.ch && (x.pdfIds || []).length);
         const rec = n && await DB.get('pdfs', n.pdfIds[0]).catch(() => null);
         const bytes = rec && rec.bytes ? rec.bytes : await (await downloadLibPdf(it.key)).arrayBuffer();
         const pages = await pdfPagesText(bytes);
-        const r = await fetch('api/tutor/book', { method: 'POST', headers: { 'content-type': 'application/json', 'x-class-code': HW.code, 'x-teacher-pin': HW.pin }, body: JSON.stringify({ subject: it.subject, ch: it.ch, name: it.name, libAt: it.at || 0, pages }) });
+        const r = await fetch('api/tutor/book', { method: 'POST', headers: Object.assign({ 'content-type': 'application/json', 'x-class-code': HW.code }, HW.role === 'teacher' ? { 'x-teacher-pin': HW.pin } : {}), body: JSON.stringify({ subject: it.subject, ch: it.ch, name: it.name, libAt: it.at || 0, pages }) });
         if (!r.ok) throw new Error('server ' + r.status);
         ok++;
       } catch (e) { bad.push(label); }
@@ -3335,16 +3339,20 @@ async function teachBooks(again) {
     toast('Study Buddy read ' + ok + (ok === 1 ? ' chapter' : ' chapters') + (bad.length ? '. Could not read: ' + bad.join(', ') : '.'), null, 12000);
   } finally { TUTOR.teaching = false; TUTOR.progress = ''; await loadBooks(); }
 }
-function booksCard(teacher) {
+function booksCard(canTeach) {
   const books = TUTOR.books || [];
   const by = (sub) => books.filter((b) => b.subject === sub).map((b) => b.ch).sort((a, b) => a - b);
   const m = by('maths'), sc = by('science');
   const card = h('div', { class: 'hwcard bookscard' },
     h('b', null, '📚 Study Buddy has read ' + books.length + (books.length === 1 ? ' chapter' : ' chapters') + ' of the NCERT books'),
     h('p', { class: 'meta' }, 'Maths: ' + (m.length ? 'Ch ' + m.join(', ') : 'none yet') + ' · Science: ' + (sc.length ? 'Ch ' + sc.join(', ') : 'none yet')));
-  if (teacher) {
+  const last = books.slice().sort((a, b) => (b.at || 0) - (a.at || 0))[0];
+  if (last) card.append(h('p', { class: 'meta' }, 'Last read: ' + (last.by === 'student' ? 'by Tanish' : 'by Papa') + ', ' + new Date(last.at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })));
+  if (canTeach) {
     if (TUTOR.progress) card.append(h('p', { class: 'meta' }, TUTOR.progress));
-    card.append(h('p', { class: 'meta' }, 'Study Buddy answers from these chapters first and says which chapter and page it used. Chapters come from the shared Chapter library.'),
+    card.append(h('p', { class: 'meta' }, HW.role === 'teacher'
+      ? 'Study Buddy answers from these chapters first and says which chapter and page it used. Chapters come from the shared Chapter library. Tanish can add chapters and teach Study Buddy too.'
+      : 'Add a chapter PDF in the Chapter library (☰ menu → Chapter library, or open the PDF), then tap the button so Study Buddy reads it.'),
       h('div', { class: 'hwacts' },
         h('button', { class: 'hwbtn', type: 'button', disabled: !!TUTOR.teaching, onclick: () => teachBooks(false) }, books.length ? 'Read new chapters' : 'Teach Study Buddy the chapters'),
         books.length ? h('button', { class: 'tb', type: 'button', disabled: !!TUTOR.teaching, onclick: () => teachBooks(true) }, 'Read all again') : null));

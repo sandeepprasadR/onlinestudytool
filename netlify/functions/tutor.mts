@@ -55,7 +55,7 @@ type InMsg = { role: "user" | "assistant"; text: string; image?: { type: string;
 
 /* ---------- his NCERT books: stored as page text, searched with BM25 for each question ---------- */
 type Chunk = { key: string; label: string; p: number; t: string };
-type Book = { key: string; subject: string; ch: number; name: string; libAt?: number; at: number; pages: number; chunks: { p: number; t: string }[] };
+type Book = { key: string; subject: string; ch: number; name: string; libAt?: number; at: number; by?: string; pages: number; chunks: { p: number; t: string }[] };
 let BOOKS: { at: number; chunks: Chunk[]; df: Map<string, number>; toks: string[][]; avg: number } | null = null;
 const STOP = new Set("a an and are as at be by for from has have how i in is it its of on or that the this to was were what when where which who why will with you your me my do does did can could should would we they them there their then than so if not no yes also into about over under use using find give show explain tell".split(" "));
 function words(text: string): string[] {
@@ -132,19 +132,18 @@ export default async (req: Request, context: Context) => {
   if (req.method === "GET" && action === "book") {
     const { blobs } = await store.list({ prefix: "book/" });
     const items = (await Promise.all(blobs.map((b) => store.get(b.key, { type: "json" })))).filter(Boolean)
-      .map((b: any) => ({ key: b.key, subject: b.subject, ch: b.ch, name: b.name, pages: b.pages, chunks: (b.chunks || []).length, libAt: b.libAt || 0, at: b.at }));
+      .map((b: any) => ({ key: b.key, subject: b.subject, ch: b.ch, name: b.name, pages: b.pages, chunks: (b.chunks || []).length, libAt: b.libAt || 0, at: b.at, by: b.by || "teacher" }));
     items.sort((a, b) => (a.subject + String(a.ch).padStart(2, "0")).localeCompare(b.subject + String(b.ch).padStart(2, "0")));
     return json({ items });
   }
   // Papa's iPad sends the text of one chapter, page by page
   if (req.method === "POST" && action === "book") {
-    if (!teacher) return fail(403, "Only the teacher can add books.");
     let b: any;
     try { b = await req.json(); } catch { return fail(400, "Bad request."); }
     const subject = String(b.subject || ""), ch = Math.round(Number(b.ch));
     if (!/^(maths|science)$/.test(subject) || !(ch >= 1 && ch <= 20) || !Array.isArray(b.pages)) return fail(400, "Unknown chapter.");
     const pages = b.pages.slice(0, 120).map((x: any) => ({ p: Math.max(1, Math.round(Number(x.p) || 1)), text: String(x.text || "").slice(0, 20000) }));
-    const book: Book = { key: subject + "-" + ch, subject, ch, name: String(b.name || "").slice(0, 120), libAt: Number(b.libAt) || 0, at: Date.now(), pages: pages.length, chunks: chunkPages(pages) };
+    const book: Book = { key: subject + "-" + ch, subject, ch, name: String(b.name || "").slice(0, 120), libAt: Number(b.libAt) || 0, at: Date.now(), by: teacher ? "teacher" : "student", pages: pages.length, chunks: chunkPages(pages) };
     await store.setJSON("book/" + book.key, book);
     BOOKS = null;
     return json({ key: book.key, chunks: book.chunks.length });
