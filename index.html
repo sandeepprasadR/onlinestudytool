@@ -2918,7 +2918,7 @@ function showBig(url) {
 // Strokes carry an id (lid). Every tick, each side sends the ids it added or removed since the last
 // tick, plus the stroke it is drawing at that moment, and receives the other side's. Netlify cannot
 // hold a socket open, so this polls: fast while someone is drawing, slower when the page is quiet.
-const LV = { sid: null, pids: [], nbId: null, title: '', known: new Set(), seen: new Set(), since: 0, lastAct: 0, busy: false, timer: null, curSent: false, remoteAt: 0 };
+const LV = { sid: null, pids: [], nbId: null, title: '', known: new Set(), seen: new Set(), since: 0, lastAct: 0, busy: false, timer: null, curSent: false, remoteAt: 0, viewAt: -1, viewDirty: false, scrollAt: 0, ignoreScrollUntil: 0, nextAt: 0, askToastAt: 0, want: null };
 let lidN = 0;
 const newLid = () => (HW.role === 'teacher' ? 't' : 's') + Date.now().toString(36) + (lidN++).toString(36) + Math.random().toString(36).slice(2, 5);
 const packStroke = (s) => ({ t: s.t, c: s.c, w: s.w, pts: Array.from(s.pts, (v) => Math.round(v * 10) / 10) });
@@ -2931,7 +2931,7 @@ const livePage = () => { const ps = livePages(); return ps ? ps.find(Boolean) : 
 const liveOther = () => (HW.role === 'teacher' ? 'Tanish' : 'Papa');
 function saveLv() { try { localStorage.setItem('studyboard-live', LV.sid ? JSON.stringify({ sid: LV.sid, pids: LV.pids, nbId: LV.nbId, title: LV.title }) : ''); } catch (e) {} }
 function bindLive(session, pages) {
-  Object.assign(LV, { sid: session.sid, pids: pages.map((p) => p.id), nbId: nb.id, title: session.title, known: new Set(), seen: new Set(), since: 0, lastAct: Date.now(), curSent: false });
+  Object.assign(LV, { sid: session.sid, pids: pages.map((p) => p.id), nbId: nb.id, title: session.title, known: new Set(), seen: new Set(), since: 0, lastAct: Date.now(), curSent: false, viewAt: -1, viewDirty: HW.role === 'teacher' });
   saveLv(); livePill(); clearTimeout(LV.timer); liveTick();
 }
 function setRemote(cur) {
@@ -2948,10 +2948,56 @@ function scheduleLive() {
   clearTimeout(LV.timer);
   if (!LV.sid) return;
   const now = Date.now();
-  const drawing = (act && act.s) || now - LV.remoteAt < 2500;
-  LV.timer = setTimeout(liveTick, drawing ? 450 : now - LV.lastAct < 30000 ? 1200 : 3000);
+  const drawing = (act && act.s) || now - LV.remoteAt < 2500 || now - LV.scrollAt < 2500;
+  const ms = drawing ? 450 : now - LV.lastAct < 30000 ? 1200 : 3000;
+  LV.nextAt = now + ms;
+  LV.timer = setTimeout(liveTick, ms);
 }
-function kickLive() { if (LV.sid && !LV.busy) { clearTimeout(LV.timer); LV.timer = setTimeout(liveTick, 250); } }
+// scrolling: Papa leads. When Papa scrolls, Tanish's view follows; when Tanish scrolls, Papa is asked.
+function liveViewPos() {
+  const ps = livePages();
+  if (!ps) return null;
+  const top = scroller.getBoundingClientRect().top;
+  for (let pg = 0; pg < ps.length; pg++) {
+    const v = ps[pg] && views.get(ps[pg].id);
+    if (!v) continue;
+    const r = v.el.getBoundingClientRect();
+    if (r.bottom > top + 1) return { pg, f: Math.round(clamp((top - r.top) / r.height, -1, 1) * 1000) / 1000 };
+  }
+  return null;
+}
+function goToLiveView(pos, broadcast) {
+  const ps = livePages(), p = ps && ps[pos.pg], v = p && views.get(p.id);
+  if (!v) return;
+  const sr = scroller.getBoundingClientRect(), r = v.el.getBoundingClientRect();
+  LV.ignoreScrollUntil = Date.now() + 450;
+  scroller.scrollTop += (r.top - sr.top) + pos.f * r.height;
+  LV.viewDirty = !!broadcast;
+}
+function onLiveView(view, first) {
+  if (!view || view.at <= LV.viewAt) return;
+  LV.viewAt = view.at;
+  if (!LV.pids[view.pg]) return;
+  LV.scrollAt = Date.now();
+  if (HW.role !== 'teacher') {
+    goToLiveView(view, false);
+    if (!first) toast('Papa is scrolling', null, 1600);
+    return;
+  }
+  if (first) return;
+  const mine = liveViewPos();
+  if (mine && mine.pg === view.pg && Math.abs(mine.f - view.f) < 0.06) return;
+  LV.want = view;
+  if (Date.now() - LV.askToastAt < 3000 && !toastEl.hidden) return;
+  LV.askToastAt = Date.now();
+  toast('Tanish wants to scroll to page ' + (view.pg + 1) + '.', { label: 'Go there', fn: () => { if (LV.want) goToLiveView(LV.want, true); }, ms: 9000 });
+}
+scroller.addEventListener('scroll', () => {
+  if (!LV.sid || Date.now() < LV.ignoreScrollUntil) return;
+  LV.viewDirty = true; LV.scrollAt = Date.now();
+  if (!LV.busy && LV.nextAt - Date.now() > 500) kickLive();
+}, { passive: true });
+function kickLive() { if (LV.sid && !LV.busy) { clearTimeout(LV.timer); LV.nextAt = Date.now() + 250; LV.timer = setTimeout(liveTick, 250); } }
 async function liveTick() {
   if (!LV.sid || LV.busy) return;
   const ps = livePages();
@@ -2965,6 +3011,8 @@ async function liveTick() {
     const pg = act && act.s && act.v ? ps.indexOf(act.v.p) : -1;
     if (pg >= 0 && act.s.pts.length >= 3) { body.cur = { pg, s: packStroke(act.s) }; LV.curSent = true; }
     else if (LV.curSent) { body.cur = null; LV.curSent = false; }
+    let sentView = false;
+    if (LV.viewDirty && Date.now() >= LV.ignoreScrollUntil) { const vp = liveViewPos(); if (vp) { body.view = vp; sentView = true; } LV.viewDirty = false; }
     const r = await api('live/sync', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
     if (!LV.sid) return;
     if (!r.active) { endLiveLocal(HW.role === 'teacher' ? 'The live page has ended.' : 'Papa ended the live page. Your writing stays in this notebook.'); return; }
@@ -2973,6 +3021,10 @@ async function liveTick() {
     if (adds.length || dels.length) LV.lastAct = Date.now();
     applyLive(r.events || []);
     setRemote(r.cur && LV.pids[r.cur.pg] ? r.cur : null);
+    const first = LV.viewAt < 0;
+    if (first) LV.viewAt = 0;
+    if (sentView && HW.role === 'teacher') { if (r.view) LV.viewAt = Math.max(LV.viewAt, r.view.at); } // Papa's own scroll wins
+    else onLiveView(r.view, first);
     LV.since = Math.max(0, r.now - 5000);
     LV.ok = true; livePill();
   } catch (e) { LV.ok = false; livePill(); }

@@ -252,14 +252,16 @@ export default async (req: Request, context: Context) => {
       // the stroke being drawn right now (not saved as an event, overwritten each time)
       if (body.cur === null) writes.push(s.delete("live/cur/" + role));
       else if (body.cur && okPg(body.cur.pg) && okStroke(body.cur.s)) writes.push(s.setJSON("live/cur/" + role, { pg: body.cur.pg, s: { t: body.cur.s.t, c: body.cur.s.c, w: +body.cur.s.w, pts: body.cur.s.pts }, at: now }));
+      // where on the live pages this side is looking (page number and fraction down the page)
+      if (body.view && okPg(body.view.pg) && Number.isFinite(+body.view.f)) writes.push(s.setJSON("live/view/" + role, { pg: body.view.pg, f: Math.max(-1, Math.min(1, +body.view.f)), at: now }));
       await Promise.all(writes);
       const since = Math.max(0, Number(body.since) || 0);
       const pre = "live/e/" + session.sid + "/";
-      const [{ blobs }, theirCur] = await Promise.all([s.list({ prefix: pre }), s.get("live/cur/" + otherRole, { type: "json" }) as Promise<{ at: number } | null>]);
+      const [{ blobs }, theirCur, theirView] = await Promise.all([s.list({ prefix: pre }), s.get("live/cur/" + otherRole, { type: "json" }) as Promise<{ at: number } | null>, s.get("live/view/" + otherRole, { type: "json" })]);
       const keys = blobs.map((x) => x.key).filter((k) => Number(k.slice(pre.length, pre.length + 13)) >= since).sort();
       const evs = (await Promise.all(keys.map(async (k) => ({ key: k.slice(pre.length), ...((await s.get(k, { type: "json" })) as object) })))) as { key: string; by: string }[];
       const cur = theirCur && now - theirCur.at < 4000 ? theirCur : null;
-      return json({ active: true, now, events: evs.filter((e) => e.by && e.by !== role), cur });
+      return json({ active: true, now, events: evs.filter((e) => e.by && e.by !== role), cur, view: theirView || null });
     }
 
     // shared chapter library: the teacher uploads each chapter PDF once; every device can download it
