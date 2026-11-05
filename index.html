@@ -313,6 +313,41 @@ body.t-select #pages .page { cursor: crosshair; }
 .utable th, .utable td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--ui-line); }
 .utable th { font-size: 13px; color: var(--ui-muted); font-weight: 600; }
 .utable tr.tot td { font-weight: 700; border-bottom: 0; }
+.planhero { background: linear-gradient(120deg, rgba(36,87,214,.12), rgba(112,72,232,.12)); border-color: rgba(36,87,214,.3); }
+.planhero .big { font-size: 20px; }
+.pacebar { position: relative; height: 14px; border-radius: 999px; background: rgba(127,127,127,.18); margin: 8px 0; }
+.pacebar .done { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #2457d6, #7048e8); }
+.pacebar .mark { position: absolute; top: -4px; bottom: -4px; width: 3px; margin-left: -1px; border-radius: 2px; background: #f08c00; }
+.pacemsg { font-weight: 600; margin: 4px 0 0; }
+.pacemsg.behind { color: #e8590c; }
+.studynow { background: linear-gradient(120deg, rgba(12,166,120,.10), rgba(250,176,5,.10)); }
+.hwbtn.pomobtn { background: #e8590c; }
+.tasks { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.tasks li { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--ui-line); border-radius: 10px; }
+.tasks li label { flex: 1; display: flex; align-items: center; gap: 10px; min-width: 0; }
+.tasks li input { width: 20px; height: 20px; flex: none; accent-color: #0ca678; }
+.tasks li.done span:not(.chip) { text-decoration: line-through; opacity: .6; }
+.tasks .chip { flex: none; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: rgba(36,87,214,.1); }
+.planadd { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, .9fr) auto; gap: 8px; align-items: center; }
+@media (max-width: 720px) { .planadd { grid-template-columns: 1fr 1fr; } .planadd input { grid-column: 1 / -1; } }
+.sycols { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.sycols h3 { margin: 6px 0; font-size: 15px; }
+.chap { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 7px 10px; margin: 0 0 5px; border: 1px solid var(--ui-line); border-radius: 10px; background: var(--ui-bg); color: var(--ui-fg); font: 14px var(--font-ui); }
+.chap.doing { border-color: rgba(250,176,5,.6); background: rgba(250,176,5,.10); }
+.chap.done { border-color: rgba(12,166,120,.55); background: rgba(12,166,120,.10); }
+.chap.revised { border-color: rgba(112,72,232,.55); background: rgba(112,72,232,.10); }
+.wchart { display: flex; gap: 8px; align-items: flex-end; height: 170px; margin-top: 8px; }
+.wcol { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; height: 100%; font-size: 12px; }
+.wbox { position: relative; flex: 1; width: 100%; max-width: 44px; display: flex; align-items: flex-end; }
+.wbar { width: 100%; border-radius: 6px 6px 2px 2px; background: linear-gradient(180deg, #4dabf7, #2457d6); }
+.wbar.hit { background: linear-gradient(180deg, #51cf66, #0ca678); }
+.wgoal { position: absolute; left: -3px; right: -3px; border-top: 2px dashed #f08c00; }
+.wv, .wp { min-height: 15px; color: var(--ui-muted); }
+.pomopill { position: fixed; z-index: 57; top: calc(64px + env(safe-area-inset-top)); right: 12px; display: flex; align-items: center; gap: 2px; padding: 3px; border-radius: 999px; background: #e8590c; color: #fff; box-shadow: 0 4px 14px rgba(0,0,0,.2); }
+.pomopill.break { background: #0ca678; }
+.pomopill[hidden] { display: none; }
+.pomopill button { border: 0; background: none; color: inherit; font: 600 15px var(--font-ui); padding: 6px 10px; border-radius: 999px; font-variant-numeric: tabular-nums; }
+.pomopill .px { padding: 6px 9px; background: rgba(255,255,255,.18); }
 .papatabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 12px; }
 .hwacts { display: flex; flex-wrap: wrap; gap: 8px; }
 .hwbtn { height: 40px; padding: 0 14px; border: 0; border-radius: 10px; background: var(--accent); color: #fff; font-weight: 600; }
@@ -2370,6 +2405,8 @@ $('#bBooks').addEventListener('click', async (e) => {
     pop.append(h('button', { class: 'pi', html: ICON.help + '<span>Study Buddy (AI tutor)</span>', onclick: () => { TUTOR.papaTab = 'ask'; openHw(null, 'tutor'); } }));
     if (HW.role === 'teacher') pop.append(h('button', { class: 'pi', html: ICON.help + "<span>Tanish's Study Buddy questions</span>", onclick: () => { TUTOR.papaTab = 'log'; openHw(null, 'tutor'); } }));
     pop.append(h('button', { class: 'pi', html: ICON.help + '<span>' + (MASCOT.hidden ? 'Show the Study Buddy mascot' : 'Hide the Study Buddy mascot') + '</span>', onclick: () => { closePop(); mascotSetHidden(!MASCOT.hidden); } }));
+    pop.append(h('button', { class: 'pi', html: ICON.school + '<span>Planner and study time</span>', onclick: () => openHw(null, 'plan') }));
+    pop.append(h('button', { class: 'pi', html: ICON.school + '<span>' + (POMO.phase ? 'Stop the Pomodoro timer' : 'Start a 25-minute Pomodoro 🍅') + '</span>', onclick: () => { closePop(); if (POMO.phase) pomoStop(); else pomoStart('focus'); } }));
     pop.append(h('button', { class: 'pi', html: ICON.chat + '<span>Chat' + (unreadCount() ? ' (' + unreadCount() + ' new)' : '') + '</span>', onclick: () => openHw(null, 'chat') }));
     if (HW.code) { const nb2 = h('button', { class: 'pi', html: ICON.chat + '<span>Phone notifications on this device …</span>', onclick: async () => { closePop(); if (await pushIsOn()) await disablePush(); else await enablePush(); } }); pop.append(nb2); pushIsOn().then((on) => { nb2.querySelector('span').textContent = on ? 'Turn off notifications on this device' : 'Turn on notifications on this device'; }); }
     pop.append(h('div', { class: 'ph' }, 'New'));
@@ -2665,6 +2702,7 @@ function openHw(returnId, view) {
   hwEl.hidden = false;
   if (HW.view === 'chat' && HW.code) showChat();
   else if (HW.view === 'tutor' && HW.code) showTutor();
+  else if (HW.view === 'plan' && HW.code) showPlan();
   else renderHw();
   if (HW.code) refreshHw();
   clearInterval(HW.timer);
@@ -2675,7 +2713,7 @@ function closeHw() {
   clearInterval(HW.timer);
   clearInterval(HW.chatTimer);
   mascotSync();
-  if (/^#(homework|chat|tutor)$/.test(location.hash)) { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }
+  if (/^#(homework|chat|tutor|plan)$/.test(location.hash)) { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }
 }
 async function refreshHw() {
   try { const r = await api('items'); HW.items = r.items || []; HW.teacher = !!r.teacher; if (HW.bad) { HW.msg = ''; HW.bad = false; } }
@@ -2768,17 +2806,19 @@ function renderHw(force) {
   hwEl.textContent = '';
   const inner = h('div', { class: 'hwin' });
   const head = h('div', { class: 'hwhead' },
-    h('h2', null, HW.view === 'chat' ? 'Chat' : HW.view === 'tutor' ? 'Study Buddy' : 'Homework'),
+    h('h2', null, HW.view === 'chat' ? 'Chat' : HW.view === 'tutor' ? 'Study Buddy' : HW.view === 'plan' ? 'Planner' : 'Homework'),
     HW.code ? h('span', { class: 'sub' }, HW.role === 'teacher' ? 'Teacher' : 'Student') : null,
     HW.code ? h('button', { class: 'tb' + (HW.view === 'work' ? ' on' : ''), onclick: () => { HW.view = 'work'; HW.returning = null; clearInterval(HW.chatTimer); renderHw(); refreshHw(); } }, 'Homework') : null,
     HW.code ? h('button', { class: 'tb' + (HW.view === 'chat' ? ' on' : ''), onclick: () => showChat() }, 'Chat' + (unreadCount() ? ' (' + unreadCount() + ')' : '')) : null,
     HW.code ? h('button', { class: 'tb' + (HW.view === 'tutor' ? ' on' : ''), onclick: () => showTutor() }, 'Study Buddy') : null,
+    HW.code ? h('button', { class: 'tb' + (HW.view === 'plan' ? ' on' : ''), onclick: () => showPlan() }, 'Planner') : null,
     h('button', { class: 'tb', onclick: closeHw }, 'Close'));
   const msg = h('p', { class: 'hwmsg' + (HW.bad ? ' bad' : ''), role: 'status' }, HW.msg);
   msg.hidden = !HW.msg;
   inner.append(head, msg);
   if (!HW.code) inner.append(setupView());
   else if (HW.view === 'chat') inner.append(chatView());
+  else if (HW.view === 'plan') inner.append(planView());
   else if (HW.view === 'tutor') { if (HW.role === 'teacher') inner.append(papaTabs()); inner.append(HW.role === 'teacher' && !papaAsks() ? tutorLogView() : tutorView()); }
   else if (HW.returning) inner.append(returnView());
   else inner.append(HW.role === 'teacher' ? teacherView() : studentView());
@@ -3986,6 +4026,353 @@ async function loadSettings() {
 setInterval(() => { if (HW.code && document.visibilityState === 'visible' && (hwEl.hidden || HW.view !== 'chat')) pollChat(); }, 120000);
 setTimeout(() => { if (HW.code) pollChat(); }, 3000);
 
+/* ---------- Planner, study-time tracker, break nudges and Pomodoro ---------- */
+// Tanish's laptop counts the minutes he is actually working (page in front, touched in the last 3 minutes).
+// Papa sees the same numbers in the Planner. Days are India dates, like the server.
+const istDayC = (off) => new Date(Date.now() + 5.5 * 3600000 + (off || 0) * 86400000).toISOString().slice(0, 10);
+const istHour = () => new Date(Date.now() + 5.5 * 3600000).getUTCHours();
+const PLAN = { data: null, at: 0, tab: 0, editing: false };
+const STUDY = { lastAct: Date.now(), lastTick: Date.now(), pending: 0, cont: 0, idle: 0, today: 0, day: '', lastNudge: 0, hc: 0, pn: '', en: '', pc: '', pomoFlag: 0, brkFlag: 0 };
+const POMO = { phase: null, end: 0, n: 0, t: 0, el: null, title: document.title, ac: null };
+const tracking = () => !!HW.code && HW.role === 'student';
+const fmtMins = (secs) => { const m = Math.round((secs || 0) / 60); return m < 60 ? m + ' min' : Math.floor(m / 60) + ' h ' + (m % 60 ? (m % 60) + ' min' : ''); };
+function studySave() { try { localStorage.setItem('studyboard-study', JSON.stringify({ day: STUDY.day, today: STUDY.today, cont: STUDY.cont, hc: STUDY.hc, ln: STUDY.lastNudge, pn: STUDY.pn, en: STUDY.en, pc: STUDY.pc, n: POMO.n })); } catch (e) {} }
+function studyInit() {
+  try { const st = JSON.parse(localStorage.getItem('studyboard-study') || '{}'); if (st.day === istDayC(0)) Object.assign(STUDY, { day: st.day, today: st.today || 0, cont: st.cont || 0, hc: st.hc || 0, lastNudge: st.ln || 0, pn: st.pn || '', en: st.en || '', pc: st.pc || '' }), POMO.n = st.n || 0; } catch (e) {}
+  const act = () => { STUDY.lastAct = Date.now(); };
+  for (const ev of ['pointerdown', 'keydown', 'wheel', 'touchstart', 'scroll']) document.addEventListener(ev, act, { capture: true, passive: true });
+  let mm = 0; document.addEventListener('pointermove', () => { const n = Date.now(); if (n - mm > 5000) { mm = n; act(); } }, { passive: true });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') studyFlush(); else studyTick(); });
+  setInterval(studyTick, 15000);
+  setTimeout(dailyNudges, 8000);
+  setInterval(dailyNudges, 10 * 60000);
+  pomoRestore();
+}
+function studyTick() {
+  const now = Date.now(), day = istDayC(0);
+  if (STUDY.day !== day) { STUDY.day = day; STUDY.today = 0; STUDY.cont = 0; STUDY.hc = 0; POMO.n = 0; }
+  const gap = now - STUDY.lastTick; STUDY.lastTick = now;
+  if (gap > 300000) { if (STUDY.cont >= 1200) STUDY.brkFlag++; STUDY.cont = 0; } // laptop slept or app was closed: that was a break
+  if (!tracking()) return;
+  const add = Math.min(15, Math.round(gap / 1000));
+  const active = document.visibilityState === 'visible' && now - STUDY.lastAct < 180000 && POMO.phase !== 'break';
+  if (active) { STUDY.pending += add; STUDY.today += add; STUDY.cont += add; STUDY.idle = 0; }
+  else { STUDY.idle += add; if (STUDY.idle >= 300 && STUDY.cont) { if (STUDY.cont >= 1200) STUDY.brkFlag++; STUDY.cont = 0; } }
+  if (STUDY.pending >= 60 || STUDY.brkFlag || STUDY.pomoFlag) studyFlush();
+  studySave();
+  studyNudges();
+  const live = hwEl.querySelector('.studynow'); if (live) live.replaceWith(studyNowCard());
+}
+async function studyFlush() {
+  if (!tracking() || (!STUDY.pending && !STUDY.pomoFlag && !STUDY.brkFlag)) return;
+  if (STUDY.flushing) return;
+  STUDY.flushing = true;
+  try {
+    while (STUDY.pending || STUDY.pomoFlag || STUDY.brkFlag) { // the server takes at most 15 minutes per call, so time saved up offline goes in pieces
+      const body = { date: STUDY.day || istDayC(0), add: Math.min(900, STUDY.pending), pomo: Math.min(4, STUDY.pomoFlag), brk: Math.min(4, STUDY.brkFlag) };
+      STUDY.pending -= body.add; STUDY.pomoFlag -= body.pomo; STUDY.brkFlag -= body.brk;
+      try { await api('study', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), keepalive: true }); }
+      catch (e) { STUDY.pending += body.add; STUDY.pomoFlag += body.pomo; STUDY.brkFlag += body.brk; break; }
+    }
+  } finally { STUDY.flushing = false; }
+}
+// a nudge goes in the mascot's speech bubble (tap it to act), or in a toast with a button when the mascot is not showing
+function nudge(text, label, fn, ms) {
+  if (!mascotSay(text, ms || 10000, fn)) toast(text, label && fn ? { label, fn, ms: ms || 10000 } : null, ms || 8000);
+  else mascotHop();
+}
+const pick = (a) => a[Math.floor(Math.random() * a.length)];
+function goalHours() { return (PLAN.data && PLAN.data.settings && PLAN.data.settings.goalHours) || 4; }
+function studyNudges() {
+  if (!tracking()) return;
+  const now = Date.now();
+  // breaks: after 50 minutes without one (the Pomodoro timer handles its own breaks)
+  if (POMO.phase !== 'focus' && STUDY.cont >= 50 * 60 && now - STUDY.lastNudge >= 10 * 60000) {
+    STUDY.lastNudge = now; studySave();
+    nudge(pick(['🧠 ' + Math.round(STUDY.cont / 60) + ' minutes non-stop! Take a 5-minute break: stretch, drink water 💧',
+      '👀 Rest your eyes: look at something far away for 20 seconds, then a short walk 🚶',
+      '🏏 Even cricketers take drinks breaks. 5 minutes, then back to it!']), 'Start a 5-min break', () => pomoStart('break'));
+    return;
+  }
+  // praise for each hour of the day, and for reaching Papa's daily goal
+  const hrs = Math.floor(STUDY.today / 3600);
+  if (hrs > STUDY.hc) {
+    STUDY.hc = hrs; studySave();
+    const goal = goalHours();
+    if (hrs >= goal + 2) nudge('🏆 ' + hrs + ' hours today! Amazing effort. Rest your eyes and get some fresh air too 🌳');
+    else if (hrs >= goal) { confetti(); nudge('🎯 You reached today’s goal of ' + goal + ' hours! Papa will be proud 🌟'); }
+    else nudge(pick(['🌟 ' + hrs + (hrs === 1 ? ' hour' : ' hours') + ' of study today. Well done, Tanish!', '🔥 ' + hrs + (hrs === 1 ? ' hour' : ' hours') + ' done! You are on a roll.', '💪 ' + hrs + (hrs === 1 ? ' hour' : ' hours') + ' today. Keep going, champ!']));
+  }
+}
+async function dailyNudges() {
+  if (!tracking()) return;
+  if (!PLAN.data || Date.now() - PLAN.at > 10 * 60000) await loadPlan(true);
+  const d = PLAN.data; if (!d) return;
+  const today = istDayC(0), tasks = (dayRec(today).plan || {}).tasks || [];
+  const openPlan = () => openHw(null, 'plan');
+  if (!tasks.length && STUDY.pn !== today && istHour() >= 6 && istHour() < 20) {
+    STUDY.pn = today; studySave();
+    nudge('📝 Plan your day first! What will you finish today? Tap me.', 'Plan my day', () => { PLAN.tab = 0; openPlan(); }, 15000); return;
+  }
+  if (istHour() >= 20 && STUDY.en !== today && !(((dayRec(istDayC(1)).plan || {}).tasks || []).length)) {
+    STUDY.en = today; studySave();
+    nudge('🌙 Plan tomorrow before you sleep. Future-you will thank you! Tap me.', 'Plan tomorrow', () => { PLAN.tab = 1; openPlan(); }, 15000); return;
+  }
+  const p = paceInfo();
+  if (p && p.daysLeft != null && STUDY.pc !== today && STUDY.today > 600) {
+    STUDY.pc = today; studySave();
+    nudge(p.behind >= 1 ? '⏩ Speed up! You are ' + p.behind + (p.behind === 1 ? ' chapter' : ' chapters') + ' behind the plan, with ' + p.daysLeft + ' days left at home.'
+      : p.ahead >= 1 ? '🚀 You are ' + p.ahead + (p.ahead === 1 ? ' chapter' : ' chapters') + ' ahead of the plan. Brilliant!'
+        : '✅ Right on track with the syllabus. ' + p.daysLeft + ' days left at home.', 'Open planner', openPlan, 12000);
+  }
+}
+
+/* Pomodoro: 25 minutes focus, 5 minutes break, a 15-minute break after every fourth */
+function pomoSave() { try { localStorage.setItem('studyboard-pomo', JSON.stringify({ phase: POMO.phase, end: POMO.end, n: POMO.n })); } catch (e) {} }
+function pomoRestore() {
+  try { const p = JSON.parse(localStorage.getItem('studyboard-pomo') || '{}'); if (p.phase && p.end > Date.now() - 60000) { POMO.phase = p.phase; POMO.end = p.end; POMO.n = Math.max(POMO.n, p.n || 0); pomoRun(); } } catch (e) {}
+}
+function pomoStart(kind) {
+  try { POMO.ac = POMO.ac || new (window.AudioContext || window.webkitAudioContext)(); if (POMO.ac.state === 'suspended') POMO.ac.resume(); } catch (e) {}
+  const mins = kind === 'focus' ? 25 : kind === 'long' ? 15 : 5;
+  POMO.phase = kind === 'focus' ? 'focus' : 'break';
+  POMO.end = Date.now() + mins * 60000;
+  if (POMO.phase === 'break') { if (STUDY.cont >= 600) STUDY.brkFlag++; STUDY.cont = 0; studySave(); }
+  pomoSave(); pomoRun();
+  if (kind === 'focus') nudge('🍅 25 minutes of focus. Phone away, one task only. You can do it!', null, null, 6000);
+}
+function pomoStop() { POMO.phase = null; POMO.end = 0; clearInterval(POMO.t); pomoSave(); pomoRender(); }
+function pomoRun() { clearInterval(POMO.t); POMO.t = setInterval(pomoTick, 1000); pomoTick(); }
+function pomoTick() { if (!POMO.phase) return; if (POMO.end - Date.now() <= 0) pomoDone(); else pomoRender(); }
+function chime() {
+  try {
+    const ac = POMO.ac || (POMO.ac = new (window.AudioContext || window.webkitAudioContext)());
+    [[660, 0], [880, 0.18], [990, 0.36]].forEach(([f, t]) => { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.value = f; o.connect(g); g.connect(ac.destination); const s = ac.currentTime + t; g.gain.setValueAtTime(0.0001, s); g.gain.exponentialRampToValueAtTime(0.25, s + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, s + 0.4); o.start(s); o.stop(s + 0.45); });
+  } catch (e) {}
+}
+function pomoDone() {
+  chime();
+  if (POMO.phase === 'focus') {
+    POMO.n++; STUDY.pomoFlag++; studySave(); studyFlush();
+    const long = POMO.n % 4 === 0;
+    pomoStart(long ? 'long' : 'break');
+    if (long) confetti();
+    nudge('🍅 Pomodoro ' + POMO.n + ' done! ' + (long ? '4 in a row, superstar! 15-minute break' : '5-minute break') + ': stand up, stretch, drink water 💧', null, null, 12000);
+  } else {
+    pomoStop();
+    nudge('⏰ Break over! Ready for the next 🍅?', 'Start next 🍅', () => pomoStart('focus'), 20000);
+  }
+  const live = hwEl.querySelector('.studynow'); if (live) live.replaceWith(studyNowCard());
+}
+function pomoRender() {
+  if (!POMO.el) {
+    POMO.el = h('div', { class: 'pomopill', role: 'timer' });
+    document.body.append(POMO.el);
+  }
+  const el = POMO.el;
+  if (!POMO.phase) { el.hidden = true; document.title = POMO.title; return; }
+  const left = Math.max(0, POMO.end - Date.now()), mm = Math.floor(left / 60000), ss = Math.floor(left / 1000) % 60;
+  const time = mm + ':' + String(ss).padStart(2, '0');
+  const label = POMO.phase === 'focus' ? '🍅 Focus ' : '☕ Break ';
+  el.hidden = false;
+  el.className = 'pomopill ' + POMO.phase;
+  if (!el.firstChild) {
+    el.append(h('button', { class: 'pt', type: 'button', title: 'Open the planner', onclick: () => openHw(null, 'plan') }), h('button', { class: 'px', type: 'button', 'aria-label': 'Stop the timer', title: 'Stop', onclick: () => pomoStop() }, '✕'));
+  }
+  el.firstChild.textContent = label + time;
+  document.title = (POMO.phase === 'focus' ? '🍅 ' : '☕ ') + time + ' · ' + POMO.title;
+}
+
+/* data */
+async function loadPlan(quiet) {
+  if (!HW.code) return;
+  try { PLAN.data = await api('plan'); PLAN.at = Date.now(); const srv = (dayRec(istDayC(0)).study || {}).secs || 0; if (tracking()) STUDY.today = Math.max(STUDY.today, srv + STUDY.pending); }
+  catch (e) { if (!quiet) hwSay(e.message, true); }
+  if (!hwEl.hidden && HW.view === 'plan') renderHw();
+}
+function dayRec(date) { return (PLAN.data && PLAN.data.days && PLAN.data.days[date]) || {}; }
+function showPlan() {
+  clearInterval(HW.chatTimer);
+  HW.view = 'plan'; HW.returning = null;
+  renderHw(true);
+  loadPlan();
+  HW.chatTimer = setInterval(() => { if (!hwEl.hidden && HW.view === 'plan' && document.visibilityState === 'visible' && !typingInHw()) loadPlan(true); }, 60000);
+}
+function paceInfo() {
+  const d = PLAN.data; if (!d) return null;
+  const st = d.settings || {}, syl = d.syllabus || {};
+  let total = 0, done = 0, doing = 0;
+  for (const sub of ['maths', 'science']) CATALOG[sub].forEach((_, i) => { total++; const s = ((syl[sub] || {})[i + 1] || {}).status; if (s === 'done' || s === 'revised') done++; else if (s === 'doing') doing++; });
+  const out = { total, done, doing, daysLeft: null, behind: 0, ahead: 0, expected: null };
+  if (!st.backDate) return out;
+  const DAY = 86400000, now = Date.parse(istDayC(0)), t1 = Date.parse(st.backDate), t0 = Date.parse(st.startDate || istDayC(0));
+  out.daysLeft = Math.max(0, Math.round((t1 - now) / DAY));
+  const span = Math.max(1, (t1 - t0) / DAY), base = Math.min(total, st.baseDone || 0);
+  out.expected = Math.min(total, base + (total - base) * Math.min(1, Math.max(0, (now - t0) / DAY) / span));
+  const diff = out.expected - done;
+  out.behind = diff >= 1 ? Math.floor(diff) : 0; out.ahead = diff <= -1 ? Math.floor(-diff) : 0;
+  out.perDay = out.daysLeft ? (total - done) / out.daysLeft : total - done;
+  return out;
+}
+async function savePlanDay(date, tasks) {
+  const rec = PLAN.data.days[date] = PLAN.data.days[date] || {};
+  rec.plan = Object.assign({}, rec.plan || {}, { date, tasks });
+  renderHw(true);
+  try { const r = await api('plan/day', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ date, tasks }) }); rec.plan = r.plan; }
+  catch (e) { hwSay(e.message, true); }
+}
+async function setChapter(sub, ch, status) {
+  const syl = PLAN.data.syllabus = PLAN.data.syllabus || {};
+  syl[sub] = syl[sub] || {}; syl[sub][ch] = Object.assign({}, syl[sub][ch] || {}, { status });
+  renderHw(true);
+  if (status === 'done') celebrate('✅ ' + SUBJECT_NAMES[sub] + ' Ch ' + ch + ' done! One step closer 🚀');
+  try { const r = await api('plan/chapter', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ subject: sub, ch, status }) }); PLAN.data.syllabus = r.syllabus; }
+  catch (e) { hwSay(e.message, true); }
+}
+function suggestTasks() { // next chapters in the syllabus, Maths and Science in turn, to fill about Papa's daily goal
+  const syl = (PLAN.data && PLAN.data.syllabus) || {}, st = (s, i) => ((syl[s] || {})[i] || {}).status || 'todo';
+  const next = (s) => { const ix = CATALOG[s].map((_, i) => i + 1); return ix.filter((i) => st(s, i) === 'doing').concat(ix.filter((i) => st(s, i) === 'todo')); };
+  const m = next('maths'), sc = next('science'), out = [];
+  let mins = Math.round(goalHours() * 60);
+  const add = (subject, ch, what, n) => { if (ch && mins > 0) { out.push({ id: Math.random().toString(36).slice(2, 10), text: SUBJECT_NAMES[subject] + ' Ch ' + ch + ' ' + CATALOG[subject][ch - 1] + ': ' + what, subject, ch, mins: n, done: false }); mins -= n; } };
+  add('maths', m[0], st('maths', m[0]) === 'doing' ? 'finish the exercises' : 'read the chapter and solve the examples', 60);
+  add('science', sc[0], st('science', sc[0]) === 'doing' ? 'finish in-text and back exercise questions' : 'read the chapter and make notes', 60);
+  add('maths', m[0], 'practice exercise questions', 45);
+  add('science', sc[0], 'draw and label the diagrams, revise notes', 30);
+  if (mins > 0) out.push({ id: Math.random().toString(36).slice(2, 10), text: 'Revise yesterday’s work and note doubts for Papa', subject: '', ch: 0, mins: Math.min(30, mins), done: false });
+  return out;
+}
+
+/* views */
+function studyNowCard() {
+  const goal = goalHours(), secs = tracking() ? STUDY.today : ((dayRec(istDayC(0)).study || {}).secs || 0);
+  const st = dayRec(istDayC(0)).study || {};
+  const card = h('div', { class: 'hwcard studynow' });
+  const pct = Math.min(1, secs / (goal * 3600));
+  card.append(h('b', null, (HW.role === 'teacher' ? '⏱️ Tanish today: ' : '⏱️ You today: ') + fmtMins(secs) + ' of ' + goal + ' h'),
+    usageBar(Math.round(secs / 60), goal * 60, 'q'));
+  const facts = [];
+  const pomos = tracking() ? Math.max(POMO.n, st.pomos || 0) : (st.pomos || 0);
+  facts.push('🍅 ' + pomos + (pomos === 1 ? ' Pomodoro' : ' Pomodoros'));
+  facts.push('☕ ' + (st.breaks || 0) + (st.breaks === 1 ? ' break' : ' breaks'));
+  if (tracking() && STUDY.cont >= 60) facts.push('⏳ ' + fmtMins(STUDY.cont) + ' without a break');
+  if (st.first) facts.push('🕘 from ' + new Date(st.first).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }) + ' to ' + new Date(st.last).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }));
+  card.append(h('p', { class: 'meta' }, facts.join(' · ')));
+  const acts = h('div', { class: 'hwacts' });
+  if (POMO.phase) acts.append(h('button', { class: 'tb', type: 'button', onclick: () => { pomoStop(); renderHw(true); } }, (POMO.phase === 'focus' ? '🍅 Pomodoro running' : '☕ On a break') + ' · Stop'));
+  else acts.append(h('button', { class: 'hwbtn pomobtn', type: 'button', onclick: () => { pomoStart('focus'); renderHw(true); } }, '🍅 Start a 25-minute Pomodoro'), h('button', { class: 'tb', type: 'button', onclick: () => { pomoStart('break'); renderHw(true); } }, '☕ Take a 5-minute break'));
+  card.append(acts);
+  return card;
+}
+function planView() {
+  const wrap = h('div', { class: 'planview' });
+  const d = PLAN.data;
+  if (!d) { wrap.append(h('p', { class: 'empty' }, 'Loading the planner …')); return wrap; }
+  const st = d.settings || {}, p = paceInfo(), teacher = HW.role === 'teacher';
+  // countdown and syllabus pace
+  const hero = h('div', { class: 'hwcard planhero' });
+  if (st.backDate) {
+    hero.append(h('b', { class: 'big' }, '📅 ' + p.daysLeft + (p.daysLeft === 1 ? ' day' : ' days') + ' left at home'),
+      h('p', { class: 'meta' }, 'Back to school on ' + new Date(st.backDate + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })));
+    const bar = h('div', { class: 'pacebar' }, h('span', { class: 'done' })); bar.firstChild.style.width = (p.done / p.total * 100) + '%';
+    if (p.expected != null) { const mk = h('i', { class: 'mark', title: 'Where the plan says you should be today' }); mk.style.left = (p.expected / p.total * 100) + '%'; bar.append(mk); }
+    hero.append(h('p', null, h('b', null, p.done + ' of ' + p.total + ' chapters done'), p.doing ? ' · ' + p.doing + ' in progress' : ''), bar,
+      h('p', { class: 'pacemsg ' + (p.behind ? 'behind' : 'ok') }, p.behind ? '⏩ ' + p.behind + (p.behind === 1 ? ' chapter' : ' chapters') + ' behind the plan. Speed up a little!'
+        : p.ahead ? '🚀 ' + p.ahead + (p.ahead === 1 ? ' chapter' : ' chapters') + ' ahead of the plan!' : '✅ On track.',
+        p.daysLeft ? ' To finish: about ' + (p.perDay >= 1 ? p.perDay.toFixed(1) + ' chapters a day.' : '1 chapter every ' + (1 / Math.max(p.perDay, 0.01)).toFixed(1) + ' days.') : ''));
+  } else {
+    hero.append(h('b', null, '📅 Back-to-school date not set'), h('p', { class: 'meta' }, teacher ? 'Set it below, so Study Board can pace the syllabus and nudge Tanish.' : 'Ask Papa to set the date you go back to school. Then I will pace the syllabus for you.'));
+  }
+  wrap.append(hero, studyNowCard());
+  // day plan
+  const dates = [istDayC(0), istDayC(1)], date = dates[PLAN.tab] || dates[0];
+  const tasks = ((dayRec(date).plan || {}).tasks || []).slice();
+  const card = h('div', { class: 'hwcard dayplan' });
+  card.append(h('div', { class: 'papatabs' }, ...['📝 Today’s plan', '🌙 Tomorrow'].map((t, i) => h('button', { class: 'tb' + (PLAN.tab === i ? ' on' : ''), type: 'button', onclick: () => { PLAN.tab = i; renderHw(true); } }, t))));
+  const planned = tasks.reduce((a, t) => a + t.mins, 0), doneN = tasks.filter((t) => t.done).length;
+  if (tasks.length) card.append(h('p', { class: 'meta' }, doneN + ' of ' + tasks.length + ' done · ' + fmtMins(planned * 60) + ' planned' + (planned < goalHours() * 60 * 0.75 ? ' (Papa’s goal is ' + goalHours() + ' h)' : '')));
+  else card.append(h('p', { class: 'meta' }, PLAN.tab ? 'Plan tomorrow tonight, so you can start straight away in the morning.' : 'Plan the day first: what will you finish today?'));
+  const list = h('ul', { class: 'tasks' });
+  tasks.forEach((t, i) => {
+    const cb = h('input', { type: 'checkbox', 'aria-label': 'Done: ' + t.text }); cb.checked = !!t.done;
+    cb.addEventListener('change', () => {
+      tasks[i] = Object.assign({}, t, { done: cb.checked });
+      if (cb.checked && tasks.every((x) => x.done)) celebrate('🎉 Plan complete! Great work today.');
+      savePlanDay(date, tasks);
+    });
+    list.append(h('li', { class: t.done ? 'done' : '' }, h('label', null, cb, h('span', null, t.text)), h('span', { class: 'chip' }, t.mins + ' min'),
+      h('button', { class: 'linkbtn', type: 'button', 'aria-label': 'Remove', onclick: () => { tasks.splice(i, 1); savePlanDay(date, tasks); } }, '✕')));
+  });
+  card.append(list);
+  // add a task
+  const txt = h('input', { class: 'hwinput', id: 'planText', maxlength: '140', placeholder: 'e.g. Maths Ch 4: Exercise 4.2' });
+  const sub = h('select', { class: 'hwinput', 'aria-label': 'Subject' }, h('option', { value: '' }, 'Subject'), h('option', { value: 'maths' }, 'Maths'), h('option', { value: 'science' }, 'Science'));
+  const ch = h('select', { class: 'hwinput', 'aria-label': 'Chapter' }, h('option', { value: '' }, 'Chapter'));
+  sub.addEventListener('change', () => { ch.textContent = ''; ch.append(h('option', { value: '' }, 'Chapter')); (CATALOG[sub.value] || []).forEach((n, i) => ch.append(h('option', { value: String(i + 1) }, (i + 1) + '. ' + n))); });
+  const mins = h('select', { class: 'hwinput', 'aria-label': 'Minutes' }, ...[15, 25, 30, 45, 60, 90, 120].map((m) => h('option', { value: String(m), selected: m === 45 }, m + ' min')));
+  const form = h('form', { class: 'planadd' }, txt, sub, ch, mins, h('button', { class: 'hwbtn', type: 'submit' }, 'Add'));
+  form.addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const c = Number(ch.value) || 0, s = sub.value;
+    const text = txt.value.trim() || (s && c ? SUBJECT_NAMES[s] + ' Ch ' + c + ' ' + CATALOG[s][c - 1] : '');
+    if (!text) { txt.focus(); return; }
+    tasks.push({ id: Math.random().toString(36).slice(2, 10), text, subject: s, ch: c, mins: Number(mins.value), done: false });
+    txt.value = ''; document.activeElement && document.activeElement.blur && document.activeElement.blur();
+    savePlanDay(date, tasks);
+  });
+  card.append(form);
+  card.append(h('div', { class: 'hwacts' }, h('button', { class: 'tb', type: 'button', onclick: () => { const s = suggestTasks(); if (!s.length) { toast('Every chapter is done. Plan revision and practice papers! 🎉'); return; } savePlanDay(date, tasks.concat(s)); } }, '✨ Suggest a plan from the syllabus')));
+  wrap.append(card);
+  // syllabus
+  const syl = d.syllabus || {}, LABEL = { todo: '⬜ Not started', doing: '📖 Learning', done: '✅ Done', revised: '⭐ Revised' }, NEXT = { todo: 'doing', doing: 'done', done: 'revised', revised: 'todo' };
+  const sy = h('div', { class: 'hwcard syllabus' }, h('b', null, '📚 Syllabus'), h('p', { class: 'meta' }, 'Tap a chapter to move it on: not started, learning, done, revised.'));
+  const cols = h('div', { class: 'sycols' });
+  for (const s of ['maths', 'science']) {
+    const col = h('div', null, h('h3', null, SUBJECT_NAMES[s]));
+    CATALOG[s].forEach((n, i) => {
+      const status = ((syl[s] || {})[i + 1] || {}).status || 'todo';
+      col.append(h('button', { class: 'chap ' + status, type: 'button', title: LABEL[status], onclick: () => setChapter(s, i + 1, NEXT[status]) }, h('span', { class: 'cs' }, LABEL[status].split(' ')[0]), h('span', null, (i + 1) + '. ' + n)));
+    });
+    cols.append(col);
+  }
+  sy.append(cols);
+  wrap.append(sy);
+  // last 7 days
+  const week = h('div', { class: 'hwcard week' }, h('b', null, '📈 Last 7 days'));
+  const chart = h('div', { class: 'wchart' });
+  const goal = goalHours();
+  let max = goal;
+  const days = [-6, -5, -4, -3, -2, -1, 0].map((o) => { const dt = istDayC(o), r = dayRec(dt), secs = o === 0 && tracking() ? STUDY.today : ((r.study || {}).secs || 0); const ts = (r.plan || {}).tasks || []; max = Math.max(max, secs / 3600); return { dt, secs, ts, pomos: (r.study || {}).pomos || 0 }; });
+  for (const x of days) {
+    const hcol = h('div', { class: 'wcol', title: fmtMins(x.secs) + (x.ts.length ? ', plan ' + x.ts.filter((t) => t.done).length + '/' + x.ts.length : '') });
+    const bar = h('div', { class: 'wbar' + (x.secs >= goal * 3600 ? ' hit' : '') }); bar.style.height = Math.max(2, x.secs / 3600 / max * 100) + '%';
+    const gl = h('i', { class: 'wgoal' }); gl.style.bottom = (goal / max * 100) + '%';
+    hcol.append(h('span', { class: 'wv' }, x.secs ? (x.secs / 3600).toFixed(1) + 'h' : ''), h('div', { class: 'wbox' }, bar, gl),
+      h('span', { class: 'wd' }, new Date(x.dt + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short' })),
+      h('span', { class: 'wp' }, x.ts.length ? x.ts.filter((t) => t.done).length + '/' + x.ts.length + ' ✓' : ''));
+    chart.append(hcol);
+  }
+  week.append(chart, h('p', { class: 'meta' }, 'Bars: hours of study (dashed line: daily goal). Under each day: plan items done.'));
+  wrap.append(week);
+  // Papa's settings
+  if (teacher) {
+    const back = h('input', { class: 'hwinput', type: 'date', value: st.backDate || '' });
+    const start = h('input', { class: 'hwinput', type: 'date', value: st.startDate || istDayC(0) });
+    const goalIn = h('input', { class: 'hwinput', type: 'number', min: '0.5', max: '12', step: '0.5', value: String(st.goalHours || 4) });
+    const sf = h('form', { class: 'hwcard planset' }, h('b', null, '⚙️ Papa’s settings'),
+      h('div', { class: 'hwrow' }, field('Back to school on', back), field('Syllabus plan starts on', start), field('Study goal a day (hours)', goalIn)),
+      h('p', { class: 'meta' }, 'The plan spreads the chapters not yet done evenly up to the back-to-school date. Chapters already done when you save count as the starting point.'),
+      h('div', { class: 'hwacts' }, h('button', { class: 'hwbtn', type: 'submit' }, 'Save')));
+    sf.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      try { const r = await api('plan/settings', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ backDate: back.value, startDate: start.value, goalHours: Number(goalIn.value), baseDone: paceInfo().done }) }); PLAN.data.settings = r.settings; hwSay('Saved.'); renderHw(true); }
+      catch (e) { hwSay(e.message, true); }
+    });
+    wrap.append(sf);
+  }
+  return wrap;
+}
+
 /* ---------- Study Buddy mascot: floats on the screen, blinks and looks around, opens Study Buddy when tapped ---------- */
 function mascotSvg() {
   const id = 'mg' + (++MASCOT.n);
@@ -4023,6 +4410,8 @@ const MASCOT_LINES = {
     'I never get tired of questions. Try me! 💪',
     'Send me a photo of your working and I will find the slip 📷',
     'Tap me, I am getting bored 😴',
+    'Pomodoro = 25 minutes of focus, then a 5-minute break 🍅',
+    'Did you tick off your plan today? 📝',
   ],
   teacher: [
     'Need a quick explanation, Papa? Tap me 🙂',
@@ -4118,7 +4507,9 @@ function mascotSync() { // hidden when switched off, and while the Homework / Ch
 }
 function mascotVisible() { return MASCOT.el && !MASCOT.el.hidden && !MASCOT.el.classList.contains('drawing') && hwEl.hidden && !document.querySelector('.snapview, .bigpic, .docview, .qrview'); }
 function mascotTap() {
-  MASCOT.el.classList.remove('talk');
+  const fn = MASCOT.el.classList.contains('talk') && MASCOT.tapFn;
+  MASCOT.el.classList.remove('talk', 'wave'); MASCOT.tapFn = null;
+  if (fn) { fn(); return; }
   if (HW.role === 'teacher') TUTOR.papaTab = 'ask';
   openHw(null, 'tutor');
 }
@@ -4127,13 +4518,14 @@ function mascotHop() {
   el.classList.remove('hop'); void el.offsetWidth; el.classList.add('hop');
   setTimeout(() => el.classList.remove('hop'), 800);
 }
-function mascotSay(text, ms) {
+function mascotSay(text, ms, tapFn) {
   const el = MASCOT.el; if (!el || !mascotVisible()) return false;
+  MASCOT.tapFn = tapFn || null;
   el.querySelector('.say').textContent = text;
   el.classList.add('talk', 'wave');
   MASCOT.said = Date.now();
   clearTimeout(MASCOT.sayT);
-  MASCOT.sayT = setTimeout(() => el.classList.remove('talk', 'wave'), ms || 5000);
+  MASCOT.sayT = setTimeout(() => { el.classList.remove('talk', 'wave'); MASCOT.tapFn = null; }, ms || 5000);
   return true;
 }
 function mascotLookAt(x, y) {
@@ -4194,12 +4586,15 @@ async function init() {
   renderToolbar();
   setNotebook(n, true);
   mascotInit();
+  studyInit();
+  window.__studyboard = { STUDY, POMO, PLAN, studyTick, studyFlush, pomoStart, istDayC }; // handle for the test scripts
   syncPush(); resumeLive();
   if (location.hash === '#homework') openHw();
   if (location.hash === '#chat') openHw(null, 'chat');
   if (location.hash === '#tutor') openHw(null, 'tutor');
+  if (location.hash === '#plan') openHw(null, 'plan');
   if (/^#snap/.test(location.hash)) showSnapScreen((location.hash.match(/^#snap=([a-z0-9]+)/) || [])[1]);
-  window.addEventListener('hashchange', () => { if (location.hash === '#homework') openHw(); if (location.hash === '#chat') openHw(null, 'chat'); if (location.hash === '#tutor') openHw(null, 'tutor'); if (/^#snap/.test(location.hash) && !document.querySelector('.snapview')) showSnapScreen((location.hash.match(/^#snap=([a-z0-9]+)/) || [])[1]); });
+  window.addEventListener('hashchange', () => { if (location.hash === '#homework') openHw(); if (location.hash === '#chat') openHw(null, 'chat'); if (location.hash === '#tutor') openHw(null, 'tutor'); if (location.hash === '#plan') openHw(null, 'plan'); if (/^#snap/.test(location.hash) && !document.querySelector('.snapview')) showSnapScreen((location.hash.match(/^#snap=([a-z0-9]+)/) || [])[1]); });
   if (!prefs.seenTip) {
     prefs.seenTip = true; savePrefs();
     const desk = matchMedia('(pointer: fine)').matches && !('ontouchend' in window);
