@@ -1,6 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getStore } from "@netlify/blobs";
 import type { Config, Context } from "@netlify/functions";
+import { buildPaper, type Paper } from "../lib/papers.mts";
+import { ask, addCost } from "../lib/ai.mts";
 
 // AI tutor for Tanish (Class 10, CBSE/NCERT). Called through Netlify AI Gateway,
 // which injects the Anthropic credentials, so no API key is stored here.
@@ -61,7 +63,12 @@ His NCERT books:
 - With most questions you are given excerpts from his own NCERT Class 10 Maths and Science books, each labelled with chapter and page. These are your first and main source. Explain using the book's words, definitions, notation and methods, so his answers match the textbook.
 - When you use the excerpts, end with one short line naming the chapters and pages you actually used, for example: "📖 From your NCERT book: Maths Ch 8 (page 3 of the chapter)". Page numbers count from the start of each chapter, not the printed page number. Never invent chapter or page numbers.
 - The excerpts are text taken out of PDFs, so fractions, powers and symbols may be jumbled and figures are missing. Read them sensibly, and if a figure matters, tell him which figure to look at in his book.
-- If the excerpts do not cover the question, say so in one short line ("This is not in your NCERT chapters, so here is a general explanation."), then help from your own knowledge. Use web search only for facts that need checking or are recent, and say when an answer comes from the web.`;
+- If the excerpts do not cover the question, say so in one short line ("This is not in your NCERT chapters, so here is a general explanation."), then help from your own knowledge. Use web search only for facts that need checking or are recent, and say when an answer comes from the web.
+
+Past papers:
+- Sometimes you are also given questions from his CBSE board papers and sample papers that match the topic, each labelled like "Board paper 30/1/1 Q3 (2 marks)".
+- When one fits what he is learning, end with one short nudge line, for example: "📝 Exam tip: a 2-mark question like this came in Board paper 30/1/1 (Q3). Try it next!" Use the label exactly as given; never invent paper names or question numbers. Do not solve that paper question unless he asks.
+- The board papers he has are an older 40-mark format; the current exam follows the CBSE sample paper pattern (80 marks). If he asks about the exam pattern, go by the sample paper.`;
 
 // added when the question comes from Papa's device (signed in with the teacher PIN)
 const PAPA = `This conversation is with Papa, Tanish's father and his Maths and Science teacher, not with Tanish. Talk to him as one adult to another. Give complete answers and full working straight away (no hint-first), and help him prepare: explain ideas the way he could teach them to Tanish, suggest examples, and make practice or test questions with answers when he asks. Still use the NCERT excerpts first and name the chapter and page.`;
@@ -127,6 +134,21 @@ function search(idx: NonNullable<typeof BOOKS>, query: string, k = 6): Chunk[] {
   if (!scored.length || scored[0].sc < 2) return [];
   return scored.slice(0, k).filter((x) => x.sc >= scored[0].sc * 0.5).map((x) => idx.chunks[x.i]);
 }
+/* ---------- past papers: each question is one searchable piece ---------- */
+let PAPERS: { at: number; chunks: Chunk[]; df: Map<string, number>; toks: string[][]; avg: number } | null = null;
+async function loadPapers(store: ReturnType<typeof getStore>) {
+  if (PAPERS && Date.now() - PAPERS.at < 5 * 60_000) return PAPERS;
+  const { blobs } = await store.list({ prefix: "paper/" });
+  const papers = (await Promise.all(blobs.map((b) => store.get(b.key, { type: "json" })))).filter(Boolean) as Paper[];
+  const chunks: Chunk[] = [];
+  for (const pp of papers) for (const q of pp.questions || []) chunks.push({ key: pp.id, label: pp.title + " Q" + q.n + (q.marks ? " (" + q.marks + (q.marks === 1 ? " mark)" : " marks)") : ""), p: q.n, t: q.t });
+  const toks = chunks.map((c) => words(c.t));
+  const df = new Map<string, number>();
+  for (const tk of toks) for (const w of new Set(tk)) df.set(w, (df.get(w) || 0) + 1);
+  const avg = toks.reduce((a, t) => a + t.length, 0) / Math.max(1, toks.length);
+  PAPERS = { at: Date.now(), chunks, df, toks, avg };
+  return PAPERS;
+}
 function chunkPages(pages: { p: number; text: string }[]) { // ~900-character pieces with a little overlap
   const out: { p: number; t: string }[] = [];
   for (const pg of pages) {
@@ -164,6 +186,57 @@ export default async (req: Request, context: Context) => {
     return json({ items });
   }
   // Papa's iPad sends the text of one chapter, page by page
+  if (req.method === "GET" && action === "paper") {
+    const { blobs } = await store.list({ prefix: "paper/" });
+    const items = (await Promise.all(blobs.map((b) => store.get(b.key, { type: "json" })))).filter(Boolean)
+      .map((pp: any) => ({ id: pp.id, name: pp.name, subject: pp.subject, kind: pp.kind, code: pp.code, title: pp.title, questions: (pp.questions || []).length, marks: (pp.questions || []).reduce((a: number, q: any) => a + (q.marks || 0), 0), at: pp.at, by: pp.by }));
+    return json({ items });
+  }
+  if (req.method === "POST" && action === "paper") {
+    let b: any;
+    try { b = await req.json(); } catch { return fail(400, "Bad request."); }
+    const subject = b.subject === "science" ? "science" : b.subject === "maths" ? "maths" : "";
+    const pages = (Array.isArray(b.pages) ? b.pages : []).slice(0, 60).map((pg: any, i: number) => ({ p: Number(pg.p) || i + 1, text: String(pg.text || "").slice(0, 20000) }));
+    if (!subject || !pages.length) return fail(400, "Choose the subject and a PDF with text.");
+    const name = String(b.name || "Paper").slice(0, 120);
+    const id = (subject + "-" + name.toLowerCase().replace(/\.pdf$/, "").replace(/[^a-z0-9]+/g, "-")).slice(0, 80);
+    const paper = buildPaper(id, name, subject, pages, teacher ? "teacher" : "student");
+    if (!paper.questions.length) return fail(422, "Could not find numbered questions in " + name + ".");
+    await store.setJSON("paper/" + id, paper);
+    PAPERS = null;
+    return json({ id, title: paper.title, kind: paper.kind, questions: paper.questions.length });
+  }
+  if (req.method === "DELETE" && action.startsWith("paper/")) {
+    if (!teacher) return fail(403, "Only Papa can remove a paper.");
+    await store.delete("paper/" + action.slice(6).replace(/[^a-z0-9-]/g, ""));
+    PAPERS = null;
+    return json({ ok: true });
+  }
+  // a scanned page: Claude reads the English text off the image
+  if (req.method === "POST" && action === "ocr") {
+    if (!process.env.ANTHROPIC_BASE_URL && !process.env.ANTHROPIC_API_KEY) return fail(503, "The AI tutor is not switched on yet.");
+    let b: any;
+    try { b = await req.json(); } catch { return fail(400, "Bad request."); }
+    const data = String(b.image || "");
+    if (!data || data.length > 3_000_000) return fail(400, "Send one page as a JPEG.");
+    const day = today();
+    const oc: any = (await store.get("usage/day/" + day, { type: "json" })) || {};
+    const done = ((oc.student || {}).ocrN || 0) + ((oc.teacher || {}).ocrN || 0);
+    if (done >= 120) return fail(429, "Enough scanned pages for today. Add the rest tomorrow.");
+    try {
+      const r = await ask({
+        system: "You transcribe pages of CBSE Class 10 exam papers. Write out only the English text of the page, in reading order. Leave out any Hindi. Keep question numbers, (a)/(b), OR, MCQ options and the marks shown at the end of a question. Write maths in plain text (x², √3, 3/4, θ, π, ≤). For a figure, write [Figure: short description]. No comments of your own.",
+        content: [{ type: "image", source: { type: "base64", media_type: "image/jpeg", data } }, { type: "text", text: "Transcribe this page." }],
+        maxTokens: 4000, models: ["claude-sonnet-5-5", "claude-opus-5-5"], effort: "low",
+      });
+      context.waitUntil(addCost(store, teacher ? "teacher" : "student", r.usd, "ocr"));
+      return json({ text: r.text });
+    } catch (e) {
+      console.error("ocr", e);
+      return fail(502, "Could not read that page. Try again.");
+    }
+  }
+
   if (req.method === "POST" && action === "book") {
     let b: any;
     try { b = await req.json(); } catch { return fail(400, "Bad request."); }
@@ -230,6 +303,11 @@ export default async (req: Request, context: Context) => {
     if (!found.length && words(String(question.text || "")).length < 4 && prevUser) found = search(idx, String(question.text || "") + " " + String(prevUser.text || "").slice(0, 300));
   }
   catch (e) { console.error("book search", e); }
+  let fromPapers: Chunk[] = [];
+  try {
+    const pidx = await loadPapers(store);
+    fromPapers = search(pidx, String(question.text || "") + (found.length ? " " + found[0].label : ""), 3).slice(0, 2);
+  } catch (e) { console.error("paper search", e); }
   const bookBlock = found.length
     ? "Excerpts from Tanish's NCERT books that match this question:\n\n" + found.map((c, i) => "[" + (i + 1) + "] " + c.label + " (page " + c.p + " of the chapter)\n" + c.t).join("\n\n")
     : "No excerpt from his NCERT books matched this question.";
@@ -237,6 +315,7 @@ export default async (req: Request, context: Context) => {
     { type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } },
     { type: "text", text: bookBlock },
   ];
+  if (fromPapers.length) system.push({ type: "text", text: "Past paper questions that match this topic (for a short nudge):\n\n" + fromPapers.map((c) => "- " + c.label + ": " + c.t.slice(0, 500)).join("\n") });
   if (teacher) system.push({ type: "text", text: PAPA });
 
   const stream = new ReadableStream({
@@ -306,6 +385,7 @@ export default async (req: Request, context: Context) => {
       context.waitUntil(store.setJSON("tutor/" + day + "/" + at + "-" + Math.random().toString(36).slice(2, 6), {
         at, question: String(question.text || "").slice(0, 4000), hadImage: !!question.image, by: teacher ? "teacher" : "student", answer, model: used, usd,
         book: found.map((c) => c.label + " p." + c.p),
+        papers: fromPapers.map((c) => c.label),
       }));
     },
   });

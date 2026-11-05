@@ -378,6 +378,43 @@ body.t-select #pages .page { cursor: crosshair; }
   .leaveadd input { grid-column: 1 / -1; }
   .hwacts > button { flex: 1 1 auto; }
 }
+.paperscard { background: linear-gradient(120deg, rgba(250,176,5,.08), rgba(36,87,214,.08)); }
+.paperscard details summary { cursor: pointer; color: var(--accent); margin-top: 6px; }
+.hwbtn.mockbtn { background: linear-gradient(90deg, #7048e8, #2457d6); }
+.chapgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 4px 12px; margin: 4px 0 6px; }
+.chk { display: flex; align-items: center; gap: 8px; font-size: 14px; padding: 4px 0; }
+.chk input { width: 18px; height: 18px; flex: none; accent-color: #7048e8; }
+.exrow { cursor: pointer; }
+.exrow .chip.marked { background: rgba(12,166,120,.15); }
+.exrow .chip.writing, .exrow .chip.marking { background: rgba(250,176,5,.18); }
+.exrow .chip.failed { background: rgba(240,62,62,.15); }
+.examhead .big { font-size: 19px; }
+.exsec > b { font-size: 16px; }
+.exq { border-top: 1px solid var(--ui-line); padding: 10px 0; }
+.exq .qh { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 4px; }
+.exq .chip { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: rgba(36,87,214,.1); }
+.exq .from { font-size: 12px; color: var(--ui-muted); }
+.exq .opts { margin: 6px 0 0; padding-left: 24px; }
+.exq .or { text-align: center; font-weight: 700; margin: 8px 0; color: var(--ui-muted); }
+.exq .key { margin-top: 6px; padding: 6px 10px; border-radius: 8px; background: rgba(12,166,120,.08); }
+.thinking { display: flex; align-items: center; gap: 4px; margin-top: 8px; font-weight: 600; }
+.dots { display: inline-flex; gap: 4px; }
+.dots i { width: 8px; height: 8px; border-radius: 50%; background: #7048e8; }
+@media (prefers-reduced-motion: no-preference) { .dots i { animation: dot 1s infinite ease-in-out; } .dots i:nth-child(2) { animation-delay: .15s; } .dots i:nth-child(3) { animation-delay: .3s; } @keyframes dot { 50% { transform: translateY(-5px); opacity: .5; } } }
+.thumbs { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.thumbs figure { position: relative; margin: 0; width: 84px; }
+.thumbs img { width: 84px; height: 110px; object-fit: cover; border-radius: 8px; border: 1px solid var(--ui-line); display: block; }
+.thumbs figcaption { position: absolute; left: 4px; top: 4px; background: rgba(0,0,0,.6); color: #fff; font-size: 12px; border-radius: 6px; padding: 0 6px; }
+.thumbs .px { position: absolute; right: 2px; top: 2px; border: 0; border-radius: 50%; width: 24px; height: 24px; background: rgba(0,0,0,.6); color: #fff; }
+.resultcard { background: linear-gradient(120deg, rgba(12,166,120,.12), rgba(112,72,232,.10)); }
+.resultcard .score { display: flex; align-items: baseline; gap: 12px; }
+.resultcard .score .big { font-size: 34px; font-weight: 800; color: var(--ui-fg); }
+.resultcard .score .pct { font-size: 18px; color: var(--ui-muted); font-weight: 700; }
+.resultcard tr.full td:nth-child(2) { color: #0ca678; font-weight: 700; }
+.resultcard tr.part td:nth-child(2) { color: #e8590c; font-weight: 700; }
+.resultcard tr.zero td:nth-child(2) { color: #e03131; font-weight: 700; }
+.pomopill.exampill { top: calc(108px + env(safe-area-inset-top)); background: #7048e8; color: #fff; border: 0; font: 600 15px var(--font-ui); padding: 9px 14px; font-variant-numeric: tabular-nums; }
+.pomopill.exampill[hidden] { display: none; }
 .papatabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 12px; }
 .hwacts { display: flex; flex-wrap: wrap; gap: 8px; }
 .hwbtn { height: 40px; padding: 0 14px; border: 0; border-radius: 10px; background: var(--accent); color: #fff; font-weight: 600; }
@@ -2436,6 +2473,7 @@ $('#bBooks').addEventListener('click', async (e) => {
     if (HW.role === 'teacher') pop.append(h('button', { class: 'pi', html: ICON.help + "<span>Tanish's Study Buddy questions</span>", onclick: () => { TUTOR.papaTab = 'log'; openHw(null, 'tutor'); } }));
     pop.append(h('button', { class: 'pi', html: ICON.help + '<span>' + (MASCOT.hidden ? 'Show the Study Buddy mascot' : 'Hide the Study Buddy mascot') + '</span>', onclick: () => { closePop(); mascotSetHidden(!MASCOT.hidden); } }));
     pop.append(h('button', { class: 'pi', html: ICON.school + '<span>Planner and study time</span>', onclick: () => openHw(null, 'plan') }));
+    pop.append(h('button', { class: 'pi', html: ICON.school + '<span>🎯 Mock exams</span>', onclick: () => { EXAM.open = null; openHw(null, 'exam'); } }));
     pop.append(h('button', { class: 'pi', html: ICON.school + '<span>' + (POMO.phase ? 'Stop the Pomodoro timer' : 'Start a 25-minute Pomodoro 🍅') + '</span>', onclick: () => { closePop(); if (POMO.phase) pomoStop(); else pomoStart('focus'); } }));
     pop.append(h('button', { class: 'pi', html: ICON.chat + '<span>Chat' + (unreadCount() ? ' (' + unreadCount() + ' new)' : '') + '</span>', onclick: () => openHw(null, 'chat') }));
     if (HW.code) { const nb2 = h('button', { class: 'pi', html: ICON.chat + '<span>Phone notifications on this device …</span>', onclick: async () => { closePop(); if (await pushIsOn()) await disablePush(); else await enablePush(); } }); pop.append(nb2); pushIsOn().then((on) => { nb2.querySelector('span').textContent = on ? 'Turn off notifications on this device' : 'Turn on notifications on this device'; }); }
@@ -2733,6 +2771,7 @@ function openHw(returnId, view) {
   if (HW.view === 'chat' && HW.code) showChat();
   else if (HW.view === 'tutor' && HW.code) showTutor();
   else if (HW.view === 'plan' && HW.code) showPlan();
+  else if (HW.view === 'exam' && HW.code) showExams();
   else renderHw();
   if (HW.code) refreshHw();
   clearInterval(HW.timer);
@@ -2743,7 +2782,7 @@ function closeHw() {
   clearInterval(HW.timer);
   clearInterval(HW.chatTimer);
   mascotSync();
-  if (/^#(homework|chat|tutor|plan)$/.test(location.hash)) { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }
+  if (/^#(homework|chat|tutor|plan|exam)$/.test(location.hash)) { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }
 }
 async function refreshHw() {
   try { const r = await api('items'); HW.items = r.items || []; HW.teacher = !!r.teacher; if (HW.bad) { HW.msg = ''; HW.bad = false; } }
@@ -2836,13 +2875,14 @@ function renderHw(force) {
   hwEl.textContent = '';
   const inner = h('div', { class: 'hwin' });
   const head = h('div', { class: 'hwhead' },
-    h('h2', null, HW.view === 'chat' ? 'Chat' : HW.view === 'tutor' ? 'Study Buddy' : HW.view === 'plan' ? 'Planner' : 'Homework'),
+    h('h2', null, HW.view === 'chat' ? 'Chat' : HW.view === 'tutor' ? 'Study Buddy' : HW.view === 'plan' ? 'Planner' : HW.view === 'exam' ? 'Mock exams' : 'Homework'),
     HW.code ? h('span', { class: 'sub' }, HW.role === 'teacher' ? 'Teacher' : 'Student') : null,
     HW.code ? h('div', { class: 'hwtabs', role: 'tablist' },
       h('button', { class: 'tb' + (HW.view === 'work' ? ' on' : ''), onclick: () => { HW.view = 'work'; HW.returning = null; clearInterval(HW.chatTimer); renderHw(); refreshHw(); } }, 'Homework'),
       h('button', { class: 'tb' + (HW.view === 'chat' ? ' on' : ''), onclick: () => showChat() }, 'Chat' + (unreadCount() ? ' (' + unreadCount() + ')' : '')),
       h('button', { class: 'tb' + (HW.view === 'tutor' ? ' on' : ''), onclick: () => showTutor() }, 'Study Buddy'),
-      h('button', { class: 'tb' + (HW.view === 'plan' ? ' on' : ''), onclick: () => showPlan() }, 'Planner')) : null,
+      h('button', { class: 'tb' + (HW.view === 'plan' ? ' on' : ''), onclick: () => showPlan() }, 'Planner'),
+      h('button', { class: 'tb' + (HW.view === 'exam' ? ' on' : ''), onclick: () => { EXAM.open = null; showExams(); } }, 'Mock exams')) : null,
     h('button', { class: 'tb hwclose', onclick: closeHw, 'aria-label': 'Close' }, 'Close'));
   const msg = h('p', { class: 'hwmsg' + (HW.bad ? ' bad' : ''), role: 'status' }, HW.msg);
   msg.hidden = !HW.msg;
@@ -2850,6 +2890,7 @@ function renderHw(force) {
   if (!HW.code) inner.append(setupView());
   else if (HW.view === 'chat') inner.append(chatView());
   else if (HW.view === 'plan') inner.append(planView());
+  else if (HW.view === 'exam') inner.append(examView());
   else if (HW.view === 'tutor') { if (HW.role === 'teacher') inner.append(papaTabs()); inner.append(HW.role === 'teacher' && !papaAsks() ? tutorLogView() : tutorView()); }
   else if (HW.returning) inner.append(returnView());
   else inner.append(HW.role === 'teacher' ? teacherView() : studentView());
@@ -3306,6 +3347,7 @@ function showTutor(tab) {
   if (HW.role === 'teacher' && !papaAsks()) loadTutorLog(); else focusHwBox('#tutorText');
   if (!TUTOR.books) loadBooks();
   loadUsage();
+  if (!PAPERS.items) loadPaperList();
 }
 // light formatting for tutor replies: **bold**, numbered and bullet lines; built from text nodes only
 function richText(text) {
@@ -3338,6 +3380,8 @@ function tutorView() {
       ? h('p', null, h('b', null, 'Hi Papa, I am Study Buddy. '), h('span', { class: 'booksline' }, booksLine().replace('your NCERT', "Tanish's NCERT").replace('your book', 'his book')), 'Ask me anything: an explanation to use in class, practice questions with answers, or a check of a solution. With you I give full answers straight away. These questions stay out of Tanish\'s list.')
       : h('p', null, h('b', null, 'Hi Tanish, I am Study Buddy. '), h('span', { class: 'booksline' }, booksLine()), 'Ask me to explain anything from your Maths or Science chapters, or send a photo of a question. I give hints first so you can work it out. I can make mistakes, so check important answers with Papa or the NCERT book. Papa can read what you ask here.')));
   wrap.append(booksCard(true));
+  wrap.append(papersCard());
+  if (!papa) wrap.append(h('div', { class: 'hwacts' }, h('button', { class: 'hwbtn mockbtn', type: 'button', onclick: () => { EXAM.open = null; showExams(); } }, '🎯 Take a mock exam')));
   wrap.append(usageCard(papa));
   const list = h('div', { class: 'chatlist tutorlist' });
   if (!TUTOR.msgs.length) {
@@ -3507,6 +3551,7 @@ function usageCard(compact) {
       h('tr', null, h('td', null, 'Tanish'), h('td', null, money(n.s.usd)), h('td', null, money(n.ts.usd) + ' · ' + n.ts.q + ' q')),
       h('tr', null, h('td', null, 'Papa'), h('td', null, money(n.p.usd)), h('td', null, money(n.tp.usd) + ' · ' + n.tp.q + ' q')),
       h('tr', { class: 'tot' }, h('td', null, 'Total'), h('td', null, money(n.s.usd + n.p.usd)), h('td', null, money(n.ts.usd + n.tp.usd)))),
+    (() => { const x = (k) => ((TUTOR.usage.total.student || {})[k] || 0) + ((TUTOR.usage.total.teacher || {})[k] || 0); return x('ocrUsd') || x('examUsd') ? h('p', { class: 'meta' }, 'Included above: reading scanned papers ' + money(x('ocrUsd')) + ' · mock exams (writing and marking) ' + money(x('examUsd')) + '.') : h('span'); })(),
     h('p', { class: 'meta' }, (n.ratio ? 'On average a photo question costs ' + n.ratio.toFixed(1) + '× a typed one. ' : '') + 'Estimated from the tokens each answer used, at Anthropic’s list prices, ₹' + ((TUTOR.usage && TUTOR.usage.usdInr) || 88) + ' to the dollar. Counting started when this was added, so earlier questions are not included. The actual bill is in Netlify (AI Gateway usage) and can differ.'));
   return card;
 }
@@ -3584,6 +3629,7 @@ function tutorLogView() {
   const wrap = h('div');
   if (!TUTOR.books) loadBooks();
   wrap.append(booksCard(true));
+  wrap.append(papersCard());
   wrap.append(usageCard(false));
   wrap.append(h('p', { class: 'tutornote' }, 'Everything Tanish has asked the AI tutor, newest first, with its answers.'), h('button', { class: 'tb', type: 'button', onclick: () => loadTutorLog() }, 'Refresh log'));
   if (!TUTOR.log) { wrap.append(h('p', { class: 'empty' }, 'Loading …')); return wrap; }
@@ -4057,6 +4103,341 @@ async function loadSettings() {
 setInterval(() => { if (HW.code && document.visibilityState === 'visible' && (hwEl.hidden || HW.view !== 'chat')) pollChat(); }, 120000);
 setTimeout(() => { if (HW.code) pollChat(); }, 3000);
 
+/* ---------- Question papers: board papers and CBSE sample papers, read once and kept on the server ---------- */
+const PAPERS = { items: null, busy: false, progress: '', subject: 'maths' };
+async function loadPaperList() {
+  try { const r = await fetch('api/tutor/paper', { headers: { 'x-class-code': HW.code }, cache: 'no-store' }); if (r.ok) PAPERS.items = (await r.json()).items || []; } catch (e) {}
+  const old = hwEl.querySelector('.paperscard'); if (old) old.replaceWith(papersCard());
+}
+function tutorHeaders() { return Object.assign({ 'content-type': 'application/json', 'x-class-code': HW.code }, HW.role === 'teacher' ? { 'x-teacher-pin': HW.pin } : {}); }
+async function renderPageJpeg(pdf, n) { // a scanned page as a JPEG for Study Buddy to read
+  const pg = await pdf.getPage(n);
+  const v0 = pg.getViewport({ scale: 1 }), scale = Math.min(2.2, 1500 / v0.width);
+  const vp = pg.getViewport({ scale });
+  const cv = document.createElement('canvas'); cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
+  const c = cv.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, cv.width, cv.height);
+  await pg.render({ canvasContext: c, viewport: vp }).promise;
+  const data = cv.toDataURL('image/jpeg', 0.8).split(',')[1];
+  cv.width = 0; cv.height = 0; pg.cleanup();
+  return data;
+}
+async function pdfLinesText(bytes) { // page text in reading order: lines top to bottom, words left to right (question papers put items out of order)
+  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(bytes.slice(0)) }).promise;
+  const pages = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const pg = await pdf.getPage(i);
+    const items = (await pg.getTextContent()).items.filter((it) => 'str' in it && it.str.trim()).map((it) => ({ s: it.str, x: it.transform[4], y: it.transform[5], h: Math.abs(it.transform[3]) || 10 }));
+    items.sort((a, b) => b.y - a.y || a.x - b.x);
+    const lines = [];
+    for (const it of items) {
+      const ln = lines[lines.length - 1];
+      if (ln && Math.abs(ln.y - it.y) <= Math.max(3, it.h * 0.45)) ln.items.push(it); else lines.push({ y: it.y, items: [it] });
+    }
+    pages.push({ p: i, text: lines.map((l) => l.items.sort((a, b) => a.x - b.x).map((x) => x.s).join(' ')).join('\n').replace(/ {2,}/g, ' ') });
+    pg.cleanup();
+  }
+  pdf.destroy();
+  return pages;
+}
+async function addPapers(files, subject) {
+  if (PAPERS.busy || !files.length) return;
+  PAPERS.busy = true;
+  const say = (t) => { PAPERS.progress = t; const el = hwEl.querySelector('.paperscard .pprog'); if (el) el.textContent = t; };
+  let ok = 0; const bad = [];
+  try {
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i], tag = (files.length > 1 ? (i + 1) + ' of ' + files.length + ': ' : '') + f.name;
+      try {
+        const sub = /sci/i.test(f.name) ? 'science' : /math/i.test(f.name) ? 'maths' : subject;
+        say('Reading ' + tag + ' …');
+        const bytes = await f.arrayBuffer();
+        const pages = await pdfLinesText(bytes);
+        const scanned = pages.filter((p) => (p.text.match(/[A-Za-z]/g) || []).length < 120).map((p) => p.p);
+        if (scanned.length) {
+          const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(bytes.slice(0)) }).promise;
+          let done = 0;
+          const work = scanned.slice();
+          const worker = async () => {
+            while (work.length) {
+              const n = work.shift();
+              const image = await renderPageJpeg(pdf, n);
+              let text = '';
+              for (let tries = 0; tries < 2 && !text; tries++) {
+                const r = await fetch('api/tutor/ocr', { method: 'POST', headers: tutorHeaders(), body: JSON.stringify({ image }) });
+                if (r.ok) text = (await r.json()).text || ''; else if (r.status === 429 || r.status === 503) throw new Error((await r.json().catch(() => ({}))).error || 'Study Buddy is not available.');
+              }
+              pages[n - 1].text = text;
+              say(tag + ': Study Buddy is reading scanned page ' + (++done) + ' of ' + scanned.length + ' …');
+            }
+          };
+          await Promise.all([worker(), worker(), worker()]);
+          pdf.destroy();
+        }
+        const r = await fetch('api/tutor/paper', { method: 'POST', headers: tutorHeaders(), body: JSON.stringify({ name: f.name, subject: sub, pages }) });
+        const out = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(out.error || 'server ' + r.status);
+        ok++;
+      } catch (e) { bad.push(f.name + (e && e.message ? ' (' + e.message + ')' : '')); }
+    }
+  } finally { PAPERS.busy = false; PAPERS.progress = ''; }
+  toast('Added ' + ok + (ok === 1 ? ' paper' : ' papers') + (bad.length ? '. Could not add: ' + bad.join(', ') : '. Study Buddy will point to them in answers 📝'), null, 12000);
+  loadPaperList();
+}
+function papersCard() {
+  const items = PAPERS.items || [];
+  const by = (sub, kind) => items.filter((x) => x.subject === sub && (kind ? x.kind === kind : x.kind !== 'sample'));
+  const line = (sub) => { const b = by(sub), sp = by(sub, 'sample'); return SUBJECT_NAMES[sub] + ': ' + (b.length || sp.length ? b.length + (b.length === 1 ? ' paper' : ' papers') + (sp.length ? ' + ' + sp.length + ' sample paper' + (sp.length === 1 ? '' : 's') : '') : 'none yet'); };
+  const card = h('div', { class: 'hwcard paperscard' }, h('b', null, '📝 Question papers'), h('p', { class: 'meta' }, line('maths') + ' · ' + line('science')));
+  card.append(h('p', { class: 'meta' }, 'Board papers and CBSE sample papers. Study Buddy points to similar questions while helping, and uses them for mock exams. Scanned pages are read by Study Buddy (this costs a little).'));
+  const sub = h('select', { class: 'hwinput', 'aria-label': 'Subject' }, h('option', { value: 'maths' }, 'Maths'), h('option', { value: 'science' }, 'Science'));
+  sub.value = PAPERS.subject;
+  sub.addEventListener('change', () => { PAPERS.subject = sub.value; });
+  const fin = h('input', { type: 'file', accept: 'application/pdf,.pdf', multiple: true, hidden: true });
+  fin.addEventListener('change', () => { const fs = [...(fin.files || [])]; fin.value = ''; addPapers(fs, sub.value); });
+  card.append(h('div', { class: 'hwacts' }, sub, fin, h('button', { class: 'hwbtn', type: 'button', disabled: PAPERS.busy, onclick: () => fin.click() }, PAPERS.busy ? 'Reading …' : 'Add question papers (PDF)')),
+    h('p', { class: 'meta pprog' }, PAPERS.progress || ''));
+  if (items.length) {
+    const det = h('details', null, h('summary', null, 'Show the papers (' + items.length + ')'));
+    const ul = h('ul', { class: 'tasks' });
+    for (const it of items.slice().sort((a, b) => (a.subject + a.title).localeCompare(b.subject + b.title))) {
+      ul.append(h('li', null, h('span', { class: 'lvn' }, (it.kind === 'sample' ? '⭐ ' : '') + SUBJECT_NAMES[it.subject] + ' · ' + it.title + ' · ' + it.questions + ' questions' + (it.marks ? ', ' + it.marks + ' marks' : '')),
+        HW.role === 'teacher' ? h('button', { class: 'linkbtn', type: 'button', 'aria-label': 'Remove', onclick: async () => { if (!confirm('Remove ' + it.title + '?')) return; await fetch('api/tutor/paper/' + it.id, { method: 'DELETE', headers: tutorHeaders() }); loadPaperList(); } }, '✕') : null));
+    }
+    det.append(ul); card.append(det);
+  }
+  return card;
+}
+
+/* ---------- Mock exams: written by Study Buddy in the board pattern, marked from photos of his answers ---------- */
+const EXAM = { items: null, open: null, cur: null, poll: 0, photos: [], sending: false, cheered: {}, form: { subject: 'maths', type: 'chapters', chapters: [], marks: 25 }, pill: null };
+async function examApi(path, opts) {
+  opts = opts || {};
+  const r = await fetch('api/exam' + (path ? '/' + path : ''), Object.assign({}, opts, { headers: Object.assign({ 'content-type': 'application/json', 'x-class-code': HW.code }, HW.role === 'teacher' ? { 'x-teacher-pin': HW.pin } : {}), cache: 'no-store' }));
+  const out = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(out.error || 'Something went wrong (' + r.status + ').');
+  return out;
+}
+async function loadExams(quiet) {
+  if (!HW.code) return;
+  const before = new Map((EXAM.items || []).map((e) => [e.id, e.status]));
+  try { EXAM.items = (await examApi('')).items; } catch (e) { if (!quiet) hwSay(e.message, true); return; }
+  for (const e of EXAM.items) { // tell him when a paper is ready or marked, wherever he is in the app
+    const was = before.get(e.id);
+    if (was === 'writing' && e.status === 'ready') nudge('🎯 Your mock paper is ready: ' + (e.title || 'mock exam') + '. Tap me!', 'Open', () => openExam(e.id), 15000);
+    if (was === 'marking' && e.status === 'marked') nudge('🎉 Your mock is marked: ' + e.score + ' / ' + e.outOf + '. Tap me to see how you did!', 'See result', () => openExam(e.id), 20000);
+  }
+  if (EXAM.open) { try { EXAM.cur = (await examApi(EXAM.open)).exam; } catch (e) {} }
+  examWatch();
+  if (!hwEl.hidden && HW.view === 'exam' && !typingInHw()) renderHw();
+}
+function examWatch() { // poll while a paper is being written or marked
+  const busy = (EXAM.items || []).some((e) => e.status === 'writing' || e.status === 'marking');
+  clearTimeout(EXAM.poll);
+  if (busy) EXAM.poll = setTimeout(() => loadExams(true), 8000);
+}
+function showExams() {
+  clearInterval(HW.chatTimer);
+  HW.view = 'exam'; HW.returning = null;
+  renderHw(true);
+  loadExams();
+  if (!PLAN.data) loadPlan(true);
+}
+function openExam(id) { EXAM.open = id; EXAM.cur = null; EXAM.photos = []; if (hwEl.hidden || HW.view !== 'exam') openHw(null, 'exam'); else { renderHw(true); loadExams(); } }
+const STATUS = { writing: '✍️ Being written', ready: '📄 Ready', started: '⏱️ In progress', marking: '🔍 Being marked', marked: '✅ Marked', failed: '⚠️ Needs a retry' };
+function examView() {
+  const wrap = h('div', { class: 'examview' });
+  if (EXAM.open) { wrap.append(examDetail()); return wrap; }
+  const teacher = HW.role === 'teacher', f = EXAM.form;
+  // new paper
+  const card = h('form', { class: 'hwcard examnew' }, h('b', null, teacher ? '🎯 Set a mock exam for Tanish' : '🎯 Take a mock exam'),
+    h('p', { class: 'meta' }, 'Study Buddy writes a fresh paper in the CBSE board pattern, using his board papers and the sample paper. Write the answers on paper, then photograph them: Study Buddy marks them step by step.'));
+  const sub = h('select', { class: 'hwinput', 'aria-label': 'Subject' }, h('option', { value: 'maths' }, 'Maths'), h('option', { value: 'science' }, 'Science'));
+  sub.value = f.subject;
+  sub.addEventListener('change', () => { f.subject = sub.value; f.chapters = []; renderHw(true); });
+  const typeSel = h('select', { class: 'hwinput', 'aria-label': 'Kind of paper' }, h('option', { value: 'chapters' }, 'Chapter test'), h('option', { value: 'full' }, 'Full board paper (80 marks, 3 hours)'));
+  typeSel.value = f.type;
+  typeSel.addEventListener('change', () => { f.type = typeSel.value; renderHw(true); });
+  card.append(h('div', { class: 'hwrow' }, field('Subject', sub), field('Paper', typeSel)));
+  if (f.type === 'chapters') {
+    const marks = h('select', { class: 'hwinput', 'aria-label': 'Marks' }, ...[[15, '15 marks · 30 min'], [25, '25 marks · 50 min'], [40, '40 marks · 80 min']].map(([m, t]) => h('option', { value: String(m), selected: m === f.marks }, t)));
+    marks.addEventListener('change', () => { f.marks = Number(marks.value); });
+    card.append(field('Length', marks));
+    const syl = (PLAN.data && PLAN.data.syllabus && PLAN.data.syllabus[f.subject]) || {};
+    const grid = h('div', { class: 'chapgrid' });
+    CATALOG[f.subject].forEach((n, i) => {
+      const cb = h('input', { type: 'checkbox' }); cb.checked = f.chapters.includes(i + 1);
+      cb.addEventListener('change', () => { f.chapters = cb.checked ? f.chapters.concat(i + 1) : f.chapters.filter((x) => x !== i + 1); });
+      const st = (syl[i + 1] || {}).status;
+      grid.append(h('label', { class: 'chk' }, cb, h('span', null, (i + 1) + '. ' + n + (st === 'done' || st === 'revised' ? ' ✅' : st === 'doing' ? ' 📖' : ''))));
+    });
+    card.append(h('p', { class: 'meta' }, 'Chapters (✅ done, 📖 learning):'), grid,
+      h('div', { class: 'hwacts' }, h('button', { class: 'tb', type: 'button', onclick: () => { f.chapters = CATALOG[f.subject].map((_, i) => i + 1).filter((c) => ['done', 'revised', 'doing'].includes((syl[c] || {}).status)); renderHw(true); } }, 'Pick the chapters done and in progress')));
+  }
+  card.append(h('div', { class: 'hwacts' }, h('button', { class: 'hwbtn', type: 'submit' }, '✨ Write the paper')));
+  card.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const chs = f.type === 'full' ? CATALOG[f.subject].map((_, i) => i + 1) : f.chapters.slice().sort((a, b) => a - b);
+    if (!chs.length) { hwSay('Tick at least one chapter.', true); return; }
+    try {
+      const r = await examApi('', { method: 'POST', body: JSON.stringify({ subject: f.subject, type: f.type, marks: f.marks, minutes: f.marks * 2, chapters: chs.map((n) => ({ n, name: CATALOG[f.subject][n - 1] })) }) });
+      hwSay('✍️ Study Buddy is writing the paper. It takes a minute or two; you can keep studying.');
+      openExam(r.exam.id);
+    } catch (e) { hwSay(e.message, true); }
+  });
+  wrap.append(card);
+  // list
+  const list = h('div', { class: 'hwcard' }, h('b', null, '📚 Mock exams'));
+  if (!EXAM.items) list.append(h('p', { class: 'meta' }, 'Loading …'));
+  else if (!EXAM.items.length) list.append(h('p', { class: 'meta' }, 'None yet. Your first one is a tap away!'));
+  else {
+    const ul = h('ul', { class: 'tasks' });
+    for (const e of EXAM.items) ul.append(h('li', { class: 'exrow', onclick: () => openExam(e.id) },
+      h('span', { class: 'lvn' }, h('b', null, (e.title || (e.type === 'full' ? 'Full paper' : 'Chapter test')) + ' '), h('br'), SUBJECT_NAMES[e.subject] + ' · ' + e.marks + ' marks · ' + new Date(e.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })),
+      h('span', { class: 'chip ' + e.status }, e.status === 'marked' ? '✅ ' + e.score + ' / ' + e.outOf : STATUS[e.status] || e.status)));
+    list.append(ul);
+  }
+  wrap.append(list);
+  return wrap;
+}
+function qBlock(q, showKey) {
+  const el = h('div', { class: 'exq' });
+  el.append(h('div', { class: 'qh' }, h('b', null, 'Q' + q.n), h('span', { class: 'chip' }, q.marks + (q.marks === 1 ? ' mark' : ' marks')), q.from ? h('span', { class: 'from' }, '📝 based on ' + q.from) : null));
+  el.append(richText(q.text || ''));
+  if (Array.isArray(q.options) && q.options.length) el.append(h('ol', { class: 'opts', type: 'A' }, ...q.options.map((o) => h('li', null, o))));
+  if (showKey && q.answer) el.append(h('details', { class: 'key' }, h('summary', null, 'Answer and marking scheme'), h('p', null, h('b', null, 'Answer: '), q.answer), richText(q.scheme || '')));
+  if (q.or) {
+    el.append(h('p', { class: 'or' }, 'OR'), richText(q.or.text || ''));
+    if (showKey && q.or.answer) el.append(h('details', { class: 'key' }, h('summary', null, 'Answer (OR part)'), h('p', null, h('b', null, 'Answer: '), q.or.answer), richText(q.or.scheme || '')));
+  }
+  return el;
+}
+function examDetail() {
+  const box = h('div');
+  box.append(h('div', { class: 'hwacts' }, h('button', { class: 'tb', type: 'button', onclick: () => { EXAM.open = null; EXAM.cur = null; renderHw(true); loadExams(true); } }, '← All mock exams')));
+  const e = EXAM.cur;
+  if (!e) { box.append(h('p', { class: 'empty' }, 'Loading …')); return box; }
+  const head = h('div', { class: 'hwcard examhead' }, h('b', { class: 'big' }, (e.title || (e.type === 'full' ? 'Full mock paper' : 'Chapter test'))),
+    h('p', { class: 'meta' }, SUBJECT_NAMES[e.subject] + ' · ' + e.marks + ' marks · ' + e.minutes + ' minutes · ' + STATUS[e.status]));
+  box.append(head);
+  if (e.status === 'writing' || e.status === 'marking') {
+    head.append(h('div', { class: 'thinking' }, h('span', { class: 'dots' }, h('i'), h('i'), h('i')), e.status === 'writing' ? ' Study Buddy is writing your paper. It takes a minute or two …' : ' Study Buddy is marking your answers. Back in a minute or two …'));
+    return box;
+  }
+  if (e.status === 'failed') {
+    head.append(h('p', { class: 'pacemsg behind' }, e.error || 'Something went wrong.'), h('div', { class: 'hwacts' },
+      h('button', { class: 'hwbtn', type: 'button', onclick: async () => { try { await examApi(e.id + '/retry', { method: 'POST' }); loadExams(); } catch (err) { hwSay(err.message, true); } } }, 'Try again'),
+      h('button', { class: 'tb', type: 'button', onclick: () => removeExam(e) }, 'Remove')));
+  }
+  const paper = e.paper || {};
+  const marked = e.status === 'marked';
+  if (marked && e.result) box.append(resultCard(e));
+  if (!marked && (e.status === 'ready' || e.status === 'started' || e.status === 'failed') && paper.sections) {
+    const end = e.startedAt ? e.startedAt + e.minutes * 60000 : 0;
+    if (!e.startedAt) head.append(h('p', null, 'When you are ready: clear your desk, keep paper and pen, and start the clock. No Study Buddy and no book until you hand in 😉'),
+      h('div', { class: 'hwacts' }, h('button', { class: 'hwbtn pomobtn', type: 'button', onclick: async () => { try { await examApi(e.id + '/start', { method: 'POST' }); EXAM.cur.startedAt = Date.now(); EXAM.cur.status = 'started'; examPill(); renderHw(true); } catch (err) { hwSay(err.message, true); } } }, '▶️ Start the clock (' + e.minutes + ' min)')));
+    else head.append(h('p', { class: 'meta' }, Date.now() < end ? '⏱️ Time left: ' + Math.ceil((end - Date.now()) / 60000) + ' min. Hand in when you finish.' : '⏰ Time is up. Hand in your answers.'));
+  }
+  if (paper.sections) {
+    if (Array.isArray(paper.instructions) && paper.instructions.length) box.append(h('details', { class: 'hwcard' }, h('summary', null, 'General instructions'), h('ol', null, ...paper.instructions.map((t) => h('li', null, t)))));
+    for (const sec of paper.sections) {
+      const sc = h('div', { class: 'hwcard exsec' }, h('b', null, sec.name || 'Section'), sec.note ? h('p', { class: 'meta' }, sec.note) : null);
+      for (const q of sec.questions || []) sc.append(qBlock(q, marked || HW.role === 'teacher'));
+      box.append(sc);
+    }
+  }
+  if (!marked && (e.status === 'started' || e.status === 'ready' || (e.status === 'failed' && e.paper))) box.append(handInCard(e));
+  if (HW.role === 'teacher' || e.status !== 'marked') box.append(h('div', { class: 'hwacts' }, h('button', { class: 'linkbtn', type: 'button', onclick: () => removeExam(e) }, 'Remove this mock exam')));
+  return box;
+}
+async function removeExam(e) {
+  if (!confirm('Remove this mock exam?')) return;
+  try { await examApi(e.id, { method: 'DELETE' }); EXAM.open = null; EXAM.cur = null; loadExams(); } catch (err) { hwSay(err.message, true); }
+}
+function handInCard(e) {
+  const card = h('div', { class: 'hwcard handin' }, h('b', null, '📸 Hand in your answers'),
+    h('p', { class: 'meta' }, 'Photograph each answer sheet in order, flat and in good light, with question numbers clearly written. Up to 20 photos.'));
+  const fin = h('input', { type: 'file', accept: 'image/*', multiple: true, hidden: true });
+  fin.addEventListener('change', async () => {
+    const fs = [...(fin.files || [])]; fin.value = '';
+    for (const f of fs) { if (EXAM.photos.length >= 20) break; try { const { blob } = await shrinkPhoto(f, 1600, 0.8); EXAM.photos.push({ blob, url: URL.createObjectURL(blob) }); } catch (err) {} }
+    renderHw(true);
+  });
+  const thumbs = h('div', { class: 'thumbs' });
+  EXAM.photos.forEach((ph, i) => thumbs.append(h('figure', null, h('img', { src: ph.url, alt: 'Answer sheet ' + (i + 1) }), h('figcaption', null, String(i + 1)),
+    h('button', { class: 'px', type: 'button', 'aria-label': 'Remove photo ' + (i + 1), onclick: () => { EXAM.photos.splice(i, 1); renderHw(true); } }, '✕'))));
+  card.append(thumbs, h('div', { class: 'hwacts' },
+    h('button', { class: 'tb', type: 'button', onclick: () => fin.click() }, EXAM.photos.length ? '➕ Add more photos' : '📷 Add photos of my answers'), fin,
+    EXAM.photos.length ? h('button', { class: 'hwbtn', type: 'button', disabled: EXAM.sending, onclick: () => submitExam(e) }, EXAM.sending ? 'Sending …' : '✅ Hand in ' + EXAM.photos.length + (EXAM.photos.length === 1 ? ' photo' : ' photos')) : null));
+  return card;
+}
+async function submitExam(e) {
+  if (EXAM.sending) return;
+  EXAM.sending = true; renderHw(true);
+  try {
+    const ids = [];
+    for (let i = 0; i < EXAM.photos.length; i++) {
+      hwSay('Sending photo ' + (i + 1) + ' of ' + EXAM.photos.length + ' …');
+      const id = uid().replace(/[^a-z0-9]/g, '').slice(0, 20).padEnd(8, '0');
+      const fd = new FormData(); fd.append('file', new File([EXAM.photos[i].blob], 'answer.jpg', { type: 'image/jpeg' })); fd.append('id', id);
+      let sent = false;
+      for (let t = 0; t < 3 && !sent; t++) { try { await api('img', { method: 'POST', body: fd }); sent = true; } catch (err) { if (t === 2) throw err; } }
+      ids.push(id);
+    }
+    await examApi(e.id + '/submit', { method: 'POST', body: JSON.stringify({ imgs: ids }) });
+    EXAM.photos = []; examPillStop();
+    hwSay('🔍 Handed in! Study Buddy is marking your answers. It takes a minute or two.');
+    loadExams();
+  } catch (err) { hwSay(err.message, true); }
+  finally { EXAM.sending = false; renderHw(true); }
+}
+function resultCard(e) {
+  const r = e.result, pct = Math.round(100 * r.total / Math.max(1, r.outOf));
+  if (!EXAM.cheered[e.id] && pct >= 60) { EXAM.cheered[e.id] = 1; setTimeout(confetti, 300); }
+  const card = h('div', { class: 'hwcard resultcard' }, h('div', { class: 'score' }, h('span', { class: 'big' }, r.total + ' / ' + r.outOf), h('span', { class: 'pct' }, pct + '%')),
+    h('p', null, r.summary || ''));
+  if ((r.strong || []).length) card.append(h('p', null, h('b', null, '💪 Strong: '), r.strong.join(', ')));
+  if ((r.weak || []).length) card.append(h('p', null, h('b', null, '🎯 Work on: '), r.weak.map((w) => (w.ch ? 'Ch ' + w.ch + ' ' : '') + (w.topic || '') + (w.why ? ' (' + w.why + ')' : '')).join('; ')));
+  if ((r.next || []).length) card.append(h('ol', null, ...r.next.map((t) => h('li', null, t))));
+  const tbl = h('table', { class: 'utable' }, h('tr', null, h('th', null, 'Q'), h('th', null, 'Marks'), h('th', null, 'Note')));
+  for (const x of r.results || []) tbl.append(h('tr', { class: x.got >= x.of ? 'full' : x.got > 0 ? 'part' : 'zero' }, h('td', null, String(x.n)), h('td', null, x.got + ' / ' + x.of), h('td', null, x.note || '')));
+  card.append(tbl);
+  if ((r.weak || []).length) card.append(h('div', { class: 'hwacts' }, h('button', { class: 'hwbtn', type: 'button', onclick: () => revisionToPlan(e) }, '📅 Add revision of the weak topics to my plan')));
+  return card;
+}
+async function revisionToPlan(e) {
+  if (!PLAN.data) await loadPlan(true);
+  if (!PLAN.data) return;
+  const date = istHour() < 18 ? istDayC(0) : istDayC(1);
+  const tasks = (((PLAN.data.days[date] || {}).plan || {}).tasks || []).slice();
+  for (const w of e.result.weak.slice(0, 4)) tasks.push({ id: Math.random().toString(36).slice(2, 10), text: 'Revise' + (w.ch ? ' ' + SUBJECT_NAMES[e.subject] + ' Ch ' + w.ch : '') + ': ' + (w.topic || 'mistakes from the mock') + ' (from mock exam)', subject: e.subject, ch: Number(w.ch) || 0, mins: 30, done: false });
+  await savePlanDay(date, tasks);
+  toast('Added to ' + (date === istDayC(0) ? 'today’s' : 'tomorrow’s') + ' plan 📅', { label: 'Open planner', fn: () => openHw(null, 'plan') });
+}
+function examPill() {
+  const e = EXAM.cur; if (!e || !e.startedAt) return;
+  EXAM.pillFor = { id: e.id, end: e.startedAt + e.minutes * 60000 };
+  try { localStorage.setItem('studyboard-exam', JSON.stringify(EXAM.pillFor)); } catch (err) {}
+  examPillRun();
+}
+function examPillStop() { EXAM.pillFor = null; try { localStorage.removeItem('studyboard-exam'); } catch (err) {} if (EXAM.pill) EXAM.pill.hidden = true; clearInterval(EXAM.pillT); }
+function examPillRun() {
+  if (!EXAM.pill) { EXAM.pill = h('button', { class: 'pomopill exampill', type: 'button', onclick: () => openExam(EXAM.pillFor.id) }); document.body.append(EXAM.pill); }
+  clearInterval(EXAM.pillT);
+  const tick = () => {
+    if (!EXAM.pillFor) return;
+    const left = EXAM.pillFor.end - Date.now();
+    EXAM.pill.hidden = false;
+    if (left <= 0) { EXAM.pill.textContent = '⏰ Time up: hand in'; if (!EXAM.pillFor.rang) { EXAM.pillFor.rang = 1; chime(); nudge('⏰ Time is up! Pen down, then photograph your answers and hand in.', 'Hand in', () => openExam(EXAM.pillFor.id), 20000); } return; }
+    const m = Math.floor(left / 60000), s2 = Math.floor(left / 1000) % 60;
+    EXAM.pill.textContent = '🎯 ' + Math.floor(m / 60) + ':' + String(m % 60).padStart(2, '0') + ':' + String(s2).padStart(2, '0');
+  };
+  tick(); EXAM.pillT = setInterval(tick, 1000);
+}
+function examInit() {
+  try { const p = JSON.parse(localStorage.getItem('studyboard-exam') || 'null'); if (p && p.end > Date.now() - 3 * 3600000) { EXAM.pillFor = p; examPillRun(); } } catch (e) {}
+  if (HW.code) setTimeout(() => loadExams(true), 5000);
+}
+
 /* ---------- Planner, study-time tracker, break nudges and Pomodoro ---------- */
 // Tanish's laptop counts the minutes he is actually working (page in front, touched in the last 3 minutes).
 // Papa sees the same numbers in the Planner. Days are India dates, like the server.
@@ -4405,6 +4786,7 @@ function planView() {
   }
   sy.append(cols);
   wrap.append(sy);
+  wrap.append(h('div', { class: 'hwacts' }, h('button', { class: 'hwbtn mockbtn', type: 'button', onclick: () => { EXAM.open = null; showExams(); } }, teacher ? '🎯 Set a mock exam' : '🎯 Test yourself: take a mock exam')));
   // last 7 days
   const week = h('div', { class: 'hwcard week' }, h('b', null, '📈 Last 7 days'));
   const chart = h('div', { class: 'wchart' });
@@ -4673,14 +5055,16 @@ async function init() {
   setNotebook(n, true);
   mascotInit();
   studyInit();
+  examInit();
   window.__studyboard = { STUDY, POMO, PLAN, studyTick, studyFlush, pomoStart, istDayC }; // handle for the test scripts
   syncPush(); resumeLive();
   if (location.hash === '#homework') openHw();
   if (location.hash === '#chat') openHw(null, 'chat');
   if (location.hash === '#tutor') openHw(null, 'tutor');
   if (location.hash === '#plan') openHw(null, 'plan');
+  if (location.hash === '#exam') openHw(null, 'exam');
   if (/^#snap/.test(location.hash)) showSnapScreen((location.hash.match(/^#snap=([a-z0-9]+)/) || [])[1]);
-  window.addEventListener('hashchange', () => { if (location.hash === '#homework') openHw(); if (location.hash === '#chat') openHw(null, 'chat'); if (location.hash === '#tutor') openHw(null, 'tutor'); if (location.hash === '#plan') openHw(null, 'plan'); if (/^#snap/.test(location.hash) && !document.querySelector('.snapview')) showSnapScreen((location.hash.match(/^#snap=([a-z0-9]+)/) || [])[1]); });
+  window.addEventListener('hashchange', () => { if (location.hash === '#homework') openHw(); if (location.hash === '#chat') openHw(null, 'chat'); if (location.hash === '#tutor') openHw(null, 'tutor'); if (location.hash === '#plan') openHw(null, 'plan'); if (location.hash === '#exam') openHw(null, 'exam'); if (/^#snap/.test(location.hash) && !document.querySelector('.snapview')) showSnapScreen((location.hash.match(/^#snap=([a-z0-9]+)/) || [])[1]); });
   if (!prefs.seenTip) {
     prefs.seenTip = true; savePrefs();
     const desk = matchMedia('(pointer: fine)').matches && !('ontouchend' in window);
