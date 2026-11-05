@@ -241,6 +241,7 @@ body.t-select #pages .page { cursor: crosshair; }
 .av.t { background: linear-gradient(135deg, #f59e0b, #f97316); }
 .av.s { background: linear-gradient(135deg, #2457d6, #7048e8); }
 .av.b { background: linear-gradient(135deg, #7048e8, #0ca678); }
+.bookscard b { font-size: 16px; }
 .buddyhead { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; background: linear-gradient(120deg, rgba(112,72,232,.14), rgba(12,166,120,.14)); border: 1px solid rgba(112,72,232,.25); }
 .buddyhead .buddy { flex: none; width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; font-size: 24px; background: linear-gradient(135deg, #7048e8, #0ca678); box-shadow: 0 4px 12px rgba(112,72,232,.3); }
 .buddyhead p { margin: 0; font-size: 14px; line-height: 1.45; }
@@ -3163,6 +3164,7 @@ function showTutor() {
   HW.view = 'tutor'; HW.returning = null;
   renderHw(true);
   if (HW.role === 'teacher') loadTutorLog(); else focusHwBox('#tutorText');
+  if (!TUTOR.books) loadBooks();
 }
 // light formatting for tutor replies: **bold**, numbered and bullet lines; built from text nodes only
 function richText(text) {
@@ -3184,7 +3186,7 @@ function richText(text) {
 function tutorView() {
   const wrap = h('div', { class: 'chat' });
   wrap.append(h('div', { class: 'buddyhead' }, h('div', { class: 'buddy', 'aria-hidden': 'true' }, '✨'),
-    h('p', null, h('b', null, 'Hi Tanish, I am Study Buddy. '), 'Ask me to explain anything from your Maths or Science chapters, or send a photo of a question. I give hints first so you can work it out. I can make mistakes, so check important answers with Papa or the NCERT book. Papa can read what you ask here.')));
+    h('p', null, h('b', null, 'Hi Tanish, I am Study Buddy. '), h('span', { class: 'booksline' }, booksLine()), 'Ask me to explain anything from your Maths or Science chapters, or send a photo of a question. I give hints first so you can work it out. I can make mistakes, so check important answers with Papa or the NCERT book. Papa can read what you ask here.')));
   const list = h('div', { class: 'chatlist tutorlist' });
   if (!TUTOR.msgs.length) {
     list.append(h('p', { class: 'empty' }, 'Try asking:'));
@@ -3276,8 +3278,83 @@ async function loadTutorLog() {
   } catch (e) { TUTOR.log = []; hwSay(e.message, true); }
   if (!hwEl.hidden && HW.view === 'tutor') renderHw();
 }
+// Study Buddy's books: Papa's iPad reads each chapter PDF in the shared library and sends its text
+const booksLine = () => (TUTOR.books && TUTOR.books.length ? '📚 I have read ' + TUTOR.books.length + (TUTOR.books.length === 1 ? ' chapter' : ' chapters') + ' of your NCERT books, so I answer from your book first. ' : '');
+async function loadBooks() {
+  try { const r = await fetch('api/tutor/book', { headers: { 'x-class-code': HW.code }, cache: 'no-store' }); if (r.ok) TUTOR.books = (await r.json()).items || []; } catch (e) {}
+  const line = hwEl.querySelector('.booksline'); if (line) line.textContent = booksLine(); // without redrawing the box he may be typing in
+  if (!hwEl.hidden && HW.view === 'tutor' && HW.role === 'teacher') renderHw();
+}
+async function pdfPagesText(bytes) {
+  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(bytes.slice(0)) }).promise;
+  const pages = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const pg = await pdf.getPage(i);
+    const tc = await pg.getTextContent();
+    let lastY = null, out = '';
+    for (const it of tc.items) {
+      if (!('str' in it)) continue;
+      const y = it.transform[5];
+      if (lastY !== null && Math.abs(y - lastY) > 2) out += '\n'; else if (out && !/\s$/.test(out) && it.str && !/^\s/.test(it.str)) out += ' ';
+      out += it.str; lastY = y;
+    }
+    pages.push({ p: i, text: out });
+    pg.cleanup();
+  }
+  pdf.destroy();
+  return pages;
+}
+async function teachBooks(again) {
+  if (HW.role !== 'teacher') return;
+  if (TUTOR.teaching) return;
+  TUTOR.teaching = true;
+  try {
+    await loadLib();
+    if (!LIB.items || !LIB.items.length) { toast(LIB.err || 'The shared chapter library is empty. Share the chapters first (Chapter library).', null, 9000); return; }
+    const have = new Map((TUTOR.books || []).map((b) => [b.key, b]));
+    const todo = LIB.items.filter((it) => again || !have.has(it.key) || (have.get(it.key).libAt || 0) < (it.at || 0))
+      .sort((a, b) => (a.subject + String(a.ch).padStart(2, '0')).localeCompare(b.subject + String(b.ch).padStart(2, '0')));
+    if (!todo.length) { toast('Study Buddy has already read every chapter in the library.', null, 6000); return; }
+    const local = await DB.all('notebooks').catch(() => []);
+    let ok = 0; const bad = [];
+    for (let i = 0; i < todo.length; i++) {
+      const it = todo[i], label = chapterName({ subject: it.subject, ch: it.ch });
+      TUTOR.progress = 'Reading ' + (i + 1) + ' of ' + todo.length + ': ' + label + ' …';
+      toast(TUTOR.progress, null, 600000); renderHw();
+      try {
+        const n = local.find((x) => x.book && x.book.subject === it.subject && x.book.ch === it.ch && (x.pdfIds || []).length);
+        const rec = n && await DB.get('pdfs', n.pdfIds[0]).catch(() => null);
+        const bytes = rec && rec.bytes ? rec.bytes : await (await downloadLibPdf(it.key)).arrayBuffer();
+        const pages = await pdfPagesText(bytes);
+        const r = await fetch('api/tutor/book', { method: 'POST', headers: { 'content-type': 'application/json', 'x-class-code': HW.code, 'x-teacher-pin': HW.pin }, body: JSON.stringify({ subject: it.subject, ch: it.ch, name: it.name, libAt: it.at || 0, pages }) });
+        if (!r.ok) throw new Error('server ' + r.status);
+        ok++;
+      } catch (e) { bad.push(label); }
+    }
+    TUTOR.progress = '';
+    toast('Study Buddy read ' + ok + (ok === 1 ? ' chapter' : ' chapters') + (bad.length ? '. Could not read: ' + bad.join(', ') : '.'), null, 12000);
+  } finally { TUTOR.teaching = false; TUTOR.progress = ''; await loadBooks(); }
+}
+function booksCard(teacher) {
+  const books = TUTOR.books || [];
+  const by = (sub) => books.filter((b) => b.subject === sub).map((b) => b.ch).sort((a, b) => a - b);
+  const m = by('maths'), sc = by('science');
+  const card = h('div', { class: 'hwcard bookscard' },
+    h('b', null, '📚 Study Buddy has read ' + books.length + (books.length === 1 ? ' chapter' : ' chapters') + ' of the NCERT books'),
+    h('p', { class: 'meta' }, 'Maths: ' + (m.length ? 'Ch ' + m.join(', ') : 'none yet') + ' · Science: ' + (sc.length ? 'Ch ' + sc.join(', ') : 'none yet')));
+  if (teacher) {
+    if (TUTOR.progress) card.append(h('p', { class: 'meta' }, TUTOR.progress));
+    card.append(h('p', { class: 'meta' }, 'Study Buddy answers from these chapters first and says which chapter and page it used. Chapters come from the shared Chapter library.'),
+      h('div', { class: 'hwacts' },
+        h('button', { class: 'hwbtn', type: 'button', disabled: !!TUTOR.teaching, onclick: () => teachBooks(false) }, books.length ? 'Read new chapters' : 'Teach Study Buddy the chapters'),
+        books.length ? h('button', { class: 'tb', type: 'button', disabled: !!TUTOR.teaching, onclick: () => teachBooks(true) }, 'Read all again') : null));
+  }
+  return card;
+}
 function tutorLogView() {
   const wrap = h('div');
+  if (!TUTOR.books) loadBooks();
+  wrap.append(booksCard(true));
   wrap.append(h('p', { class: 'tutornote' }, 'Everything Tanish has asked the AI tutor, newest first, with its answers.'), h('button', { class: 'tb', type: 'button', onclick: () => loadTutorLog() }, 'Refresh log'));
   if (!TUTOR.log) { wrap.append(h('p', { class: 'empty' }, 'Loading …')); return wrap; }
   if (!TUTOR.log.length) wrap.append(h('p', { class: 'empty' }, 'No questions yet.'));
@@ -3285,6 +3362,7 @@ function tutorLogView() {
     const card = h('div', { class: 'hwcard' },
       h('p', { class: 'meta' }, new Date(it.at).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) + (it.hadImage ? ' · with photo' : '')),
       h('p', null, h('b', null, 'Q: '), it.question),
+      it.book && it.book.length ? h('p', { class: 'meta' }, '📖 Book pages used: ' + it.book.join(', ')) : h('p', { class: 'meta' }, 'No book pages matched this question.'),
       h('details', null, h('summary', null, 'Answer'), richText(it.answer || '')));
     wrap.append(card);
   }
@@ -3770,7 +3848,7 @@ async function init() {
   if (location.hash === '#chat') openHw(null, 'chat');
   if (location.hash === '#tutor') openHw(null, 'tutor');
   if (/^#snap/.test(location.hash)) showSnapScreen((location.hash.match(/^#snap=([a-z0-9]+)/) || [])[1]);
-  window.addEventListener('hashchange', () => { if (location.hash === '#homework') openHw(); if (location.hash === '#chat') openHw(null, 'chat'); if (/^#snap/.test(location.hash) && !document.querySelector('.snapview')) showSnapScreen((location.hash.match(/^#snap=([a-z0-9]+)/) || [])[1]); });
+  window.addEventListener('hashchange', () => { if (location.hash === '#homework') openHw(); if (location.hash === '#chat') openHw(null, 'chat'); if (location.hash === '#tutor') openHw(null, 'tutor'); if (/^#snap/.test(location.hash) && !document.querySelector('.snapview')) showSnapScreen((location.hash.match(/^#snap=([a-z0-9]+)/) || [])[1]); });
   if (!prefs.seenTip) {
     prefs.seenTip = true; savePrefs();
     const desk = matchMedia('(pointer: fine)').matches && !('ontouchend' in window);
