@@ -351,6 +351,33 @@ body.t-select #pages .page { cursor: crosshair; }
 .pomopill[hidden] { display: none; }
 .pomopill button { border: 0; background: none; color: inherit; font: 600 15px var(--font-ui); padding: 6px 10px; border-radius: 999px; font-variant-numeric: tabular-nums; }
 .pomopill .px { padding: 6px 9px; background: rgba(255,255,255,.18); }
+/* panel header: title row, then the tabs; on a phone the tabs scroll sideways in one tidy row */
+.hwtabs { display: flex; gap: 4px; align-items: center; }
+.hwtabs .tb { border: 0; background: transparent; }
+@media (max-width: 700px) {
+  .hwhead { flex-wrap: wrap; gap: 6px 8px; }
+  .hwhead .sub { display: none; }
+  .hwhead h2 { flex: 1; font-size: 21px; }
+  .hwtabs { order: 3; flex: 1 0 100%; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; padding: 3px; border-radius: 12px; background: rgba(127,127,127,.12); }
+  .hwtabs::-webkit-scrollbar { display: none; }
+  .hwtabs .tb { flex: 1 0 auto; height: 36px; padding: 0 12px; font-weight: 600; }
+  .hwtabs .tb.on { background: var(--ui-bg); color: var(--accent); box-shadow: 0 1px 4px rgba(0,0,0,.12); }
+}
+/* secondary buttons in the panels look like buttons, not loose text */
+:where(.hwin) .tb { border: 1px solid var(--ui-line); background: var(--ui-bg); color: var(--ui-fg); font-weight: 500; }
+:where(.hwin) .tb.on { color: var(--accent); }
+:where(.hwin) .hwhead > .tb { border-color: transparent; background: transparent; }
+.hwacts { align-items: center; }
+/* iPhone draws date boxes wider than their column unless told not to */
+.hwinput[type=date], .hwinput[type=datetime-local] { -webkit-appearance: none; appearance: none; display: block; min-width: 0; max-width: 100%; text-align: left; line-height: 24px; }
+.hwinput[type=date]::-webkit-date-and-time-value, .hwinput[type=datetime-local]::-webkit-date-and-time-value { text-align: left; }
+.hwfield { min-width: 0; }
+@media (max-width: 600px) {
+  .planset .hwrow { flex-direction: column; }
+  .planadd.leaveadd { grid-template-columns: 1fr 1fr; }
+  .leaveadd input { grid-column: 1 / -1; }
+  .hwacts > button { flex: 1 1 auto; }
+}
 .papatabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 12px; }
 .hwacts { display: flex; flex-wrap: wrap; gap: 8px; }
 .hwbtn { height: 40px; padding: 0 14px; border: 0; border-radius: 10px; background: var(--accent); color: #fff; font-weight: 600; }
@@ -2811,11 +2838,12 @@ function renderHw(force) {
   const head = h('div', { class: 'hwhead' },
     h('h2', null, HW.view === 'chat' ? 'Chat' : HW.view === 'tutor' ? 'Study Buddy' : HW.view === 'plan' ? 'Planner' : 'Homework'),
     HW.code ? h('span', { class: 'sub' }, HW.role === 'teacher' ? 'Teacher' : 'Student') : null,
-    HW.code ? h('button', { class: 'tb' + (HW.view === 'work' ? ' on' : ''), onclick: () => { HW.view = 'work'; HW.returning = null; clearInterval(HW.chatTimer); renderHw(); refreshHw(); } }, 'Homework') : null,
-    HW.code ? h('button', { class: 'tb' + (HW.view === 'chat' ? ' on' : ''), onclick: () => showChat() }, 'Chat' + (unreadCount() ? ' (' + unreadCount() + ')' : '')) : null,
-    HW.code ? h('button', { class: 'tb' + (HW.view === 'tutor' ? ' on' : ''), onclick: () => showTutor() }, 'Study Buddy') : null,
-    HW.code ? h('button', { class: 'tb' + (HW.view === 'plan' ? ' on' : ''), onclick: () => showPlan() }, 'Planner') : null,
-    h('button', { class: 'tb', onclick: closeHw }, 'Close'));
+    HW.code ? h('div', { class: 'hwtabs', role: 'tablist' },
+      h('button', { class: 'tb' + (HW.view === 'work' ? ' on' : ''), onclick: () => { HW.view = 'work'; HW.returning = null; clearInterval(HW.chatTimer); renderHw(); refreshHw(); } }, 'Homework'),
+      h('button', { class: 'tb' + (HW.view === 'chat' ? ' on' : ''), onclick: () => showChat() }, 'Chat' + (unreadCount() ? ' (' + unreadCount() + ')' : '')),
+      h('button', { class: 'tb' + (HW.view === 'tutor' ? ' on' : ''), onclick: () => showTutor() }, 'Study Buddy'),
+      h('button', { class: 'tb' + (HW.view === 'plan' ? ' on' : ''), onclick: () => showPlan() }, 'Planner')) : null,
+    h('button', { class: 'tb hwclose', onclick: closeHw, 'aria-label': 'Close' }, 'Close'));
   const msg = h('p', { class: 'hwmsg' + (HW.bad ? ' bad' : ''), role: 'status' }, HW.msg);
   msg.hidden = !HW.msg;
   inner.append(head, msg);
