@@ -190,6 +190,48 @@ export default async (req: Request, context: Context) => {
       return json({ session });
     }
 
+    // photos placed on pages (stored once, drawn by id on every device)
+    if (req.method === "POST" && action === "img") {
+      const form = await req.formData();
+      const f = await readFile(form);
+      const iid = clean(form.get("id"), 30);
+      if (!f || !/^image\//.test(f.meta.type) || !/^[a-z0-9]{6,24}$/.test(iid)) return fail(400, "Send a photo.");
+      await s.set("img/" + iid, f.data, { metadata: { type: f.meta.type } });
+      return json({ id: iid });
+    }
+
+    if (req.method === "GET" && action === "img" && id) {
+      if (!/^[a-z0-9]{6,24}$/.test(id)) return fail(404, "Photo not found.");
+      const r = await s.getWithMetadata("img/" + id, { type: "arrayBuffer" });
+      if (!r || !r.data) return fail(404, "Photo not found.");
+      return new Response(r.data, { headers: { "content-type": String((r.metadata as { type?: string }).type || "image/jpeg"), "cache-control": "private, max-age=604800" } });
+    }
+
+    // a photo snapped on the phone waits here until the laptop (same person) picks it up
+    if (req.method === "POST" && action === "snap") {
+      const form = await req.formData();
+      const f = await readFile(form);
+      if (!f || !/^image\//.test(f.meta.type)) return fail(400, "Send a photo.");
+      const iid = newId();
+      const role = teacher ? "teacher" : "student";
+      await s.set("img/" + iid, f.data, { metadata: { type: f.meta.type } });
+      await s.setJSON("snapmeta/" + role + "/" + iid, { id: iid, at: Date.now() });
+      return json({ id: iid });
+    }
+
+    if (req.method === "GET" && action === "snaps") {
+      const role = teacher ? "teacher" : "student";
+      const { blobs } = await s.list({ prefix: "snapmeta/" + role + "/" });
+      const now = Date.now();
+      const snaps = (await Promise.all(blobs.map((b) => s.get(b.key, { type: "json" })))).filter((x: any) => x && now - x.at < 30 * 60000);
+      return json({ snaps });
+    }
+
+    if (req.method === "DELETE" && action === "snap" && id) {
+      await s.delete("snapmeta/" + (teacher ? "teacher" : "student") + "/" + clean(id, 30));
+      return json({ ok: true });
+    }
+
     // either side can add pages (a picture or PDF for reference) to a running live session
     if (req.method === "POST" && action === "live" && id === "add") {
       const body = await req.json();
@@ -256,11 +298,11 @@ export default async (req: Request, context: Context) => {
       if (!session || !session.active || session.sid !== clean(body.sid, 40)) return json({ active: false, now, events: [] });
       const role = teacher ? "teacher" : "student", otherRole = teacher ? "student" : "teacher";
       const np = session.pages.length;
-      const okStroke = (x: any) => x && /^(pen|hl|line|arrow|rect|ellipse)$/.test(x.t) && typeof x.c === "string" && x.c.length < 30 && Number.isFinite(+x.w) && Array.isArray(x.pts) && x.pts.length >= 3 && x.pts.length <= 30000 && x.pts.every((v: unknown) => Number.isFinite(v as number));
+      const okStroke = (x: any) => x && (/^(pen|hl|line|arrow|rect|ellipse)$/.test(x.t) || (x.t === "img" && typeof x.src === "string" && /^img\/[a-z0-9]{6,24}$/.test(x.src))) && typeof x.c === "string" && x.c.length < 30 && Number.isFinite(+x.w) && Array.isArray(x.pts) && x.pts.length >= 3 && x.pts.length <= 30000 && x.pts.every((v: unknown) => Number.isFinite(v as number));
       const okPg = (n: unknown) => Number.isInteger(n) && (n as number) >= 0 && (n as number) < np;
       const adds = (Array.isArray(body.adds) ? body.adds : []).slice(0, 100)
         .filter((a: any) => a && typeof a.id === "string" && a.id.length < 60 && okPg(a.pg) && okStroke(a.s))
-        .map((a: any) => ({ id: a.id, pg: a.pg, s: { t: a.s.t, c: a.s.c, w: +a.s.w, pts: a.s.pts } }));
+        .map((a: any) => ({ id: a.id, pg: a.pg, s: { t: a.s.t, c: a.s.c, w: +a.s.w, pts: a.s.pts, ...(a.s.t === "img" ? { src: a.s.src } : {}) } }));
       const dels = (Array.isArray(body.dels) ? body.dels : []).filter((x: unknown) => typeof x === "string" && (x as string).length < 60).slice(0, 2000);
       const writes: Promise<unknown>[] = [];
       if (adds.length || dels.length) writes.push(s.setJSON("live/e/" + session.sid + "/" + String(now).padStart(13, "0") + "-" + Math.random().toString(36).slice(2, 8), { by: role, adds, dels }));
@@ -272,11 +314,11 @@ export default async (req: Request, context: Context) => {
       await Promise.all(writes);
       const since = Math.max(0, Number(body.since) || 0);
       const pre = "live/e/" + session.sid + "/";
-      const [{ blobs }, theirCur, theirView] = await Promise.all([s.list({ prefix: pre }), s.get("live/cur/" + otherRole, { type: "json" }) as Promise<{ at: number } | null>, s.get("live/view/" + otherRole, { type: "json" })]);
+      const [{ blobs }, theirCur, theirView, mySnaps] = await Promise.all([s.list({ prefix: pre }), s.get("live/cur/" + otherRole, { type: "json" }) as Promise<{ at: number } | null>, s.get("live/view/" + otherRole, { type: "json" }), s.list({ prefix: "snapmeta/" + role + "/" })]);
       const keys = blobs.map((x) => x.key).filter((k) => Number(k.slice(pre.length, pre.length + 13)) >= since).sort();
       const evs = (await Promise.all(keys.map(async (k) => ({ key: k.slice(pre.length), ...((await s.get(k, { type: "json" })) as object) })))) as { key: string; by: string }[];
       const cur = theirCur && now - theirCur.at < 4000 ? theirCur : null;
-      return json({ active: true, now, events: evs.filter((e) => e.by && e.by !== role), cur, view: theirView || null, np });
+      return json({ active: true, now, events: evs.filter((e) => e.by && e.by !== role), cur, view: theirView || null, np, snaps: mySnaps.blobs.length });
     }
 
     // shared chapter library: the teacher uploads each chapter PDF once; every device can download it
