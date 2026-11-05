@@ -222,15 +222,15 @@ export default async (req: Request, context: Context) => {
     const day = today();
     const oc: any = (await store.get("usage/day/" + day, { type: "json" })) || {};
     const done = ((oc.student || {}).ocrN || 0) + ((oc.teacher || {}).ocrN || 0);
-    if (done >= 120) return fail(429, "Enough scanned pages for today. Add the rest tomorrow.");
+    if (done >= 300) return fail(429, "Enough scanned pages for today (300). Add the rest tomorrow.");
     try {
       const r = await ask({
-        system: "You transcribe pages of CBSE Class 10 exam papers. Write out only the English text of the page, in reading order. Leave out any Hindi. Keep question numbers, (a)/(b), OR, MCQ options and the marks shown at the end of a question. Write maths in plain text (x², √3, 3/4, θ, π, ≤). For a figure, write [Figure: short description]. No comments of your own.",
+        system: "You transcribe pages of CBSE Class 10 exam papers. Write out only the English text of the page, in reading order. Leave out any Hindi. Keep question numbers, (a)/(b), OR, MCQ options and the marks shown at the end of a question. Write maths in plain text (x², √3, 3/4, θ, π, ≤). For a figure, write [Figure: short description]. No comments of your own. If the page has no English text (a Hindi-only page), reply with just a single dash: -",
         content: [{ type: "image", source: { type: "base64", media_type: "image/jpeg", data } }, { type: "text", text: "Transcribe this page." }],
         maxTokens: 4000, models: ["claude-sonnet-5-5", "claude-opus-5-5"], effort: "low",
       });
       context.waitUntil(addCost(store, teacher ? "teacher" : "student", r.usd, "ocr"));
-      return json({ text: r.text });
+      return json({ text: r.text.trim() === "-" ? "" : r.text });
     } catch (e) {
       console.error("ocr", e);
       return fail(502, "Could not read that page. Try again.");
