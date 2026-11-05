@@ -328,6 +328,9 @@ body.t-select #pages .page { cursor: crosshair; }
 .tasks li input { width: 20px; height: 20px; flex: none; accent-color: #0ca678; }
 .tasks li.done span:not(.chip) { text-decoration: line-through; opacity: .6; }
 .tasks .chip { flex: none; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: rgba(36,87,214,.1); }
+.daysoff .lvd { flex: none; font-weight: 600; min-width: 92px; }
+.daysoff .lvn { flex: 1; min-width: 0; }
+.planadd.leaveadd { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 2fr) auto; }
 .planadd { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, .9fr) auto; gap: 8px; align-items: center; }
 @media (max-width: 720px) { .planadd { grid-template-columns: 1fr 1fr; } .planadd input { grid-column: 1 / -1; } }
 .sycols { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
@@ -4098,8 +4101,9 @@ function studyNudges() {
   const hrs = Math.floor(STUDY.today / 3600);
   if (hrs > STUDY.hc) {
     STUDY.hc = hrs; studySave();
-    const goal = goalHours();
-    if (hrs >= goal + 2) nudge('🏆 ' + hrs + ' hours today! Amazing effort. Rest your eyes and get some fresh air too 🌳');
+    const goal = dayGoal(istDayC(0));
+    if (!goal) nudge('🏆 Studying on your day off? Legend! Do not forget to enjoy it too 🎉');
+    else if (hrs >= goal + 2) nudge('🏆 ' + hrs + ' hours today! Amazing effort. Rest your eyes and get some fresh air too 🌳');
     else if (hrs >= goal) { confetti(); nudge('🎯 You reached today’s goal of ' + goal + ' hours! Papa will be proud 🌟'); }
     else nudge(pick(['🌟 ' + hrs + (hrs === 1 ? ' hour' : ' hours') + ' of study today. Well done, Tanish!', '🔥 ' + hrs + (hrs === 1 ? ' hour' : ' hours') + ' done! You are on a roll.', '💪 ' + hrs + (hrs === 1 ? ' hour' : ' hours') + ' today. Keep going, champ!']));
   }
@@ -4110,20 +4114,23 @@ async function dailyNudges() {
   const d = PLAN.data; if (!d) return;
   const today = istDayC(0), tasks = (dayRec(today).plan || {}).tasks || [];
   const openPlan = () => openHw(null, 'plan');
+  const off = leaveOf(today);
+  if (off && off.full) { if (STUDY.pn !== today) { STUDY.pn = today; studySave(); nudge('🎉 Enjoy your day off! I moved today’s work to the other days. See you tomorrow 👋'); } return; }
   if (!tasks.length && STUDY.pn !== today && istHour() >= 6 && istHour() < 20) {
     STUDY.pn = today; studySave();
     nudge('📝 Plan your day first! What will you finish today? Tap me.', 'Plan my day', () => { PLAN.tab = 0; openPlan(); }, 15000); return;
   }
-  if (istHour() >= 20 && STUDY.en !== today && !(((dayRec(istDayC(1)).plan || {}).tasks || []).length)) {
+  if (istHour() >= 20 && STUDY.en !== today && !(((dayRec(istDayC(1)).plan || {}).tasks || []).length) && !(leaveOf(istDayC(1)) || {}).full) {
     STUDY.en = today; studySave();
     nudge('🌙 Plan tomorrow before you sleep. Future-you will thank you! Tap me.', 'Plan tomorrow', () => { PLAN.tab = 1; openPlan(); }, 15000); return;
   }
   const p = paceInfo();
   if (p && p.daysLeft != null && STUDY.pc !== today && STUDY.today > 600) {
     STUDY.pc = today; studySave();
-    nudge(p.behind >= 1 ? '⏩ Speed up! You are ' + p.behind + (p.behind === 1 ? ' chapter' : ' chapters') + ' behind the plan, with ' + p.daysLeft + ' days left at home.'
+    const back = leaveOf(istDayC(-1)) ? 'Welcome back! 🔄 Plan revised: ' + p.studyDays + ' study days left. ' : '';
+    nudge(back + (p.behind >= 1 ? '⏩ Speed up! You are ' + p.behind + (p.behind === 1 ? ' chapter' : ' chapters') + ' behind the plan, with ' + p.daysLeft + ' days left at home.'
       : p.ahead >= 1 ? '🚀 You are ' + p.ahead + (p.ahead === 1 ? ' chapter' : ' chapters') + ' ahead of the plan. Brilliant!'
-        : '✅ Right on track with the syllabus. ' + p.daysLeft + ' days left at home.', 'Open planner', openPlan, 12000);
+        : '✅ Right on track with the syllabus. ' + p.daysLeft + ' days left at home.'), 'Open planner', openPlan, 12000);
   }
 }
 
@@ -4198,6 +4205,14 @@ function showPlan() {
   loadPlan();
   HW.chatTimer = setInterval(() => { if (!hwEl.hidden && HW.view === 'plan' && document.visibilityState === 'visible' && !typingInHw()) loadPlan(true); }, 60000);
 }
+function leaveOf(date) { return ((PLAN.data && PLAN.data.leave) || {})[date] || null; }
+function dayGoal(date) { const g = goalHours(), l = leaveOf(date); return !l ? g : l.full ? 0 : Math.max(0, g - (l.hours || 0)); }
+const addDays = (date, n) => new Date(Date.parse(date + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10);
+function availHours(from, to) { // planned study hours from one date up to (not including) another, days off taken out
+  let h = 0, n = 0, i = 0;
+  for (let d = from; d < to && i < 500; d = addDays(d, 1), i++) { const g = dayGoal(d); h += g; if (g > 0) n++; }
+  return { h, n };
+}
 function paceInfo() {
   const d = PLAN.data; if (!d) return null;
   const st = d.settings || {}, syl = d.syllabus || {};
@@ -4205,14 +4220,33 @@ function paceInfo() {
   for (const sub of ['maths', 'science']) CATALOG[sub].forEach((_, i) => { total++; const s = ((syl[sub] || {})[i + 1] || {}).status; if (s === 'done' || s === 'revised') done++; else if (s === 'doing') doing++; });
   const out = { total, done, doing, daysLeft: null, behind: 0, ahead: 0, expected: null };
   if (!st.backDate) return out;
-  const DAY = 86400000, now = Date.parse(istDayC(0)), t1 = Date.parse(st.backDate), t0 = Date.parse(st.startDate || istDayC(0));
-  out.daysLeft = Math.max(0, Math.round((t1 - now) / DAY));
-  const span = Math.max(1, (t1 - t0) / DAY), base = Math.min(total, st.baseDone || 0);
-  out.expected = Math.min(total, base + (total - base) * Math.min(1, Math.max(0, (now - t0) / DAY) / span));
+  const today = istDayC(0), back = st.backDate, start = st.startDate || today;
+  out.daysLeft = Math.max(0, Math.round((Date.parse(back) - Date.parse(today)) / 86400000));
+  // the plan spreads the chapters over planned study hours, so a day off moves work to the other days instead of making him "behind"
+  const H = availHours(start, back).h, E = today > start ? availHours(start, today).h : 0;
+  const base = Math.min(total, st.baseDone || 0);
+  out.expected = Math.min(total, base + (total - base) * Math.min(1, H > 0 ? E / H : 1));
   const diff = out.expected - done;
   out.behind = diff >= 1 ? Math.floor(diff) : 0; out.ahead = diff <= -1 ? Math.floor(-diff) : 0;
-  out.perDay = out.daysLeft ? (total - done) / out.daysLeft : total - done;
+  const studied = tracking() ? STUDY.today : ((dayRec(today).study || {}).secs || 0);
+  const todayLeft = today < back ? Math.max(0, dayGoal(today) - studied / 3600) : 0;
+  const rest = availHours(addDays(today, 1), back);
+  out.hoursLeft = todayLeft + rest.h;
+  out.studyDays = (today < back && dayGoal(today) > 0 ? 1 : 0) + rest.n;
+  let off = 0, offH = 0;
+  for (const [dt, l] of Object.entries(d.leave || {})) if (dt >= today && dt < back) { if (l.full) off++; else offH += l.hours || 0; }
+  out.offDays = off; out.offHours = offH;
+  const remaining = total - done;
+  out.hoursPerChapter = remaining ? out.hoursLeft / remaining : 0;
+  out.perStudyDay = out.studyDays ? remaining / out.studyDays : remaining;
   return out;
+}
+async function setLeave(date, rec) {
+  const lv = PLAN.data.leave = PLAN.data.leave || {};
+  if (rec) lv[date] = Object.assign({ by: HW.role === 'teacher' ? 'teacher' : 'student' }, rec); else delete lv[date];
+  renderHw(true);
+  try { const r = await api('plan/leave', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(Object.assign({ date }, rec || { remove: true })) }); PLAN.data.leave = r.leave; if (!hwEl.hidden && HW.view === 'plan') renderHw(true); }
+  catch (e) { hwSay(e.message, true); }
 }
 async function savePlanDay(date, tasks) {
   const rec = PLAN.data.days[date] = PLAN.data.days[date] || {};
@@ -4229,11 +4263,12 @@ async function setChapter(sub, ch, status) {
   try { const r = await api('plan/chapter', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ subject: sub, ch, status }) }); PLAN.data.syllabus = r.syllabus; }
   catch (e) { hwSay(e.message, true); }
 }
-function suggestTasks() { // next chapters in the syllabus, Maths and Science in turn, to fill about Papa's daily goal
+function suggestTasks(date) { // next chapters in the syllabus, Maths and Science in turn, to fill about Papa's daily goal
   const syl = (PLAN.data && PLAN.data.syllabus) || {}, st = (s, i) => ((syl[s] || {})[i] || {}).status || 'todo';
   const next = (s) => { const ix = CATALOG[s].map((_, i) => i + 1); return ix.filter((i) => st(s, i) === 'doing').concat(ix.filter((i) => st(s, i) === 'todo')); };
   const m = next('maths'), sc = next('science'), out = [];
-  let mins = Math.round(goalHours() * 60);
+  let mins = Math.round((date ? dayGoal(date) : goalHours()) * 60);
+  if (mins <= 0) return [];
   const add = (subject, ch, what, n) => { if (ch && mins > 0) { out.push({ id: Math.random().toString(36).slice(2, 10), text: SUBJECT_NAMES[subject] + ' Ch ' + ch + ' ' + CATALOG[subject][ch - 1] + ': ' + what, subject, ch, mins: n, done: false }); mins -= n; } };
   add('maths', m[0], st('maths', m[0]) === 'doing' ? 'finish the exercises' : 'read the chapter and solve the examples', 60);
   add('science', sc[0], st('science', sc[0]) === 'doing' ? 'finish in-text and back exercise questions' : 'read the chapter and make notes', 60);
@@ -4245,12 +4280,12 @@ function suggestTasks() { // next chapters in the syllabus, Maths and Science in
 
 /* views */
 function studyNowCard() {
-  const goal = goalHours(), secs = tracking() ? STUDY.today : ((dayRec(istDayC(0)).study || {}).secs || 0);
-  const st = dayRec(istDayC(0)).study || {};
+  const goal = dayGoal(istDayC(0)), secs = tracking() ? STUDY.today : ((dayRec(istDayC(0)).study || {}).secs || 0);
+  const st = dayRec(istDayC(0)).study || {}, lv = leaveOf(istDayC(0));
   const card = h('div', { class: 'hwcard studynow' });
-  const pct = Math.min(1, secs / (goal * 3600));
-  card.append(h('b', null, (HW.role === 'teacher' ? '⏱️ Tanish today: ' : '⏱️ You today: ') + fmtMins(secs) + ' of ' + goal + ' h'),
-    usageBar(Math.round(secs / 60), goal * 60, 'q'));
+  card.append(...[h('b', null, (HW.role === 'teacher' ? '⏱️ Tanish today: ' : '⏱️ You today: ') + fmtMins(secs) + (goal ? ' of ' + goal + ' h' : '')),
+    lv ? h('p', { class: 'meta' }, lv.full ? '🏖️ Day off today' + (lv.note ? ' (' + lv.note + ')' : '') + '. Enjoy! 🎉' : '🏖️ ' + lv.hours + ' h off today' + (lv.note ? ' (' + lv.note + ')' : '') + ', so today’s goal is ' + goal + ' h.') : null,
+    usageBar(Math.round(secs / 60), Math.max(1, goal * 60), 'q')].filter(Boolean));
   const facts = [];
   const pomos = tracking() ? Math.max(POMO.n, st.pomos || 0) : (st.pomos || 0);
   facts.push('🍅 ' + pomos + (pomos === 1 ? ' Pomodoro' : ' Pomodoros'));
@@ -4279,7 +4314,8 @@ function planView() {
     hero.append(h('p', null, h('b', null, p.done + ' of ' + p.total + ' chapters done'), p.doing ? ' · ' + p.doing + ' in progress' : ''), bar,
       h('p', { class: 'pacemsg ' + (p.behind ? 'behind' : 'ok') }, p.behind ? '⏩ ' + p.behind + (p.behind === 1 ? ' chapter' : ' chapters') + ' behind the plan. Speed up a little!'
         : p.ahead ? '🚀 ' + p.ahead + (p.ahead === 1 ? ' chapter' : ' chapters') + ' ahead of the plan!' : '✅ On track.',
-        p.daysLeft ? ' To finish: about ' + (p.perDay >= 1 ? p.perDay.toFixed(1) + ' chapters a day.' : '1 chapter every ' + (1 / Math.max(p.perDay, 0.01)).toFixed(1) + ' days.') : ''));
+        p.studyDays && p.total > p.done ? ' To finish: ' + (p.perStudyDay >= 1 ? 'about ' + p.perStudyDay.toFixed(1) + ' chapters a study day' : 'about 1 chapter every ' + (1 / Math.max(p.perStudyDay, 0.01)).toFixed(1) + ' study days') + ' (≈ ' + p.hoursPerChapter.toFixed(1) + ' h each).' : ''),
+      h('p', { class: 'meta' }, '📚 ' + p.studyDays + (p.studyDays === 1 ? ' study day' : ' study days') + ' left' + (p.offDays ? ' · 🏖️ ' + p.offDays + (p.offDays === 1 ? ' day off' : ' days off') : '') + (p.offHours ? ' · ' + p.offHours + ' h off' : '') + ' · ≈ ' + Math.round(p.hoursLeft) + ' hours of study at ' + goalHours() + ' h a day'));
   } else {
     hero.append(h('b', null, '📅 Back-to-school date not set'), h('p', { class: 'meta' }, teacher ? 'Set it below, so Study Board can pace the syllabus and nudge Tanish.' : 'Ask Papa to set the date you go back to school. Then I will pace the syllabus for you.'));
   }
@@ -4290,7 +4326,7 @@ function planView() {
   const card = h('div', { class: 'hwcard dayplan' });
   card.append(h('div', { class: 'papatabs' }, ...['📝 Today’s plan', '🌙 Tomorrow'].map((t, i) => h('button', { class: 'tb' + (PLAN.tab === i ? ' on' : ''), type: 'button', onclick: () => { PLAN.tab = i; renderHw(true); } }, t))));
   const planned = tasks.reduce((a, t) => a + t.mins, 0), doneN = tasks.filter((t) => t.done).length;
-  if (tasks.length) card.append(h('p', { class: 'meta' }, doneN + ' of ' + tasks.length + ' done · ' + fmtMins(planned * 60) + ' planned' + (planned < goalHours() * 60 * 0.75 ? ' (Papa’s goal is ' + goalHours() + ' h)' : '')));
+  if (tasks.length) card.append(h('p', { class: 'meta' }, doneN + ' of ' + tasks.length + ' done · ' + fmtMins(planned * 60) + ' planned' + (planned < dayGoal(date) * 60 * 0.75 ? ' (goal for the day: ' + dayGoal(date) + ' h)' : '')));
   else card.append(h('p', { class: 'meta' }, PLAN.tab ? 'Plan tomorrow tonight, so you can start straight away in the morning.' : 'Plan the day first: what will you finish today?'));
   const list = h('ul', { class: 'tasks' });
   tasks.forEach((t, i) => {
@@ -4321,7 +4357,11 @@ function planView() {
     savePlanDay(date, tasks);
   });
   card.append(form);
-  card.append(h('div', { class: 'hwacts' }, h('button', { class: 'tb', type: 'button', onclick: () => { const s = suggestTasks(); if (!s.length) { toast('Every chapter is done. Plan revision and practice papers! 🎉'); return; } savePlanDay(date, tasks.concat(s)); } }, '✨ Suggest a plan from the syllabus')));
+  const lvd = leaveOf(date);
+  card.append(h('div', { class: 'hwacts' },
+    lvd && lvd.full ? h('button', { class: 'tb', type: 'button', onclick: () => setLeave(date, null) }, '↩️ Not a day off after all')
+      : h('button', { class: 'tb', type: 'button', onclick: () => setLeave(date, { full: true, note: '' }) }, PLAN.tab ? '🏖️ Taking tomorrow off' : '🏖️ Taking today off'),
+    h('button', { class: 'tb', type: 'button', onclick: () => { const s = suggestTasks(date); if (!s.length) { toast(leaveOf(date) && leaveOf(date).full ? 'That is a day off. Enjoy it! 🎉' : 'Every chapter is done. Plan revision and practice papers! 🎉'); return; } savePlanDay(date, tasks.concat(s)); } }, '✨ Suggest a plan from the syllabus')));
   wrap.append(card);
   // syllabus
   const syl = d.syllabus || {}, LABEL = { todo: '⬜ Not started', doing: '📖 Learning', done: '✅ Done', revised: '⭐ Revised' }, NEXT = { todo: 'doing', doing: 'done', done: 'revised', revised: 'todo' };
@@ -4345,15 +4385,33 @@ function planView() {
   const days = [-6, -5, -4, -3, -2, -1, 0].map((o) => { const dt = istDayC(o), r = dayRec(dt), secs = o === 0 && tracking() ? STUDY.today : ((r.study || {}).secs || 0); const ts = (r.plan || {}).tasks || []; max = Math.max(max, secs / 3600); return { dt, secs, ts, pomos: (r.study || {}).pomos || 0 }; });
   for (const x of days) {
     const hcol = h('div', { class: 'wcol', title: fmtMins(x.secs) + (x.ts.length ? ', plan ' + x.ts.filter((t) => t.done).length + '/' + x.ts.length : '') });
-    const bar = h('div', { class: 'wbar' + (x.secs >= goal * 3600 ? ' hit' : '') }); bar.style.height = Math.max(2, x.secs / 3600 / max * 100) + '%';
-    const gl = h('i', { class: 'wgoal' }); gl.style.bottom = (goal / max * 100) + '%';
+    const bar = h('div', { class: 'wbar' + (x.secs >= dayGoal(x.dt) * 3600 && x.secs ? ' hit' : '') }); bar.style.height = Math.max(2, x.secs / 3600 / max * 100) + '%';
+    const dg = dayGoal(x.dt), gl = h('i', { class: 'wgoal' }); gl.style.bottom = (dg / max * 100) + '%'; if (!dg) gl.hidden = true;
     hcol.append(h('span', { class: 'wv' }, x.secs ? (x.secs / 3600).toFixed(1) + 'h' : ''), h('div', { class: 'wbox' }, bar, gl),
       h('span', { class: 'wd' }, new Date(x.dt + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short' })),
-      h('span', { class: 'wp' }, x.ts.length ? x.ts.filter((t) => t.done).length + '/' + x.ts.length + ' ✓' : ''));
+      h('span', { class: 'wp' }, leaveOf(x.dt) ? '🏖️' : x.ts.length ? x.ts.filter((t) => t.done).length + '/' + x.ts.length + ' ✓' : ''));
     chart.append(hcol);
   }
-  week.append(chart, h('p', { class: 'meta' }, 'Bars: hours of study (dashed line: daily goal). Under each day: plan items done.'));
+  week.append(chart, h('p', { class: 'meta' }, 'Bars: hours of study (dashed line: goal for the day). Under each day: plan items done, or 🏖️ for time off.'));
   wrap.append(week);
+  // days off
+  const lvAll = Object.entries(d.leave || {}).filter(([dt]) => dt >= istDayC(-7)).sort(([a], [b]) => a.localeCompare(b));
+  const offc = h('div', { class: 'hwcard daysoff' }, h('b', null, '🏖️ Days off'),
+    h('p', { class: 'meta' }, 'Going out, a family function, a trip? Mark it here. Those hours come off the study time left and the plan spreads the chapters over the other days.'));
+  const ol = h('ul', { class: 'tasks' });
+  for (const [dt, l] of lvAll) {
+    ol.append(h('li', null, h('span', { class: 'lvd' }, new Date(dt + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })),
+      h('span', { class: 'lvn' }, (l.full ? 'Whole day' : l.hours + ' h') + (l.note ? ' · ' + l.note : '') + ' · ' + (l.by === 'teacher' ? 'Papa' : 'Tanish')),
+      h('button', { class: 'linkbtn', type: 'button', 'aria-label': 'Remove', onclick: () => setLeave(dt, null) }, '✕')));
+  }
+  if (lvAll.length) offc.append(ol);
+  const ld = h('input', { class: 'hwinput', type: 'date', value: istDayC(0), 'aria-label': 'Date' });
+  const lk = h('select', { class: 'hwinput', 'aria-label': 'How long' }, h('option', { value: 'full' }, 'Whole day'), ...[1, 2, 3, 4, 5, 6].map((n) => h('option', { value: String(n) }, n + (n === 1 ? ' hour' : ' hours'))));
+  const ln = h('input', { class: 'hwinput', maxlength: '80', placeholder: 'e.g. Mall with friends' });
+  const lf = h('form', { class: 'planadd leaveadd' }, ld, lk, ln, h('button', { class: 'hwbtn', type: 'submit' }, 'Add'));
+  lf.addEventListener('submit', (ev) => { ev.preventDefault(); if (!ld.value) return; document.activeElement && document.activeElement.blur && document.activeElement.blur(); setLeave(ld.value, lk.value === 'full' ? { full: true, note: ln.value.trim() } : { full: false, hours: Number(lk.value), note: ln.value.trim() }); });
+  offc.append(lf);
+  wrap.append(offc);
   // Papa's settings
   if (teacher) {
     const back = h('input', { class: 'hwinput', type: 'date', value: st.backDate || '' });

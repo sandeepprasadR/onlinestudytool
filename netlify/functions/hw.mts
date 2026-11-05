@@ -403,13 +403,13 @@ export default async (req: Request, context: Context) => {
     // ---- planner: back-to-school date, chapter progress, day plans, and Tanish's study time ----
     if (req.method === "GET" && action === "plan") {
       const days = [-13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 0, 1].map(istDay);
-      const [settings, syllabus, ...rest] = await Promise.all([
-        s.get("plan/settings", { type: "json" }), s.get("plan/syllabus", { type: "json" }),
+      const [settings, syllabus, leave, ...rest] = await Promise.all([
+        s.get("plan/settings", { type: "json" }), s.get("plan/syllabus", { type: "json" }), s.get("plan/leave", { type: "json" }),
         ...days.map((d) => s.get("plan/day/" + d, { type: "json" })), ...days.map((d) => s.get("study/" + d, { type: "json" })),
       ]);
       const out: Record<string, unknown> = {};
       days.forEach((d, i) => { out[d] = { plan: rest[i] || null, study: rest[days.length + i] || null }; });
-      return json({ today: istDay(0), settings: settings || {}, syllabus: syllabus || {}, days: out });
+      return json({ today: istDay(0), settings: settings || {}, syllabus: syllabus || {}, leave: leave || {}, days: out });
     }
 
     if (req.method === "POST" && action === "plan" && id === "settings") {
@@ -420,6 +420,19 @@ export default async (req: Request, context: Context) => {
       const settings = { backDate: date(b.backDate), startDate: date(b.startDate) || istDay(0), goalHours: goal, baseDone: Math.min(60, Math.max(0, Math.round(Number(b.baseDone) || 0))), at: Date.now() };
       await s.setJSON("plan/settings", settings);
       return json({ settings });
+    }
+
+    // days or hours off (an outing, a family function): taken out of the study time left, so the plan stretches
+    if (req.method === "POST" && action === "plan" && id === "leave") {
+      const b = await req.json();
+      const date = String(b.date || "");
+      const ok = /^\d{4}-\d{2}-\d{2}$/.test(date) && date >= istDay(-31) && date <= istDay(200);
+      if (!ok) return fail(400, "Pick a date from the last month up to the back-to-school date.");
+      const leave = ((await s.get("plan/leave", { type: "json" })) || {}) as Record<string, unknown>;
+      if (b.remove) delete leave[date];
+      else leave[date] = { full: !!b.full, hours: b.full ? 0 : Math.min(12, Math.max(0.5, Number(b.hours) || 2)), note: clean(b.note, 80), by: teacher ? "teacher" : "student", at: Date.now() };
+      await s.setJSON("plan/leave", leave);
+      return json({ leave });
     }
 
     if (req.method === "POST" && action === "plan" && id === "chapter") {
