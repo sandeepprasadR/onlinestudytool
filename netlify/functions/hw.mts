@@ -81,6 +81,28 @@ export default async (req: Request, context: Context) => {
   const classCode = Netlify.env.get("CLASS_CODE") || "";
   const teacherPin = Netlify.env.get("TEACHER_PIN") || "";
   if (!classCode || !teacherPin) return fail(500, "The class code is not set up on the server yet.");
+  // a phone that scanned the board's QR code may send photos with that code's token, without signing in
+  const snapToken = clean(req.headers.get("x-snap-token"), 40);
+  if (snapToken && req.method === "POST" && /\/api\/hw\/snap\/?$/.test(new URL(req.url).pathname)) {
+    try {
+      const st = store();
+      const tok = (await st.get("snaptok/" + snapToken, { type: "json" })) as { exp: number; n: number } | null;
+      if (!/^[a-z0-9]{16,40}$/.test(snapToken) || !tok || tok.exp < Date.now()) return fail(403, "This QR code has expired. Ask for a new one on the board.");
+      if (tok.n >= 30) return fail(429, "Enough photos from this QR code. Ask for a new one.");
+      const form = await req.formData();
+      const f = await readFile(form);
+      if (!f || !/^image\//.test(f.meta.type)) return fail(400, "Send a photo.");
+      const iid = newId();
+      tok.n++;
+      await Promise.all([st.set("img/" + iid, f.data, { metadata: { type: f.meta.type } }), st.setJSON("snapmeta/tok/" + snapToken + "/" + iid, { id: iid, at: Date.now() }), st.setJSON("snaptok/" + snapToken, tok)]);
+      return json({ id: iid });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "";
+      if (msg === "too_big") return fail(413, "The photo is too large.");
+      if (msg === "bad_type") return fail(415, "That kind of file cannot be sent here.");
+      return fail(500, "Could not send. Try again.");
+    }
+  }
   if (!same(req.headers.get("x-class-code") || "", classCode)) return fail(401, "Wrong class code.");
   const teacher = same(req.headers.get("x-teacher-pin") || "", teacherPin);
 
@@ -219,16 +241,24 @@ export default async (req: Request, context: Context) => {
       return json({ id: iid });
     }
 
+    if (req.method === "POST" && action === "snaptoken") {
+      const token = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(36).padStart(2, "0")).join("").slice(0, 24);
+      await s.setJSON("snaptok/" + token, { exp: Date.now() + 30 * 60000, n: 0 });
+      return json({ token, minutes: 30 });
+    }
+
     if (req.method === "GET" && action === "snaps") {
       const role = teacher ? "teacher" : "student";
-      const { blobs } = await s.list({ prefix: "snapmeta/" + role + "/" });
+      const tk = clean(new URL(req.url).searchParams.get("token"), 40);
+      const { blobs } = await s.list({ prefix: tk ? "snapmeta/tok/" + tk + "/" : "snapmeta/" + role + "/" });
       const now = Date.now();
       const snaps = (await Promise.all(blobs.map((b) => s.get(b.key, { type: "json" })))).filter((x: any) => x && now - x.at < 30 * 60000);
       return json({ snaps });
     }
 
     if (req.method === "DELETE" && action === "snap" && id) {
-      await s.delete("snapmeta/" + (teacher ? "teacher" : "student") + "/" + clean(id, 30));
+      const tk = clean(new URL(req.url).searchParams.get("token"), 40);
+      await s.delete((tk ? "snapmeta/tok/" + tk : "snapmeta/" + (teacher ? "teacher" : "student")) + "/" + clean(id, 30));
       return json({ ok: true });
     }
 

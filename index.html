@@ -223,6 +223,12 @@ textarea.hwinput { resize: vertical; }
 .livepill .dot.bad { background: #f5a623; }
 @keyframes livedot { 50% { opacity: .35; } }
 .livepill button { border: 0; border-radius: 999px; padding: 4px 10px; background: rgba(255,255,255,.18); color: #fff; font: inherit; cursor: pointer; }
+.qrview { position: fixed; inset: 0; z-index: 75; background: rgba(10,14,20,.55); display: grid; place-items: center; padding: 16px; }
+.qrcard { background: var(--ui-panel); color: var(--ui-fg); border-radius: 14px; padding: 18px 20px; max-width: 360px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,.3); }
+.qrcard h3 { margin: 0 0 10px; }
+.qrcard p { font-size: 15px; line-height: 1.45; }
+.qrpic { background: #fff; padding: 8px; border-radius: 8px; width: 240px; height: 240px; margin: 0 auto; }
+.qrpic svg { width: 100%; height: 100%; display: block; }
 .snapview { position: fixed; inset: 0; z-index: 80; background: var(--ui-bg); color: var(--ui-fg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 24px; text-align: center; }
 .snapview .big { font-size: 20px; padding: 18px 28px; }
 .snapmsg { max-width: 420px; font-size: 17px; line-height: 1.45; }
@@ -974,40 +980,61 @@ photoIn.addEventListener('change', async () => {
   } catch (e) { toast('Could not add the photo: ' + (e && e.message ? e.message : 'try again'), null, 8000); }
 });
 // photos snapped on the phone (same sign-in) are picked up here
-let snapWait = 0, snapBusy = false;
-async function checkSnaps() {
+let snapBusy = false;
+async function checkSnaps(token) {
   if (snapBusy || !HW.code) return;
   snapBusy = true;
+  const q = token ? '?token=' + token : '';
   try {
-    const r = await api('snaps');
+    const r = await api('snaps' + q);
     const list = (r.snaps || []).sort((a, b) => a.at - b.at);
     if (!list.length) return;
     const sn = list[list.length - 1];
-    await api('snap/' + sn.id, { method: 'DELETE' }).catch(() => {});
-    for (const old of list.slice(0, -1)) api('snap/' + old.id, { method: 'DELETE' }).catch(() => {});
+    await api('snap/' + sn.id + q, { method: 'DELETE' }).catch(() => {});
+    for (const old of list.slice(0, -1)) api('snap/' + old.id + q, { method: 'DELETE' }).catch(() => {});
+    const qr = document.querySelector('.qrview'); if (qr) qr.remove();
     const e = imgEl('img/' + sn.id);
     const im = await e.p;
     if (!im) throw new Error('the photo did not arrive');
-    snapWait = 0;
     PLACE = { src: 'img/' + sn.id, w: im.naturalWidth, h: im.naturalHeight };
-    toast('📷 Photo from your phone. Tap the page where it should go.', { label: 'Put it here', fn: () => { const pl = PLACE, spot = visibleSpot(); PLACE = null; if (pl && spot) placeImage(pl, spot.page, spot.x, spot.y); }, ms: 60000 });
+    toast('📷 Photo from ' + (token ? 'the phone' : 'your phone') + '. Tap the page where it should go.', { label: 'Put it here', fn: () => { const pl = PLACE, spot = visibleSpot(); PLACE = null; if (pl && spot) placeImage(pl, spot.page, spot.x, spot.y); }, ms: 60000 });
   } catch (e) { /* try again later */ }
   finally { snapBusy = false; }
 }
-function waitForPhoneSnap() {
-  if (!HW.code) { toast('Sign in under Homework first, on this device and on the phone.'); return; }
-  snapWait = Date.now() + 5 * 60000;
-  toast('Waiting for a photo from your phone. On the phone open Study Board, tap ⋯ → Snap a photo for my board.', null, 15000);
-  const tick = () => { if (Date.now() > snapWait) return; checkSnaps().finally(() => { if (snapWait && Date.now() < snapWait) setTimeout(tick, 3000); }); };
-  tick();
+// QR code: any phone can scan it and send a photo to this board, without signing in (30 minutes)
+let qrLib = null, QR = { token: '', until: 0, timer: 0 };
+function loadQrLib() {
+  if (!qrLib) qrLib = new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'vendor/qrcode.js'; sc.onload = () => res(window.qrcode); sc.onerror = () => { qrLib = null; rej(new Error('the QR maker did not load')); }; document.head.append(sc); });
+  return qrLib;
 }
-function showSnapScreen() { // on the phone
-  if (!HW.code) { openHw(); toast('Sign in first (same class code as on the laptop).', null, 6000); return; }
-  const status = h('p', { class: 'snapmsg' }, 'Point at the part of the book and take the photo. It goes to your board on the laptop.');
+async function showSnapQR() {
+  if (!HW.code) { toast('Sign in under Homework first.'); return; }
+  try {
+    const [make, r] = await Promise.all([loadQrLib(), QR.token && Date.now() < QR.until - 60000 ? Promise.resolve({ token: QR.token }) : api('snaptoken', { method: 'POST' })]);
+    if (r.token !== QR.token) { QR.token = r.token; QR.until = Date.now() + 30 * 60000; }
+    const url = location.origin + location.pathname + '#snap=' + QR.token;
+    const code = make(0, 'M'); code.addData(url); code.make();
+    const pic = h('div', { class: 'qrpic', html: code.createSvgTag({ cellSize: 6, margin: 2, scalable: true }) });
+    const box = h('div', { class: 'qrview', role: 'dialog', 'aria-label': 'QR code for a photo' },
+      h('div', { class: 'qrcard' },
+        h('h3', null, 'Scan to send a photo here'), pic,
+        h('p', null, 'Open the camera on any phone and point it at this code. Take the photo of the book; it appears on this board. The code works for 30 minutes.'),
+        h('button', { class: 'tb', type: 'button', onclick: () => box.remove() }, 'Close')));
+    box.addEventListener('click', (e) => { if (e.target === box) box.remove(); });
+    document.querySelectorAll('.qrview').forEach((x) => x.remove());
+    document.body.append(box);
+    clearTimeout(QR.timer);
+    const tick = () => { if (!QR.token || Date.now() > QR.until) return; checkSnaps(QR.token).finally(() => { QR.timer = setTimeout(tick, document.querySelector('.qrview') ? 2500 : 6000); }); };
+    tick();
+  } catch (e) { toast('Could not make the QR code: ' + (e && e.message ? e.message : 'try again'), null, 8000); }
+}
+function showSnapScreen(token) { // on the phone
+  if (!token && !HW.code) { openHw(); toast('Sign in first (same class code as on the laptop), or scan the QR code on the board.', null, 7000); return; }
+  const status = h('p', { class: 'snapmsg' }, 'Point at the part of the book and take the photo. It goes to ' + (token ? 'the board that showed the QR code.' : 'your board on the laptop.'));
   const cam = h('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: true });
-  const close = () => { box.remove(); if (location.hash === '#snap') { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} } };
+  const close = () => { box.remove(); if (/^#snap/.test(location.hash)) { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} } };
   const box = h('div', { class: 'snapview', role: 'dialog', 'aria-label': 'Snap a photo' },
-    h('h2', null, 'Snap a photo for my board'), status,
+    h('h2', null, token ? 'Send a photo to the board' : 'Snap a photo for my board'), status,
     h('button', { class: 'hwbtn big', type: 'button', onclick: () => cam.click() }, '📷 Take a photo'),
     h('button', { class: 'tb', type: 'button', onclick: close }, 'Close'), cam);
   cam.addEventListener('change', async () => {
@@ -1017,8 +1044,11 @@ function showSnapScreen() { // on the phone
     try {
       const { blob } = await shrinkPhoto(f, 1800);
       const fd = new FormData(); fd.append('file', new File([blob], 'snap.jpg', { type: 'image/jpeg' }));
-      await api('snap', { method: 'POST', body: fd });
-      status.textContent = '✓ Sent. On the laptop, tap the page where it should go. Take another if you need.';
+      if (token) {
+        const r = await fetch('api/hw/snap', { method: 'POST', headers: { 'x-snap-token': token }, body: fd, cache: 'no-store' });
+        if (!r.ok) { let m = 'Could not send (' + r.status + ').'; try { m = (await r.json()).error || m; } catch (e) {} throw new Error(m); }
+      } else await api('snap', { method: 'POST', body: fd });
+      status.textContent = '✓ Sent. On the board, tap the page where it should go. Take another if you need.';
     } catch (e) { status.textContent = 'Could not send: ' + (e && e.message ? e.message : 'try again'); }
   });
   document.body.append(box);
@@ -2228,7 +2258,7 @@ $('#bMore').addEventListener('click', (e) => openPop(e.currentTarget, (pop) => {
   pop.append(h('button', { class: 'pi', html: ICON.help + '<span>How to share this screen</span>', onclick: () => showShareHelp($('#bMore')) }));
   if (nb) pop.append(h('button', { class: 'pi', html: ICON.image + '<span>Insert a photo on this page</span>', onclick: () => { closePop(); photoIn.click(); } }));
   if (HW.code) {
-    pop.append(h('button', { class: 'pi', html: ICON.image + '<span>Get a photo from my phone</span>', onclick: () => { closePop(); waitForPhoneSnap(); } }));
+    pop.append(h('button', { class: 'pi', html: ICON.image + '<span>Get a photo from a phone (QR code)</span>', onclick: () => { closePop(); showSnapQR(); } }));
     pop.append(h('button', { class: 'pi', html: ICON.image + '<span>Snap a photo for my board (on the phone)</span>', onclick: () => { closePop(); showSnapScreen(); } }));
   }
   if (nb && nb.hw) pop.append(h('button', { class: 'pi on', html: ICON.school + '<span>Return marked homework to Tanish</span>', onclick: () => { closePop(); openHw(nb.hw.id); } }));
@@ -3540,8 +3570,8 @@ async function init() {
   if (location.hash === '#homework') openHw();
   if (location.hash === '#chat') openHw(null, 'chat');
   if (location.hash === '#tutor') openHw(null, 'tutor');
-  if (location.hash === '#snap') showSnapScreen();
-  window.addEventListener('hashchange', () => { if (location.hash === '#homework') openHw(); if (location.hash === '#chat') openHw(null, 'chat'); if (location.hash === '#snap' && !document.querySelector('.snapview')) showSnapScreen(); });
+  if (/^#snap/.test(location.hash)) showSnapScreen((location.hash.match(/^#snap=([a-z0-9]+)/) || [])[1]);
+  window.addEventListener('hashchange', () => { if (location.hash === '#homework') openHw(); if (location.hash === '#chat') openHw(null, 'chat'); if (/^#snap/.test(location.hash) && !document.querySelector('.snapview')) showSnapScreen((location.hash.match(/^#snap=([a-z0-9]+)/) || [])[1]); });
   if (!prefs.seenTip) {
     prefs.seenTip = true; savePrefs();
     setTimeout(() => toast('Write with Apple Pencil. Scroll with one finger, pinch with two to zoom.', null, 7000), 300);
