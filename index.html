@@ -93,6 +93,7 @@ button:focus-visible, input:focus-visible, label:focus-within { outline: 2px sol
 .sz span { display: block; border-radius: 50%; background: currentColor; }
 .dim { opacity: .45; }
 body.compact .x { display: none; }
+@media (max-width: 1300px) { .ib { width: 34px; } .sw { width: 25px; height: 25px; margin: 0 1px; } #nbName { width: 112px; } .grp { padding: 0 4px; } }
 
 /* Desk and pages */
 #scroller {
@@ -100,6 +101,12 @@ body.compact .x { display: none; }
   touch-action: pan-x pan-y; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
 }
 body.finger #scroller { touch-action: none; }
+body.t-hand #pages .page { cursor: grab; }
+body.t-hand.grabbing #pages .page { cursor: grabbing; }
+body.t-select #pages .page { cursor: crosshair; }
+.selbar { position: fixed; z-index: 55; display: flex; gap: 6px; padding: 5px; border-radius: 10px; background: #1f2630; box-shadow: 0 4px 14px rgba(0,0,0,.25); }
+.selbar[hidden] { display: none; }
+.selbar button { border: 0; border-radius: 7px; padding: 5px 10px; background: rgba(255,255,255,.14); color: #fff; font: inherit; font-size: 14px; }
 #pages { position: relative; padding: 16px 16px 40px; }
 .page {
   position: relative; margin: 0 auto 28px; background-color: #fff;
@@ -315,6 +322,8 @@ form.help .pi { justify-content: center; border: 1px solid var(--accent); }
     <button class="ib tool" data-tool="pen" title="Pen (P)" aria-label="Pen"><svg viewBox="0 0 24 24"><path d="M4 20l1.2-4.6L16.6 4a2 2 0 0 1 2.8 0l.6.6a2 2 0 0 1 0 2.8L8.6 18.8z"/><path d="M14.5 6l3.5 3.5"/></svg></button>
     <button class="ib tool" data-tool="hl" title="Highlighter (H)" aria-label="Highlighter"><svg viewBox="0 0 24 24"><path d="M8.5 14.5l7.8-9.8a1.8 1.8 0 0 1 2.6-.2l1 .9a1.8 1.8 0 0 1 .1 2.6l-8.6 9z"/><path d="M8.5 14.5l2.9 2.5-1.6 1.7H6.2l-.7-.6z"/><path d="M3 21h9"/></svg></button>
     <button class="ib tool" data-tool="eraser" title="Eraser (E)" aria-label="Eraser"><svg viewBox="0 0 24 24"><path d="M8.5 20H20"/><path d="M4.4 14.6l9.2-9.2a2 2 0 0 1 2.8 0l3.2 3.2a2 2 0 0 1 0 2.8L11 20H8.8l-4.4-4.4a.7.7 0 0 1 0-1z"/><path d="M9 10l5 5"/></svg></button>
+    <button class="ib tool" data-tool="select" id="bSelect" title="Select and move: tap again for lasso or rectangle (S)" aria-label="Select and move"><svg viewBox="0 0 24 24"><path d="M12 4c4.4 0 8 2.2 8 5s-3.6 5-8 5-8-2.2-8-5 3.6-5 8-5z" stroke-dasharray="2.6 2.4"/><path d="M7 13.5c-.8 1.6-.6 3.6 1 5.5"/><circle cx="8.3" cy="19.6" r="1.2"/></svg></button>
+    <button class="ib tool" data-tool="hand" title="Hand: drag to scroll the page" aria-label="Hand: scroll"><svg viewBox="0 0 24 24"><path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V11M11 10V4.5a1.5 1.5 0 0 1 3 0V11M14 10.5V6a1.5 1.5 0 0 1 3 0v7.5c0 4-2.5 7-6.2 7-2.6 0-4.1-1.3-5.4-3.4L3.6 14a1.5 1.5 0 0 1 2.5-1.6L8 15"/></svg></button>
     <button class="ib tool" data-tool="laser" title="Laser pointer (L)" aria-label="Laser pointer"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"/></svg></button>
     <button class="ib tool" data-tool="shape" id="bShape" title="Shapes: tap again to choose" aria-label="Shapes"></button>
     <button class="ib tool" data-tool="note" title="Pop-up note: tap a spot on the page (N)" aria-label="Pop-up note"><svg viewBox="0 0 24 24"><path d="M5 4h14v11l-5 5H5z"/><path d="M14 20v-5h5"/><path d="M8.5 8.5h7M8.5 12h4"/></svg></button>
@@ -415,7 +424,7 @@ function h(tag, attrs, ...kids) {
 /* ---------- preferences (per device) ---------- */
 const prefs = Object.assign({
   tool: 'pen', shape: 'line', penColor: PEN[0], hlColor: HL[0],
-  size: { pen: 1, hl: 1, eraser: 1 }, fingerDraw: false, compact: false, lastBg: 'graph', lastNb: null, seenTip: false
+  size: { pen: 1, hl: 1, eraser: 1 }, selMode: 'lasso', eraseMode: 'part', fingerDraw: false, compact: false, lastBg: 'graph', lastNb: null, seenTip: false
 }, (() => { try { return JSON.parse(localStorage.getItem('studyboard-prefs') || '{}'); } catch (e) { return {}; } })());
 function savePrefs() { try { localStorage.setItem('studyboard-prefs', JSON.stringify(prefs)); } catch (e) { /* storage blocked */ } }
 
@@ -589,7 +598,7 @@ function paint(v) {
   if (v.ink.width !== W || v.ink.height !== H) { v.ink.width = W; v.ink.height = H; }
   renderInk(v);
   if (v.bg) renderPdfBg(v, W, H);
-  if (live.view === v) sizeLive(v);
+  if (live.view === v) { sizeLive(v); requestDraw(); }
 }
 function renderInk(v) {
   if (!v.mounted) return;
@@ -731,6 +740,111 @@ function hit(s, x, y, r) {
   return false;
 }
 
+/* ---------- select and move (lasso or rectangle) ---------- */
+let sel = null; // { pid, strokes: [], box: [x0, y0, x1, y1] }
+const selBar = h('div', { class: 'selbar', hidden: true },
+  h('button', { type: 'button', onclick: () => deleteSel() }, 'Delete'),
+  h('button', { type: 'button', onclick: () => clearSel() }, 'Done'));
+document.body.append(selBar);
+function shiftStroke(s, dx, dy) {
+  const q = s.pts, step = (s.t === 'pen' || s.t === 'hl') ? 3 : 2;
+  for (let i = 0; i < q.length; i += step) { q[i] += dx; q[i + 1] += dy; }
+  bbCache.delete(s);
+  delete s.lid; // a moved stroke travels to the live page as new
+}
+function selBox(strokes) {
+  let b = [Infinity, Infinity, -Infinity, -Infinity];
+  for (const s of strokes) { const x = bbox(s).box; b = [Math.min(b[0], x[0]), Math.min(b[1], x[1]), Math.max(b[2], x[2]), Math.max(b[3], x[3])]; }
+  return b;
+}
+function inPoly(x, y, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 2; i < poly.length; j = i, i += 2) {
+    const xi = poly[i], yi = poly[i + 1], xj = poly[j], yj = poly[j + 1];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+function selPoly(a) {
+  if (prefs.selMode === 'rect') { const [x0, y0] = a.start, [x1, y1] = a.cur; return [x0, y0, x1, y0, x1, y1, x0, y1]; }
+  return a.path;
+}
+function selDown(v, x, y) {
+  const b = sel && sel.pid === v.p.id ? sel.box : null;
+  if (b && x > b[0] - 12 && x < b[2] + 12 && y > b[1] - 12 && y < b[3] + 12) {
+    Object.assign(act, { mode: 'move', last: [x, y], dx: 0, dy: 0 });
+    selBar.hidden = true;
+    return;
+  }
+  clearSel();
+  Object.assign(act, { mode: 'pick', start: [x, y], cur: [x, y], path: [x, y] });
+}
+function selMove(x, y) {
+  if (act.mode === 'move') {
+    const dx = x - act.last[0], dy = y - act.last[1];
+    act.last = [x, y]; act.dx += dx; act.dy += dy;
+    for (const s of sel.strokes) shiftStroke(s, dx, dy);
+    sel.box = [sel.box[0] + dx, sel.box[1] + dy, sel.box[2] + dx, sel.box[3] + dy];
+    renderInk(act.v);
+  } else {
+    act.cur = [x, y];
+    const q = act.path;
+    if (Math.hypot(x - q[q.length - 2], y - q[q.length - 1]) > 3) q.push(x, y);
+  }
+}
+function selUp(a) {
+  const v = a.v, p = v.p;
+  if (a.mode === 'move') {
+    if (Math.abs(a.dx) + Math.abs(a.dy) > 0.5) { pushUndo({ k: 'move', pid: p.id, strokes: sel.strokes.slice(), dx: a.dx, dy: a.dy }); dirty(); }
+    placeSelBar(v);
+    return;
+  }
+  const poly = selPoly(a);
+  if (poly.length < 6) return;
+  const picked = p.strokes.filter((s) => {
+    const q = bbox(s).q;
+    let n = 0, tot = 0;
+    for (let i = 0; i < q.length; i += 2) { tot++; if (inPoly(q[i], q[i + 1], poly)) n++; }
+    return tot && n / tot >= 0.6;
+  });
+  if (!picked.length) { toast('Nothing inside. Draw all the way round the writing.', null, 2500); return; }
+  sel = { pid: p.id, strokes: picked, box: selBox(picked) };
+  placeSelBar(v);
+}
+function placeSelBar(v) {
+  if (!sel || !v.mounted) { selBar.hidden = true; return; }
+  const r = v.el.getBoundingClientRect(), k = r.width / U;
+  selBar.style.left = Math.max(8, Math.min(window.innerWidth - 160, r.left + sel.box[0] * k)) + 'px';
+  selBar.style.top = Math.max(8, r.top + sel.box[1] * k - 44) + 'px';
+  selBar.hidden = false;
+}
+function clearSel() { if (!sel) return; sel = null; selBar.hidden = true; requestDraw(); }
+function deleteSel() {
+  if (!sel) return;
+  const p = findOwner(sel.pid);
+  if (p) {
+    const items = [];
+    for (let i = p.strokes.length - 1; i >= 0; i--) if (sel.strokes.includes(p.strokes[i])) { items.push({ s: p.strokes[i], i }); p.strokes.splice(i, 1); }
+    pushUndo({ k: 'erase', pid: p.id, items });
+    const v = views.get(p.id); if (v && v.mounted) renderInk(v);
+    dirty();
+  }
+  clearSel();
+}
+function drawSel(ctx, v) {
+  if (act && act.v === v && act.tool === 'select' && act.mode === 'pick') {
+    const poly = selPoly(act);
+    ctx.save(); ctx.setLineDash([6, 5]); ctx.lineWidth = 1.6; ctx.strokeStyle = '#1f6feb'; ctx.fillStyle = 'rgba(31,111,235,.06)';
+    ctx.beginPath(); ctx.moveTo(poly[0], poly[1]); for (let i = 2; i < poly.length; i += 2) ctx.lineTo(poly[i], poly[i + 1]); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
+  }
+  if (sel && sel.pid === v.p.id) {
+    const b = sel.box;
+    ctx.save(); ctx.setLineDash([7, 5]); ctx.lineWidth = 1.8; ctx.strokeStyle = '#1f6feb'; ctx.fillStyle = 'rgba(31,111,235,.07)';
+    ctx.fillRect(b[0], b[1], b[2] - b[0], b[3] - b[1]); ctx.strokeRect(b[0], b[1], b[2] - b[0], b[3] - b[1]); ctx.restore();
+  }
+}
+scroller.addEventListener('scroll', () => { if (sel && !selBar.hidden) { const v = views.get(sel.pid); if (v) placeSelBar(v); } }, { passive: true });
+
 /* ---------- live overlay (stroke in progress, eraser ring, laser) ---------- */
 const live = { cv: h('canvas', { class: 'live' }), view: null };
 function sizeLive(v) {
@@ -764,6 +878,7 @@ function drawLive() {
     }
   }
   if (laser.v === v && laser.pts.length) drawLaser(ctx);
+  drawSel(ctx, v);
 }
 
 /* laser pointer: a red trail that fades within a second, never saved */
@@ -837,8 +952,10 @@ function onInkDown(e) {
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   try { el.setPointerCapture(e.pointerId); } catch (err) {}
   act = { id: e.pointerId, v, rect: el.getBoundingClientRect(), tool: prefs.tool, type: e.pointerType };
+  if (act.tool === 'hand') { act.sx = e.clientX; act.sy = e.clientY; act.st = scroller.scrollTop; act.sl = scroller.scrollLeft; document.body.classList.add('grabbing'); return; }
   const [x, y] = toPage(e);
   attachLive(v);
+  if (act.tool === 'select') { selDown(v, x, y); requestDraw(); return; }
   if (act.tool === 'pen') {
     act.lp = pressure(e);
     act.s = { t: 'pen', c: prefs.penColor, w: SIZES.pen[prefs.size.pen], pts: [x, y, act.lp] };
@@ -848,7 +965,7 @@ function onInkDown(e) {
     act.start = [x, y];
     act.s = { t: prefs.shape, c: prefs.penColor, w: SIZES.pen[prefs.size.pen], pts: [x, y, x, y] };
   } else if (act.tool === 'eraser') {
-    act.removed = []; act.r = SIZES.eraser[prefs.size.eraser]; act.last = [x, y]; eraseAt(x, y);
+    act.removed = []; act.added = new Set(); act.r = SIZES.eraser[prefs.size.eraser]; act.last = [x, y]; eraseAt(x, y);
   } else if (act.tool === 'laser') {
     laserAdd(v, x, y);
   }
@@ -857,6 +974,7 @@ function onInkDown(e) {
 function onInkMove(e) {
   if (!act || e.pointerId !== act.id) return;
   e.preventDefault();
+  if (act.tool === 'hand') { scroller.scrollTop = act.st - (e.clientY - act.sy); scroller.scrollLeft = act.sl - (e.clientX - act.sx); return; }
   const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : null;
   for (const ev of (evs && evs.length ? evs : [e])) {
     const [x, y] = toPage(ev);
@@ -888,6 +1006,8 @@ function addPoint(x, y, pr) {
     act.last = [x, y];
   } else if (t === 'laser') {
     laserAdd(act.v, x, y);
+  } else if (t === 'select') {
+    selMove(x, y);
   }
 }
 function snapShape(s, [x1, y1], x2, y2) {
@@ -907,7 +1027,19 @@ function eraseAt(x, y) {
   let changed = false;
   for (let i = p.strokes.length - 1; i >= 0; i--) {
     const s = p.strokes[i];
-    if (hit(s, x, y, act.r)) { p.strokes.splice(i, 1); act.removed.push({ s, i }); changed = true; }
+    if (!hit(s, x, y, act.r)) continue;
+    p.strokes.splice(i, 1); changed = true;
+    if (act.added && act.added.has(s)) act.added.delete(s); else act.removed.push({ s, i });
+    if (prefs.eraseMode === 'part' && (s.t === 'pen' || s.t === 'hl')) {
+      // keep the parts of the stroke outside the eraser circle
+      const q = s.pts, lim = act.r + s.w / 2;
+      let run = [];
+      const flush = () => { if (run.length >= 6) { const piece = { t: s.t, c: s.c, w: s.w, pts: Float32Array.from(run) }; p.strokes.push(piece); act.added.add(piece); } run = []; };
+      for (let j = 0; j < q.length; j += 3) {
+        if (Math.hypot(q[j] - x, q[j + 1] - y) < lim) flush(); else run.push(q[j], q[j + 1], q[j + 2]);
+      }
+      flush();
+    }
   }
   if (changed) renderInk(act.v);
   act.cursor = [x, y];
@@ -915,7 +1047,9 @@ function eraseAt(x, y) {
 function finish(commit) {
   const a = act;
   act = null;
+  if (a.tool === 'hand') { document.body.classList.remove('grabbing'); return; }
   const v = a.v, p = v.p;
+  if (a.tool === 'select') { selUp(a); requestDraw(); return; }
   if (a.s) {
     const s = a.s;
     const ok = (s.t === 'pen' || s.t === 'hl') ? s.pts.length >= 3 : Math.hypot(s.pts[2] - s.pts[0], s.pts[3] - s.pts[1]) > 3;
@@ -926,8 +1060,8 @@ function finish(commit) {
       dirty();
     }
     renderInk(v);
-  } else if (a.tool === 'eraser' && a.removed.length) {
-    pushUndo({ k: 'erase', pid: p.id, items: a.removed });
+  } else if (a.tool === 'eraser' && (a.removed.length || a.added.size)) {
+    pushUndo({ k: 'erase', pid: p.id, items: a.removed, added: [...a.added] });
     dirty();
   }
   requestDraw();
@@ -936,7 +1070,9 @@ function cancelActive() {
   if (!act) return;
   const a = act;
   act = null;
-  if (a.tool === 'eraser' && a.removed.length) { pushUndo({ k: 'erase', pid: a.v.p.id, items: a.removed }); dirty(); }
+  if (a.tool === 'hand') document.body.classList.remove('grabbing');
+  if (a.tool === 'select') { selUp(a); }
+  if (a.tool === 'eraser' && (a.removed.length || a.added.size)) { pushUndo({ k: 'erase', pid: a.v.p.id, items: a.removed, added: [...a.added] }); dirty(); }
   requestDraw();
 }
 
@@ -1059,8 +1195,8 @@ function pushUndo(op) {
   updUndo();
 }
 function updUndo() { $('#bUndo').disabled = !undoStack.length; $('#bRedo').disabled = !redoStack.length; }
-function undo() { if (act) return; const op = undoStack.pop(); if (!op) return; applyOp(op, true); redoStack.push(op); updUndo(); dirty(); }
-function redo() { if (act) return; const op = redoStack.pop(); if (!op) return; applyOp(op, false); undoStack.push(op); updUndo(); dirty(); }
+function undo() { if (act) return; clearSel(); const op = undoStack.pop(); if (!op) return; applyOp(op, true); redoStack.push(op); updUndo(); dirty(); }
+function redo() { if (act) return; clearSel(); const op = redoStack.pop(); if (!op) return; applyOp(op, false); undoStack.push(op); updUndo(); dirty(); }
 function applyOp(op, inverse) {
   if (op.k === 'pages') {
     if (inverse) nb.pages.splice(op.idx, op.added.length, ...op.removed);
@@ -1077,8 +1213,17 @@ function applyOp(op, inverse) {
     if (inverse) { const i = p.strokes.lastIndexOf(op.s); if (i >= 0) p.strokes.splice(i, 1); }
     else p.strokes.push(op.s);
   } else if (op.k === 'erase') {
-    if (inverse) for (let j = op.items.length - 1; j >= 0; j--) { const it = op.items[j]; p.strokes.splice(Math.min(it.i, p.strokes.length), 0, it.s); }
-    else for (const it of op.items) { const i = p.strokes.indexOf(it.s); if (i >= 0) p.strokes.splice(i, 1); }
+    const added = op.added || [];
+    if (inverse) {
+      for (const s of added) { const i = p.strokes.indexOf(s); if (i >= 0) p.strokes.splice(i, 1); }
+      for (let j = op.items.length - 1; j >= 0; j--) { const it = op.items[j]; p.strokes.splice(Math.min(it.i, p.strokes.length), 0, it.s); }
+    } else {
+      for (const it of op.items) { const i = p.strokes.indexOf(it.s); if (i >= 0) p.strokes.splice(i, 1); }
+      for (const s of added) p.strokes.push(s);
+    }
+  } else if (op.k === 'move') {
+    const d = inverse ? -1 : 1;
+    for (const s of op.strokes) shiftStroke(s, op.dx * d, op.dy * d);
   } else if (op.k === 'clear') {
     p.strokes = inverse ? op.strokes.slice() : [];
   } else if (op.k === 'bg') {
@@ -1580,6 +1725,7 @@ function makeNotebook(name, bg) {
   return { id: uid(), name, created: Date.now(), updated: Date.now(), pdfIds: [], pages: [newPage(bg)] };
 }
 function setNotebook(n, fresh) {
+  clearSel();
   for (const pr of pdfDocs.values()) pr.then((d) => d.destroy()).catch(() => {});
   pdfDocs.clear();
   nb = n;
@@ -1777,13 +1923,15 @@ function renderToolbar() {
   });
   document.body.classList.toggle('compact', !!prefs.compact);
   document.body.classList.toggle('finger', !!prefs.fingerDraw);
+  document.body.classList.toggle('t-hand', prefs.tool === 'hand');
+  document.body.classList.toggle('t-select', prefs.tool === 'select');
 }
 function pickColor(c) {
   if (prefs.tool === 'hl') prefs.hlColor = c;
   else { prefs.penColor = c; if (prefs.tool === 'eraser' || prefs.tool === 'laser') prefs.tool = 'pen'; }
   savePrefs(); renderToolbar();
 }
-function setTool(t) { if (t === 'note' && prefs.tool !== 'note') noteState.prevTool = prefs.tool; prefs.tool = t; savePrefs(); renderToolbar(); }
+function setTool(t) { if (t === 'note' && prefs.tool !== 'note') noteState.prevTool = prefs.tool; if (t !== 'select') clearSel(); prefs.tool = t; savePrefs(); renderToolbar(); }
 $('#gTools').addEventListener('click', (e) => {
   const b = e.target.closest('.tool');
   if (!b) return;
@@ -1799,7 +1947,23 @@ $('#gTools').addEventListener('click', (e) => {
     });
     return;
   }
+  if (t === 'select' && prefs.tool === 'select') {
+    openPop(b, (pop) => {
+      pop.append(h('div', { class: 'ph' }, 'Select'));
+      for (const [k, label] of [['lasso', 'Freehand (draw round it)'], ['rect', 'Rectangle']]) pop.append(h('button', { class: 'pi' + (prefs.selMode === k ? ' on' : ''), onclick: () => { prefs.selMode = k; savePrefs(); closePop(); } }, h('span', null, label)));
+      pop.append(h('div', { class: 'help' }, h('p', null, 'Draw round the writing to select it, then drag it anywhere on the page. Tap outside to let go.')));
+    });
+    return;
+  }
+  if (t === 'eraser' && prefs.tool === 'eraser') {
+    openPop(b, (pop) => {
+      pop.append(h('div', { class: 'ph' }, 'Eraser'));
+      for (const [k, label] of [['part', 'Rub out part of a stroke'], ['stroke', 'Remove whole strokes']]) pop.append(h('button', { class: 'pi' + (prefs.eraseMode === k ? ' on' : ''), onclick: () => { prefs.eraseMode = k; savePrefs(); closePop(); } }, h('span', null, label)));
+    });
+    return;
+  }
   setTool(t);
+  if (t === 'select') toast('Draw round the writing you want to move, then drag it. Tap the tool again for a rectangle.', null, 5000);
   if (t === 'note') toast('Tap the spot you want to explain. A blank note opens there.', null, 4000);
 });
 $('#bUndo').addEventListener('click', undo);
@@ -2017,9 +2181,10 @@ document.addEventListener('keydown', (e) => {
   if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
   if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
   if (mod) return;
-  const map = { p: 'pen', h: 'hl', e: 'eraser', l: 'laser', s: 'shape', n: 'note' };
+  const map = { p: 'pen', h: 'hl', e: 'eraser', l: 'laser', s: 'select', n: 'note', r: 'shape' };
   if (map[e.key]) setTool(map[e.key]);
-  else if (e.key === 'Escape') { closePop(); closeNote(); }
+  else if (e.key === 'Escape') { closePop(); closeNote(); clearSel(); }
+  else if ((e.key === 'Delete' || e.key === 'Backspace') && sel) { e.preventDefault(); deleteSel(); }
   else if (e.key === 'PageDown') { e.preventDefault(); scrollToPage(currentIdx + 1); }
   else if (e.key === 'PageUp') { e.preventDefault(); scrollToPage(currentIdx - 1); }
 });
