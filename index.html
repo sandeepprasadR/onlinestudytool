@@ -230,7 +230,15 @@ textarea.hwinput { resize: vertical; }
 .qrpic { background: #fff; padding: 8px; border-radius: 8px; width: 240px; height: 240px; margin: 0 auto; }
 .qrpic svg { width: 100%; height: 100%; display: block; }
 .snapview { position: fixed; inset: 0; z-index: 80; background: var(--ui-bg); color: var(--ui-fg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 24px; text-align: center; }
-.snapview .big { font-size: 20px; padding: 18px 28px; }
+.snapview .snapicon { width: 64px; height: 64px; border-radius: 20px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); }
+.snapview .snapicon svg { width: 34px; height: 34px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.snapview h2 { margin: 0; font-size: 22px; }
+.snapshoot { width: 100%; max-width: 340px; min-height: 58px; height: auto; display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 14px 22px; border: 0; border-radius: 16px; background: #2557d6; color: #fff; font: 600 19px var(--font-ui); line-height: 1.2; box-shadow: 0 6px 18px rgba(31,79,209,.28); }
+.snapshoot svg { width: 24px; height: 24px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.snapshoot:active { transform: scale(.98); }
+.snapshoot:disabled { opacity: .6; }
+.snapview .snapmsg { margin: 0; padding: 12px 16px; border-radius: 12px; background: var(--ui-panel); border: 1px solid var(--ui-line); }
+.snapview .snapclose { border: 0; background: none; color: var(--ui-fg); opacity: .7; font: 16px var(--font-ui); padding: 10px 16px; }
 .snapmsg { max-width: 420px; font-size: 17px; line-height: 1.45; }
 .pushbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 10px; margin: 0 0 8px; border-radius: 10px; background: #fff7d6; font-size: 14px; }
 .pushbar[hidden] { display: none; }
@@ -1043,16 +1051,20 @@ function showSnapScreen(token) { // on the phone
   const status = h('p', { class: 'snapmsg' }, 'Point at the part of the book and take the photo. It goes to ' + (token ? 'the board that showed the QR code.' : 'your board on the laptop.'));
   const cam = h('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: true });
   const close = () => { box.remove(); if (/^#snap/.test(location.hash)) { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} } };
+  const CAM = '<svg viewBox="0 0 24 24"><path d="M4 8h3l1.6-2.4h6.8L17 8h3v11H4z"/><circle cx="12" cy="13.2" r="3.6"/></svg>';
+  const shoot = h('button', { class: 'snapshoot', type: 'button', html: CAM + '<span>Take a photo</span>', onclick: () => cam.click() });
   const box = h('div', { class: 'snapview', role: 'dialog', 'aria-label': 'Snap a photo' },
-    h('h2', null, token ? 'Send a photo to the board' : 'Snap a photo for my board'), status,
-    h('button', { class: 'hwbtn big', type: 'button', onclick: () => cam.click() }, '📷 Take a photo'),
-    h('button', { class: 'tb', type: 'button', onclick: close }, 'Close'), cam);
+    h('div', { class: 'snapicon', html: CAM }),
+    h('h2', null, token ? 'Send a photo to the board' : 'Snap a photo for my board'), status, shoot,
+    h('button', { class: 'snapclose', type: 'button', onclick: close }, 'Close'), cam);
   // phone internet can be slow: send a small photo, and if it fails try again smaller
   const tries = [[1400, 0.72], [1100, 0.62], [850, 0.55]];
   cam.addEventListener('change', async () => {
     const f = cam.files[0]; cam.value = '';
     if (!f) return;
     let last = null;
+    shoot.disabled = true;
+    const done = (again) => { shoot.disabled = false; shoot.lastChild.textContent = again ? 'Take another photo' : 'Take a photo'; };
     for (let i = 0; i < tries.length; i++) {
       try {
         const { blob } = await shrinkPhoto(f, tries[i][0], tries[i][1]);
@@ -1064,14 +1076,16 @@ function showSnapScreen(token) { // on the phone
           const r = await fetch('api/hw/snap', { method: 'POST', headers, body: fd, cache: 'no-store', signal: ctl.signal });
           if (!r.ok) {
             let m = 'Could not send (' + r.status + ').'; try { m = (await r.json()).error || m; } catch (e) {}
-            if (r.status < 500 && r.status !== 408 && r.status !== 413) { status.textContent = m; return; } // a retry will not help
+            if (r.status < 500 && r.status !== 408 && r.status !== 413) { status.textContent = m; done(false); return; } // a retry will not help
             throw new Error(m);
           }
         } finally { clearTimeout(timer); }
-        status.textContent = '✓ Sent. On the board, tap the page where it should go. Take another if you need.';
+        status.textContent = '✓ Sent. On the board, tap the page where it should go.';
+        done(true);
         return;
       } catch (e) { last = e; }
     }
+    done(false);
     status.textContent = 'Could not send: the phone\'s internet is too slow right now (' + (last && last.name === 'AbortError' ? 'timed out' : (last && last.message) || 'no connection') + '). Move nearer the Wi-Fi and take the photo again.';
   });
   document.body.append(box);
