@@ -300,6 +300,19 @@ body.t-select #pages .page { cursor: crosshair; }
   @keyframes mthink { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg) translateY(-3px); } }
 }
 @media print { .mascot { display: none; } }
+.usagecard { background: linear-gradient(120deg, rgba(250,176,5,.10), rgba(12,166,120,.10)); border-color: rgba(250,176,5,.35); }
+.usagecard.compact { padding: 8px 12px; }
+.usagecard.compact p { margin: 0; font-size: 14px; }
+.usagecard .urow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(90px, 40%); align-items: center; gap: 10px; margin: 6px 0; font-size: 14px; }
+.ubar { height: 12px; border-radius: 999px; background: rgba(127,127,127,.18); overflow: hidden; }
+.ubar span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #12b886, #40c057); transition: width .5s ease; }
+.ubar.warm span { background: linear-gradient(90deg, #fab005, #fd7e14); }
+.ubar.hot span { background: linear-gradient(90deg, #fd7e14, #f03e3e); }
+.usagecard .quip { margin: 6px 0 0; font-weight: 600; font-size: 14px; }
+.utable { width: 100%; border-collapse: collapse; margin: 8px 0 4px; font-size: 14px; }
+.utable th, .utable td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--ui-line); }
+.utable th { font-size: 13px; color: var(--ui-muted); font-weight: 600; }
+.utable tr.tot td { font-weight: 700; border-bottom: 0; }
 .papatabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 12px; }
 .hwacts { display: flex; flex-wrap: wrap; gap: 8px; }
 .hwbtn { height: 40px; padding: 0 14px; border: 0; border-radius: 10px; background: var(--accent); color: #fff; font-weight: 600; }
@@ -3221,6 +3234,7 @@ function showTutor(tab) {
   renderHw(true);
   if (HW.role === 'teacher' && !papaAsks()) loadTutorLog(); else focusHwBox('#tutorText');
   if (!TUTOR.books) loadBooks();
+  loadUsage();
 }
 // light formatting for tutor replies: **bold**, numbered and bullet lines; built from text nodes only
 function richText(text) {
@@ -3253,6 +3267,7 @@ function tutorView() {
       ? h('p', null, h('b', null, 'Hi Papa, I am Study Buddy. '), h('span', { class: 'booksline' }, booksLine().replace('your NCERT', "Tanish's NCERT").replace('your book', 'his book')), 'Ask me anything: an explanation to use in class, practice questions with answers, or a check of a solution. With you I give full answers straight away. These questions stay out of Tanish\'s list.')
       : h('p', null, h('b', null, 'Hi Tanish, I am Study Buddy. '), h('span', { class: 'booksline' }, booksLine()), 'Ask me to explain anything from your Maths or Science chapters, or send a photo of a question. I give hints first so you can work it out. I can make mistakes, so check important answers with Papa or the NCERT book. Papa can read what you ask here.')));
   wrap.append(booksCard(true));
+  wrap.append(usageCard(papa));
   const list = h('div', { class: 'chatlist tutorlist' });
   if (!TUTOR.msgs.length) {
     list.append(h('p', { class: 'empty' }, 'Try asking:'));
@@ -3285,7 +3300,8 @@ function tutorView() {
       const c = cv.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, cv.width, cv.height); c.drawImage(img, 0, 0, cv.width, cv.height);
       TUTOR.photo = cv.toDataURL('image/jpeg', 0.8).split(',')[1];
       cv.width = 0;
-      renderHw();
+      photoIn.value = '';
+      renderHw(); refreshUsageCard();
     } catch (e) { hwSay(e.message, true); }
   });
   const ask = h('button', { class: 'hwbtn', type: 'submit', disabled: TUTOR.busy }, TUTOR.busy ? 'Thinking …' : 'Ask');
@@ -3338,6 +3354,7 @@ async function askTutor(text) {
   TUTOR.busy = false;
   saveTutor();
   mascotThink(false);
+  loadUsage();
   if (!hwEl.hidden && HW.view === 'tutor') { renderHw(); } else mascotAnswerReady();
 }
 async function loadTutorLog() {
@@ -3357,6 +3374,70 @@ async function loadBooks() {
 function refreshBooksCard() { // update the books card and header line without redrawing the box he may be typing in
   const line = hwEl.querySelector('.booksline'); if (line) line.textContent = booksLine();
   const old = hwEl.querySelector('.bookscard'); if (old) old.replaceWith(booksCard(true));
+}
+// how much of Study Buddy is used: Tanish sees a "brain battery", Papa sees counts and the estimated spend
+function money(usd) {
+  const rate = (TUTOR.usage && TUTOR.usage.usdInr) || 88, inr = (usd || 0) * rate;
+  return '₹' + (inr < 10 ? inr.toFixed(1) : Math.round(inr).toLocaleString('en-IN')) + ' ($' + ((usd || 0) < 1 ? (usd || 0).toFixed(3) : usd.toFixed(2)) + ')';
+}
+async function loadUsage() {
+  if (!HW.code) return;
+  try { const r = await fetch('api/tutor/usage', { headers: Object.assign({ 'x-class-code': HW.code }, HW.role === 'teacher' ? { 'x-teacher-pin': HW.pin } : {}), cache: 'no-store' }); if (r.ok) TUTOR.usage = await r.json(); } catch (e) {}
+  refreshUsageCard();
+}
+function refreshUsageCard() { for (const old of hwEl.querySelectorAll('.usagecard')) old.replaceWith(usageCard(old.classList.contains('compact'))); }
+function usageNums() {
+  const u = TUTOR.usage; if (!u) return null;
+  const z = { q: 0, photos: 0, usd: 0, photoUsd: 0, textUsd: 0 };
+  const s = Object.assign({}, z, u.today.student), p = Object.assign({}, z, u.today.teacher);
+  const ts = Object.assign({}, z, u.total.student), tp = Object.assign({}, z, u.total.teacher);
+  const photos = ts.photos + tp.photos, texts = ts.q + tp.q - photos;
+  const ratio = photos >= 2 && texts >= 2 && ts.textUsd + tp.textUsd > 0 ? ((ts.photoUsd + tp.photoUsd) / photos) / ((ts.textUsd + tp.textUsd) / texts) : 0;
+  return { lim: u.limits, s, p, ts, tp, since: u.total.since, qLeft: Math.max(0, u.limits.q - s.q), pLeft: Math.max(0, u.limits.photos - s.photos), ratio };
+}
+function usageBar(used, max, kind) {
+  const f = Math.min(1, used / Math.max(1, max));
+  const el = h('div', { class: 'ubar ' + kind + (f >= 0.8 ? ' hot' : f >= 0.5 ? ' warm' : ''), role: 'meter', 'aria-valuemin': '0', 'aria-valuemax': String(max), 'aria-valuenow': String(used) });
+  const fill = h('span'); fill.style.width = Math.round(f * 100) + '%'; el.append(fill);
+  return el;
+}
+function batteryQuip(n) {
+  const f = Math.max(n.s.q / Math.max(1, n.lim.q), n.s.photos / Math.max(1, n.lim.photos));
+  if (n.qLeft === 0) return 'I am out of brain battery for today 😵 Write the rest down for Papa!';
+  if (f >= 0.8) return 'Battery running low 🪫 Save the last few for real head-scratchers!';
+  if (f >= 0.5) return 'Whoa, you are on fire 🔥 Try the easy ones yourself first?';
+  return 'Plenty of brain battery. Ask away! 🚀';
+}
+function photoTip(n) {
+  const x = n && n.ratio >= 1.15 ? ' A photo question costs about ' + n.ratio.toFixed(1) + '× a typed one.' : '';
+  return '📸 Photos make me read the whole picture, so they cost Papa more.' + x + ' If it is short, typing it is cheaper 😉';
+}
+function usageCard(compact) {
+  const n = usageNums();
+  const card = h('div', { class: 'hwcard usagecard' + (compact ? ' compact' : '') });
+  if (!n) { card.append(h('p', { class: 'meta' }, 'Checking today’s count …')); return card; }
+  const dt = (t) => new Date(t).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  if (HW.role !== 'teacher') {
+    card.append(h('b', null, '🔋 My brain battery today'),
+      h('div', { class: 'urow' }, h('span', null, '💬 ' + n.qLeft + ' of ' + n.lim.q + ' questions left'), usageBar(n.s.q, n.lim.q, 'q')),
+      h('div', { class: 'urow' }, h('span', null, '📷 ' + n.pLeft + ' of ' + n.lim.photos + ' photos left'), usageBar(n.s.photos, n.lim.photos, 'p')),
+      h('p', { class: 'quip' }, TUTOR.photo ? photoTip(n) : batteryQuip(n)));
+    return card;
+  }
+  if (compact) {
+    card.append(h('p', null, '🔋 Today: Tanish ' + n.s.q + '/' + n.lim.q + ' questions (' + n.s.photos + '/' + n.lim.photos + ' 📷), you ' + n.p.q + ' · estimated spend today ' + money(n.s.usd + n.p.usd) + ' · ', h('button', { class: 'linkbtn', type: 'button', onclick: () => showTutor('log') }, 'details')));
+    return card;
+  }
+  card.append(h('b', null, '🔋 Study Buddy use and estimated spend'),
+    h('div', { class: 'urow' }, h('span', null, 'Tanish today: ' + n.s.q + ' of ' + n.lim.q + ' questions'), usageBar(n.s.q, n.lim.q, 'q')),
+    h('div', { class: 'urow' }, h('span', null, 'with a photo: ' + n.s.photos + ' of ' + n.lim.photos), usageBar(n.s.photos, n.lim.photos, 'p')),
+    h('table', { class: 'utable' },
+      h('tr', null, h('th', null, ''), h('th', null, 'Today'), h('th', null, n.since ? 'Since ' + dt(n.since) : 'So far')),
+      h('tr', null, h('td', null, 'Tanish'), h('td', null, money(n.s.usd)), h('td', null, money(n.ts.usd) + ' · ' + n.ts.q + ' q')),
+      h('tr', null, h('td', null, 'Papa'), h('td', null, money(n.p.usd)), h('td', null, money(n.tp.usd) + ' · ' + n.tp.q + ' q')),
+      h('tr', { class: 'tot' }, h('td', null, 'Total'), h('td', null, money(n.s.usd + n.p.usd)), h('td', null, money(n.ts.usd + n.tp.usd)))),
+    h('p', { class: 'meta' }, (n.ratio ? 'On average a photo question costs ' + n.ratio.toFixed(1) + '× a typed one. ' : '') + 'Estimated from the tokens each answer used, at Anthropic’s list prices, ₹' + ((TUTOR.usage && TUTOR.usage.usdInr) || 88) + ' to the dollar. Counting started when this was added, so earlier questions are not included. The actual bill is in Netlify (AI Gateway usage) and can differ.'));
+  return card;
 }
 async function pdfPagesText(bytes) {
   const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(bytes.slice(0)) }).promise;
@@ -3432,12 +3513,13 @@ function tutorLogView() {
   const wrap = h('div');
   if (!TUTOR.books) loadBooks();
   wrap.append(booksCard(true));
+  wrap.append(usageCard(false));
   wrap.append(h('p', { class: 'tutornote' }, 'Everything Tanish has asked the AI tutor, newest first, with its answers.'), h('button', { class: 'tb', type: 'button', onclick: () => loadTutorLog() }, 'Refresh log'));
   if (!TUTOR.log) { wrap.append(h('p', { class: 'empty' }, 'Loading …')); return wrap; }
   if (!TUTOR.log.filter((x) => x.by !== 'teacher').length) wrap.append(h('p', { class: 'empty' }, 'No questions yet.'));
   for (const it of TUTOR.log.filter((x) => x.by !== 'teacher')) {
     const card = h('div', { class: 'hwcard' },
-      h('p', { class: 'meta' }, new Date(it.at).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) + (it.hadImage ? ' · with photo' : '')),
+      h('p', { class: 'meta' }, new Date(it.at).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) + (it.hadImage ? ' · with photo' : '') + (typeof it.usd === 'number' ? ' · about ' + money(it.usd) : '')),
       h('p', null, h('b', null, 'Q: '), it.question),
       it.book && it.book.length ? h('p', { class: 'meta' }, '📖 Book pages used: ' + it.book.join(', ')) : h('p', { class: 'meta' }, 'No book pages matched this question.'),
       h('details', null, h('summary', null, 'Answer'), richText(it.answer || '')));
@@ -4075,6 +4157,7 @@ function mascotIdle() { // little signs of life: glance around, hop, wink, and n
       else if (r < 0.12) { el.classList.add('wink'); setTimeout(() => el.classList.remove('wink'), 600); }
       if (now - MASCOT.said > 55000 && Math.random() < 0.18) {
         const lines = MASCOT_LINES[HW.role === 'teacher' ? 'teacher' : 'student'].slice();
+        const un = usageNums(); if (un && HW.role !== 'teacher') lines.push(un.qLeft ? 'My brain battery: ' + un.qLeft + ' questions left today 🔋' : 'I am sleeping till tomorrow 😴🔋', 'Typed questions are cheaper than photos. Just saying 😉');
         if (TUTOR.books && TUTOR.books.length) lines.push('I have read ' + TUTOR.books.length + (TUTOR.books.length === 1 ? ' chapter' : ' chapters') + ' of the NCERT books 📚');
         mascotSay(lines[Math.floor(Math.random() * lines.length)], 5500);
       }
