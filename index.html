@@ -208,6 +208,56 @@ body.t-select #pages .page { cursor: crosshair; }
 .chip.wait { background: #fff4dc; border-color: #f0cf85; color: #7a5300; }
 .chip.sub-maths { color: var(--accent); }
 .chip.sub-science { color: #15803d; }
+/* friendlier homework: subject colour, due and score badges, entry animation */
+.hwcard.subj-maths { border-left: 4px solid #2457d6; }
+.hwcard.subj-science { border-left: 4px solid #16a34a; }
+.chip.late { background: rgba(239,68,68,.12); border-color: rgba(239,68,68,.45); color: #c2261c; font-weight: 600; }
+.chip.soon { background: rgba(245,158,11,.14); border-color: rgba(245,158,11,.5); color: #a15c00; font-weight: 600; }
+.chip.later { background: rgba(36,87,214,.08); border-color: rgba(36,87,214,.3); color: #2457d6; }
+.score { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; padding: 3px 10px; border-radius: 999px; color: #fff; white-space: nowrap; }
+.score .stars { letter-spacing: 1px; }
+.score.s3 { background: linear-gradient(135deg, #f59e0b, #f97316); box-shadow: 0 2px 8px rgba(245,158,11,.35); }
+.score.s2 { background: linear-gradient(135deg, #16a34a, #22c55e); }
+.score.s1 { background: linear-gradient(135deg, #2457d6, #4f7dff); }
+.score.s0 { background: linear-gradient(135deg, #a855f7, #ec4899); }
+.hero { position: relative; overflow: hidden; border-radius: 16px; padding: 16px 18px; margin: 4px 0 6px; color: #fff; background: linear-gradient(120deg, #3b5bdb 0%, #7048e8 55%, #0ca678 120%); box-shadow: 0 8px 22px rgba(59,91,219,.25); }
+.hero::after { content: ''; position: absolute; right: -40px; top: -40px; width: 160px; height: 160px; border-radius: 50%; background: rgba(255,255,255,.12); }
+.hero h2 { margin: 0; font-size: 22px; position: relative; }
+.hero .date { opacity: .85; font-size: 14px; margin: 2px 0 10px; position: relative; }
+.hero .stats { display: flex; flex-wrap: wrap; gap: 8px; position: relative; }
+.hero .stat { background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.28); border-radius: 999px; padding: 4px 12px; font-size: 14px; font-weight: 600; }
+.hero .bar { position: relative; height: 8px; border-radius: 999px; background: rgba(255,255,255,.25); margin-top: 12px; overflow: hidden; }
+.hero .bar i { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 999px; background: linear-gradient(90deg, #ffe066, #8ce99a); transition: width .9s cubic-bezier(.2,.8,.2,1); }
+.hero .barlabel { position: relative; font-size: 13px; opacity: .9; margin-top: 6px; }
+.confetti { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 120; }
+.hwbtn { transition: transform .12s ease, filter .15s ease, box-shadow .15s ease; }
+.hwbtn:hover { filter: brightness(1.08); }
+.hwbtn:active { transform: scale(.97); }
+.hwcard.flash { animation: flash 1.2s ease-out; }
+/* chat: each person keeps one colour, with an initial */
+.bubble.from-teacher { background: rgba(245,158,11,.12); border-color: rgba(245,158,11,.35); }
+.bubble.from-student { background: rgba(36,87,214,.10); border-color: rgba(36,87,214,.25); }
+.bubble .who .av { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; color: #fff; font-size: 10px; font-weight: 700; margin-right: 5px; vertical-align: -4px; }
+.av.t { background: linear-gradient(135deg, #f59e0b, #f97316); }
+.av.s { background: linear-gradient(135deg, #2457d6, #7048e8); }
+.av.b { background: linear-gradient(135deg, #7048e8, #0ca678); }
+.buddyhead { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; background: linear-gradient(120deg, rgba(112,72,232,.14), rgba(12,166,120,.14)); border: 1px solid rgba(112,72,232,.25); }
+.buddyhead .buddy { flex: none; width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; font-size: 24px; background: linear-gradient(135deg, #7048e8, #0ca678); box-shadow: 0 4px 12px rgba(112,72,232,.3); }
+.buddyhead p { margin: 0; font-size: 14px; line-height: 1.45; }
+.suggest.sm { border-color: rgba(36,87,214,.35); background: rgba(36,87,214,.06); }
+.suggest.ss { border-color: rgba(22,163,74,.35); background: rgba(22,163,74,.06); }
+.suggest { transition: transform .12s ease, box-shadow .15s ease; }
+.suggest:hover { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(0,0,0,.08); }
+@media (prefers-reduced-motion: no-preference) {
+  .hwcard.enter { animation: rise .35s ease-out both; }
+  .bubble.pop { animation: pop .3s cubic-bezier(.2,1.4,.4,1) both; }
+  #hw.opening .hwin { animation: rise .22s ease-out both; }
+  .hero h2 .wave { display: inline-block; animation: wave 1.6s ease-in-out 2; transform-origin: 70% 70%; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @keyframes pop { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: none; } }
+  @keyframes wave { 0%, 60%, 100% { transform: rotate(0); } 15% { transform: rotate(16deg); } 30% { transform: rotate(-8deg); } 45% { transform: rotate(12deg); } }
+  @keyframes flash { 0% { box-shadow: 0 0 0 0 rgba(36,87,214,.55); } 100% { box-shadow: 0 0 0 14px rgba(36,87,214,0); } }
+}
 .hwacts { display: flex; flex-wrap: wrap; gap: 8px; }
 .hwbtn { height: 40px; padding: 0 14px; border: 0; border-radius: 10px; background: var(--accent); color: #fff; font-weight: 600; }
 .hwbtn:disabled { opacity: .5; }
@@ -230,7 +280,15 @@ textarea.hwinput { resize: vertical; }
 .qrpic { background: #fff; padding: 8px; border-radius: 8px; width: 240px; height: 240px; margin: 0 auto; }
 .qrpic svg { width: 100%; height: 100%; display: block; }
 .snapview { position: fixed; inset: 0; z-index: 80; background: var(--ui-bg); color: var(--ui-fg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 24px; text-align: center; }
-.snapview .big { font-size: 20px; padding: 18px 28px; }
+.snapview .snapicon { width: 64px; height: 64px; border-radius: 20px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); }
+.snapview .snapicon svg { width: 34px; height: 34px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.snapview h2 { margin: 0; font-size: 22px; }
+.snapshoot { width: 100%; max-width: 340px; min-height: 58px; height: auto; display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 14px 22px; border: 0; border-radius: 16px; background: #2557d6; color: #fff; font: 600 19px var(--font-ui); line-height: 1.2; box-shadow: 0 6px 18px rgba(31,79,209,.28); }
+.snapshoot svg { width: 24px; height: 24px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.snapshoot:active { transform: scale(.98); }
+.snapshoot:disabled { opacity: .6; }
+.snapview .snapmsg { margin: 0; padding: 12px 16px; border-radius: 12px; background: var(--ui-panel); border: 1px solid var(--ui-line); }
+.snapview .snapclose { border: 0; background: none; color: var(--ui-fg); opacity: .7; font: 16px var(--font-ui); padding: 10px 16px; }
 .snapmsg { max-width: 420px; font-size: 17px; line-height: 1.45; }
 .pushbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 10px; margin: 0 0 8px; border-radius: 10px; background: #fff7d6; font-size: 14px; }
 .pushbar[hidden] { display: none; }
@@ -1043,16 +1101,20 @@ function showSnapScreen(token) { // on the phone
   const status = h('p', { class: 'snapmsg' }, 'Point at the part of the book and take the photo. It goes to ' + (token ? 'the board that showed the QR code.' : 'your board on the laptop.'));
   const cam = h('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: true });
   const close = () => { box.remove(); if (/^#snap/.test(location.hash)) { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} } };
+  const CAM = '<svg viewBox="0 0 24 24"><path d="M4 8h3l1.6-2.4h6.8L17 8h3v11H4z"/><circle cx="12" cy="13.2" r="3.6"/></svg>';
+  const shoot = h('button', { class: 'snapshoot', type: 'button', html: CAM + '<span>Take a photo</span>', onclick: () => cam.click() });
   const box = h('div', { class: 'snapview', role: 'dialog', 'aria-label': 'Snap a photo' },
-    h('h2', null, token ? 'Send a photo to the board' : 'Snap a photo for my board'), status,
-    h('button', { class: 'hwbtn big', type: 'button', onclick: () => cam.click() }, '📷 Take a photo'),
-    h('button', { class: 'tb', type: 'button', onclick: close }, 'Close'), cam);
+    h('div', { class: 'snapicon', html: CAM }),
+    h('h2', null, token ? 'Send a photo to the board' : 'Snap a photo for my board'), status, shoot,
+    h('button', { class: 'snapclose', type: 'button', onclick: close }, 'Close'), cam);
   // phone internet can be slow: send a small photo, and if it fails try again smaller
   const tries = [[1400, 0.72], [1100, 0.62], [850, 0.55]];
   cam.addEventListener('change', async () => {
     const f = cam.files[0]; cam.value = '';
     if (!f) return;
     let last = null;
+    shoot.disabled = true;
+    const done = (again) => { shoot.disabled = false; shoot.lastChild.textContent = again ? 'Take another photo' : 'Take a photo'; };
     for (let i = 0; i < tries.length; i++) {
       try {
         const { blob } = await shrinkPhoto(f, tries[i][0], tries[i][1]);
@@ -1064,14 +1126,16 @@ function showSnapScreen(token) { // on the phone
           const r = await fetch('api/hw/snap', { method: 'POST', headers, body: fd, cache: 'no-store', signal: ctl.signal });
           if (!r.ok) {
             let m = 'Could not send (' + r.status + ').'; try { m = (await r.json()).error || m; } catch (e) {}
-            if (r.status < 500 && r.status !== 408 && r.status !== 413) { status.textContent = m; return; } // a retry will not help
+            if (r.status < 500 && r.status !== 408 && r.status !== 413) { status.textContent = m; done(false); return; } // a retry will not help
             throw new Error(m);
           }
         } finally { clearTimeout(timer); }
-        status.textContent = '✓ Sent. On the board, tap the page where it should go. Take another if you need.';
+        status.textContent = '✓ Sent. On the board, tap the page where it should go.';
+        done(true);
         return;
       } catch (e) { last = e; }
     }
+    done(false);
     status.textContent = 'Could not send: the phone\'s internet is too slow right now (' + (last && last.name === 'AbortError' ? 'timed out' : (last && last.message) || 'no connection') + '). Move nearer the Wi-Fi and take the photo again.';
   });
   document.body.append(box);
@@ -2247,7 +2311,7 @@ $('#bBooks').addEventListener('click', async (e) => {
   openPop(anchor, (pop) => {
     pop.append(h('div', { class: 'ph' }, 'Homework'));
     pop.append(h('button', { class: 'pi', html: ICON.school + '<span>Homework: give, hand in, check</span>', onclick: () => openHw() }));
-    pop.append(h('button', { class: 'pi', html: ICON.help + '<span>' + (HW.role === 'teacher' ? 'AI tutor log' : 'AI tutor (Study Buddy)') + '</span>', onclick: () => { openHw(null, 'tutor'); } }));
+    pop.append(h('button', { class: 'pi', html: ICON.help + '<span>' + (HW.role === 'teacher' ? 'Study Buddy log (AI tutor)' : 'Study Buddy (AI tutor)') + '</span>', onclick: () => { openHw(null, 'tutor'); } }));
     pop.append(h('button', { class: 'pi', html: ICON.chat + '<span>Chat' + (unreadCount() ? ' (' + unreadCount() + ' new)' : '') + '</span>', onclick: () => openHw(null, 'chat') }));
     if (HW.code) { const nb2 = h('button', { class: 'pi', html: ICON.chat + '<span>Phone notifications on this device …</span>', onclick: async () => { closePop(); if (await pushIsOn()) await disablePush(); else await enablePush(); } }); pop.append(nb2); pushIsOn().then((on) => { nb2.querySelector('span').textContent = on ? 'Turn off notifications on this device' : 'Turn on notifications on this device'; }); }
     pop.append(h('div', { class: 'ph' }, 'New'));
@@ -2538,6 +2602,7 @@ function openHw(returnId, view) {
   closePop();
   HW.returning = returnId || null;
   HW.view = view || 'work';
+  if (hwEl.hidden) { hwEl.classList.add('opening'); setTimeout(() => hwEl.classList.remove('opening'), 400); }
   hwEl.hidden = false;
   if (HW.view === 'chat' && HW.code) showChat();
   else if (HW.view === 'tutor' && HW.code) showTutor();
@@ -2647,7 +2712,7 @@ function renderHw(force) {
     HW.code ? h('span', { class: 'sub' }, HW.role === 'teacher' ? 'Teacher' : 'Student') : null,
     HW.code ? h('button', { class: 'tb' + (HW.view === 'work' ? ' on' : ''), onclick: () => { HW.view = 'work'; HW.returning = null; clearInterval(HW.chatTimer); renderHw(); refreshHw(); } }, 'Homework') : null,
     HW.code ? h('button', { class: 'tb' + (HW.view === 'chat' ? ' on' : ''), onclick: () => showChat() }, 'Chat' + (unreadCount() ? ' (' + unreadCount() + ')' : '')) : null,
-    HW.code ? h('button', { class: 'tb' + (HW.view === 'tutor' ? ' on' : ''), onclick: () => showTutor() }, HW.role === 'teacher' ? 'Tutor log' : 'AI tutor') : null,
+    HW.code ? h('button', { class: 'tb' + (HW.view === 'tutor' ? ' on' : ''), onclick: () => showTutor() }, HW.role === 'teacher' ? 'Tutor log' : 'Study Buddy') : null,
     h('button', { class: 'tb', onclick: closeHw }, 'Close'));
   const msg = h('p', { class: 'hwmsg' + (HW.bad ? ' bad' : ''), role: 'status' }, HW.msg);
   msg.hidden = !HW.msg;
@@ -2700,9 +2765,105 @@ function setupView() {
   });
   return form;
 }
+/* ---------- encouragement: banner, badges, confetti ---------- */
+const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+function confetti(n = 150) {
+  if (reduceMotion()) return;
+  const k = Math.min(2, window.devicePixelRatio || 1);
+  const cv = h('canvas', { class: 'confetti' });
+  document.body.append(cv);
+  const W = cv.width = innerWidth * k, H = cv.height = innerHeight * k, c = cv.getContext('2d');
+  const cols = ['#3b5bdb', '#16a34a', '#f59e0b', '#ef4444', '#a855f7', '#06b6d4', '#ffd43b'];
+  const ps = Array.from({ length: n }, (_, i) => ({ x: W / 2 + (Math.random() - 0.5) * W * 0.25, y: H * 0.38, vx: (Math.random() - 0.5) * 16 * k, vy: (-Math.random() * 15 - 5) * k, s: (5 + Math.random() * 6) * k, r: Math.random() * 6, vr: (Math.random() - 0.5) * 0.35, c: cols[i % cols.length] }));
+  const t0 = performance.now();
+  (function frame(t) {
+    const age = t - t0;
+    c.clearRect(0, 0, W, H);
+    for (const p of ps) {
+      p.vy += 0.42 * k; p.vx *= 0.99; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+      c.save(); c.translate(p.x, p.y); c.rotate(p.r); c.globalAlpha = Math.max(0, 1 - age / 2000);
+      c.fillStyle = p.c; c.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2); c.restore();
+    }
+    if (age < 2000) requestAnimationFrame(frame); else cv.remove();
+  })(t0);
+}
+function celebrate(msg) { confetti(); toast(msg, null, 4500); }
+function scoreParts(it) {
+  const sc = parseFloat(it.score), of = parseFloat(it.outOf);
+  if (!isFinite(sc) || !isFinite(of) || of <= 0) return null;
+  const pct = sc / of;
+  const tier = pct >= 0.9 ? 3 : pct >= 0.7 ? 2 : pct >= 0.5 ? 1 : 0;
+  return { pct, tier, text: it.score + '/' + it.outOf };
+}
+function scoreBadge(it) {
+  const sp = scoreParts(it);
+  if (!sp) return chip('Checked' + (it.score ? ': ' + it.score : ''), 'ok');
+  return h('span', { class: 'score s' + sp.tier, title: Math.round(sp.pct * 100) + '%' }, sp.text, h('span', { class: 'stars' }, sp.tier ? '★'.repeat(sp.tier) : 'Keep going 💪'));
+}
+function dueChip(due) {
+  const d = new Date(due);
+  if (isNaN(d)) return null;
+  if (d < new Date()) return chip('Overdue', 'late');
+  const a = new Date(); a.setHours(0, 0, 0, 0);
+  const b = new Date(d); b.setHours(0, 0, 0, 0);
+  const days = Math.round((b - a) / 864e5);
+  return days === 0 ? chip('Due today', 'soon') : days === 1 ? chip('Due tomorrow', 'soon') : chip('Due in ' + days + ' days', 'later');
+}
+function handInStreak(subs) { // days in a row with a hand-in, counting back from today (or yesterday)
+  const key = (t) => { const d = new Date(t); return d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate(); };
+  const days = new Set(subs.map((x) => key(x.created)));
+  const d = new Date();
+  if (!days.has(key(d))) d.setDate(d.getDate() - 1);
+  let n = 0;
+  while (days.has(key(d))) { n++; d.setDate(d.getDate() - 1); }
+  return n;
+}
+function heroBanner() {
+  const tasks = HW.items.filter((x) => x.kind === 'task'), subs = HW.items.filter((x) => x.kind === 'sub');
+  const teacher = HW.role === 'teacher';
+  const hr = new Date().getHours();
+  const hello = hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening';
+  const done = new Set(subs.map((x) => x.taskId).filter(Boolean));
+  const open = tasks.filter((t) => !done.has(t.id));
+  const streak = handInStreak(subs);
+  const last = subs.filter((x) => x.status === 'checked' && scoreParts(x)).sort((a, b) => (b.checkedAt || 0) - (a.checkedAt || 0))[0];
+  const stats = h('div', { class: 'stats' });
+  if (teacher) {
+    const pending = subs.filter((x) => x.status !== 'checked').length;
+    stats.append(h('span', { class: 'stat' }, '📥 ' + pending + ' to check'), h('span', { class: 'stat' }, '📚 ' + open.length + ' open for Tanish'));
+    stats.append(h('span', { class: 'stat' }, streak ? '🔥 Tanish: ' + streak + '-day streak' : '🔥 No streak yet'));
+  } else {
+    stats.append(h('span', { class: 'stat' }, open.length ? '📚 ' + open.length + ' to do' : '✅ All done'));
+    stats.append(h('span', { class: 'stat' }, streak ? '🔥 ' + streak + '-day streak' : '🔥 Start a streak today'));
+    if (last) stats.append(h('span', { class: 'stat' }, '⭐ Last mark ' + scoreParts(last).text));
+  }
+  const total = tasks.length, handed = tasks.filter((t) => done.has(t.id)).length;
+  const fill = h('i');
+  const box = h('div', { class: 'hero' },
+    h('h2', null, hello + ', ' + (teacher ? 'Papa' : 'Tanish') + ' ', h('span', { class: 'wave' }, '👋')),
+    h('div', { class: 'date' }, new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })),
+    stats);
+  if (total) {
+    box.append(h('div', { class: 'bar' }, fill), h('div', { class: 'barlabel' }, handed + ' of ' + total + ' homework handed in'));
+    requestAnimationFrame(() => requestAnimationFrame(() => { fill.style.width = Math.round(100 * handed / total) + '%'; }));
+  }
+  return box;
+}
+HW.seenCards = new Set();
+function cheerNewMarks() { // a good mark gets confetti once, the first time Tanish sees it
+  if (HW.role === 'teacher' || hwEl.hidden || HW.view !== 'work') return;
+  let seen = [];
+  try { seen = JSON.parse(localStorage.getItem('studyboard-cheered') || '[]'); } catch (e) {}
+  const fresh = HW.items.filter((x) => x.kind === 'sub' && x.status === 'checked' && !seen.includes(x.id));
+  if (!fresh.length) return;
+  try { localStorage.setItem('studyboard-cheered', JSON.stringify(seen.concat(fresh.map((x) => x.id)).slice(-200))); } catch (e) {}
+  const best = fresh.map((x) => ({ x, sp: scoreParts(x) })).filter((o) => o.sp && o.sp.pct >= 0.8).sort((a, b) => b.sp.pct - a.sp.pct)[0];
+  if (best) setTimeout(() => celebrate('🌟 Papa checked "' + best.x.title + '": ' + best.sp.text + '. Brilliant!'), 400);
+}
 function itemCard(it, actions) {
   const top = h('div', { class: 'hwtop' }, chip(subjName(it.subject), 'sub-' + (it.subject || 'other')), h('b', null, it.title));
-  const card = h('div', { class: 'hwcard' }, top);
+  const card = h('div', { class: 'hwcard subj-' + (it.subject || 'other') + (HW.seenCards.has(it.id) ? '' : ' enter') }, top);
+  HW.seenCards.add(it.id);
   const meta = [];
   if (it.kind === 'task' && it.due) meta.push('Due ' + fmtWhen(it.due));
   if (it.kind === 'sub') meta.push('Handed in ' + fmtWhen(it.created));
@@ -2710,7 +2871,7 @@ function itemCard(it, actions) {
   if (it.note) card.append(h('p', { class: 'note' }, it.note));
   if (it.kind === 'sub') {
     if (it.status === 'checked') {
-      top.append(chip('Checked' + (it.score ? ': ' + it.score + (it.outOf ? ' / ' + it.outOf : '') : ''), 'ok'));
+      top.append(scoreBadge(it));
       if (it.remarks) card.append(h('p', { class: 'remarks' }, h('b', null, 'Remarks: '), it.remarks));
     } else top.append(chip('Waiting to be checked', 'wait'));
   }
@@ -2724,10 +2885,16 @@ function studentView() {
   const done = new Set(subs.map((x) => x.taskId).filter(Boolean));
   const sel = h('select', { class: 'hwinput', id: 'hwTask' }, h('option', { value: '' }, 'Something else (type a title)'));
   for (const t of tasks) sel.append(h('option', { value: t.id }, subjName(t.subject) + ': ' + t.title));
+  wrap.append(heroBanner());
+  setTimeout(cheerNewMarks, 0);
   wrap.append(h('h3', null, 'Homework to do'));
-  const open = tasks.filter((t) => !done.has(t.id));
-  if (!open.length) wrap.append(h('p', { class: 'empty' }, tasks.length ? 'All homework handed in.' : 'No homework yet.'));
-  for (const t of open) wrap.append(itemCard(t, [h('button', { class: 'hwbtn', onclick: () => { sel.value = t.id; sel.dispatchEvent(new Event('change')); form.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }, 'Hand this in')]));
+  const open = tasks.filter((t) => !done.has(t.id)).sort((a, b) => (Date.parse(a.due) || Infinity) - (Date.parse(b.due) || Infinity));
+  if (!open.length) wrap.append(h('p', { class: 'empty' }, tasks.length ? 'All homework handed in. 🎉 Nothing to do right now.' : 'No homework yet. Enjoy the break! 🌤️'));
+  for (const t of open) {
+    const card = itemCard(t, [h('button', { class: 'hwbtn', onclick: () => { sel.value = t.id; sel.dispatchEvent(new Event('change')); form.scrollIntoView({ behavior: 'smooth', block: 'start' }); form.classList.remove('flash'); void form.offsetWidth; form.classList.add('flash'); } }, 'Hand this in')]);
+    const dc = t.due && dueChip(t.due); if (dc) card.firstChild.append(dc);
+    wrap.append(card);
+  }
 
   const title = h('input', { class: 'hwinput', id: 'hwTitle', placeholder: 'For example: Exercise 8.1 Q1 to 5', maxlength: '120' });
   const subj = h('select', { class: 'hwinput', id: 'hwSubj' }, ...SUBJECTS.map(([k, n]) => h('option', { value: k }, n)));
@@ -2776,6 +2943,7 @@ function studentView() {
       fd.append('note', note.value);
       await api('submit', { method: 'POST', body: fd });
       HW.msg = 'Handed in. Papa will check it.'; HW.bad = false;
+      celebrate('🎉 Handed in! Papa will check it.');
       await refreshHw();
     } catch (e) { send.disabled = false; hwSay(e.message, true); }
   });
@@ -2795,8 +2963,9 @@ function teacherView() {
   const subs = HW.items.filter((x) => x.kind === 'sub');
   const pending = subs.filter((s) => s.status !== 'checked');
   const checked = subs.filter((s) => s.status === 'checked');
+  wrap.append(heroBanner());
   wrap.append(h('h3', null, 'To check (' + pending.length + ')'));
-  if (!pending.length) wrap.append(h('p', { class: 'empty' }, 'Nothing waiting.'));
+  if (!pending.length) wrap.append(h('p', { class: 'empty' }, 'Nothing waiting. ✅'));
   for (const s of pending) wrap.append(itemCard(s, [
     h('button', { class: 'hwbtn', onclick: () => markHw(s) }, 'Open and mark'),
     h('button', { class: 'tb', onclick: () => { HW.returning = s.id; renderHw(); } }, 'Give marks only'),
@@ -2946,11 +3115,13 @@ function chatView() {
     const day = d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
     if (day !== lastDay) { list.append(h('div', { class: 'chatday' }, day)); lastDay = day; }
     const mine = m.from === myRole();
-    list.append(h('div', { class: 'bubble' + (mine ? ' mine' : '') },
-      h('div', { class: 'who' }, (m.from === 'teacher' ? 'Papa' : 'Tanish') + ' · ' + d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })),
+    const fresh = HW.chatShown && !HW.chatShown.has(m.id);
+    list.append(h('div', { class: 'bubble' + (mine ? ' mine' : '') + ' from-' + (m.from === 'teacher' ? 'teacher' : 'student') + (fresh ? ' pop' : '') },
+      h('div', { class: 'who' }, h('span', { class: 'av ' + (m.from === 'teacher' ? 't' : 's') }, m.from === 'teacher' ? 'P' : 'T'), (m.from === 'teacher' ? 'Papa' : 'Tanish') + ' · ' + d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })),
       m.audio ? voicePlayer(m) : m.image ? chatPicture(m) : h('div', { class: 'txt' }, m.text),
       m.live && myRole() === 'student' ? h('button', { class: 'hwbtn', type: 'button', onclick: () => joinLive() }, 'Join the live page') : null));
   }
+  HW.chatShown = new Set(HW.msgs.map((m) => m.id)); // later renders animate only new messages
   const box = h('textarea', { class: 'hwinput', id: 'chatText', rows: '2', maxlength: '2000', placeholder: myRole() === 'teacher' ? 'Write to Tanish' : 'Write to Papa' });
   const send = h('button', { class: 'hwbtn', type: 'submit' }, 'Send');
   const mic = h('button', { class: 'tb micbtn', type: 'button', title: 'Record a voice message', 'aria-label': 'Record a voice message', html: ICON.mic + '<span>Voice</span>' });
@@ -3012,17 +3183,18 @@ function richText(text) {
 }
 function tutorView() {
   const wrap = h('div', { class: 'chat' });
-  wrap.append(h('p', { class: 'tutornote' }, 'Study Buddy is an AI tutor. Ask it to explain anything from your Maths or Science chapters, or send a photo of a question. It can make mistakes, so check important answers with Papa or the NCERT book. Papa can read what you ask here.'));
+  wrap.append(h('div', { class: 'buddyhead' }, h('div', { class: 'buddy', 'aria-hidden': 'true' }, '✨'),
+    h('p', null, h('b', null, 'Hi Tanish, I am Study Buddy. '), 'Ask me to explain anything from your Maths or Science chapters, or send a photo of a question. I give hints first so you can work it out. I can make mistakes, so check important answers with Papa or the NCERT book. Papa can read what you ask here.')));
   const list = h('div', { class: 'chatlist tutorlist' });
   if (!TUTOR.msgs.length) {
     list.append(h('p', { class: 'empty' }, 'Try asking:'));
-    for (const q of ['Why is sin 30° exactly 1/2?', 'Explain displacement reactions with a kitchen example', 'How do I find the height of a tower using trigonometry?', 'What is the difference between series and parallel circuits?']) {
-      list.append(h('button', { class: 'tb suggest', type: 'button', onclick: () => { const b = hwEl.querySelector('#tutorText'); if (b) { b.value = q; b.focus(); } } }, q));
+    for (const [q, kind] of [['📐 Why is sin 30° exactly 1/2?', 'sm'], ['🧪 Explain displacement reactions with a kitchen example', 'ss'], ['🗼 How do I find the height of a tower using trigonometry?', 'sm'], ['💡 What is the difference between series and parallel circuits?', 'ss']]) {
+      list.append(h('button', { class: 'tb suggest ' + kind, type: 'button', onclick: () => { const b = hwEl.querySelector('#tutorText'); if (b) { b.value = q.replace(/^\S+\s+/, ''); b.focus(); } } }, q));
     }
   }
   for (const m of TUTOR.msgs) {
     const bub = h('div', { class: 'bubble' + (m.role === 'user' ? ' mine' : ' tutor') },
-      h('div', { class: 'who' }, m.role === 'user' ? 'Tanish' : 'Study Buddy'));
+      h('div', { class: 'who' }, h('span', { class: 'av ' + (m.role === 'user' ? 's' : 'b') }, m.role === 'user' ? 'T' : '✨'), m.role === 'user' ? 'Tanish' : 'Study Buddy'));
     if (m.photo) bub.append(h('div', { class: 'meta' }, '📷 Photo sent'));
     bub.append(m.role === 'user' ? h('div', { class: 'txt' }, m.text) : richText(m.text || (TUTOR.busy ? 'Thinking …' : '')));
     list.append(bub);
@@ -3601,7 +3773,8 @@ async function init() {
   window.addEventListener('hashchange', () => { if (location.hash === '#homework') openHw(); if (location.hash === '#chat') openHw(null, 'chat'); if (/^#snap/.test(location.hash) && !document.querySelector('.snapview')) showSnapScreen((location.hash.match(/^#snap=([a-z0-9]+)/) || [])[1]); });
   if (!prefs.seenTip) {
     prefs.seenTip = true; savePrefs();
-    setTimeout(() => toast('Write with Apple Pencil. Scroll with one finger, pinch with two to zoom.', null, 7000), 300);
+    const desk = matchMedia('(pointer: fine)').matches && !('ontouchend' in window);
+    setTimeout(() => toast(desk ? 'Write with the mouse or a pen tablet. Scroll with the wheel, or use the hand tool.' : 'Write with Apple Pencil. Scroll with one finger, pinch with two to zoom.', null, 7000), 300);
   }
 }
 init();
