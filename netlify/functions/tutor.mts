@@ -39,6 +39,9 @@ His NCERT books:
 - The excerpts are text taken out of PDFs, so fractions, powers and symbols may be jumbled and figures are missing. Read them sensibly, and if a figure matters, tell him which figure to look at in his book.
 - If the excerpts do not cover the question, say so in one short line ("This is not in your NCERT chapters, so here is a general explanation."), then help from your own knowledge. Use web search only for facts that need checking or are recent, and say when an answer comes from the web.`;
 
+// added when the question comes from Papa's device (signed in with the teacher PIN)
+const PAPA = `This conversation is with Papa, Tanish's father and his Maths and Science teacher, not with Tanish. Talk to him as one adult to another. Give complete answers and full working straight away (no hint-first), and help him prepare: explain ideas the way he could teach them to Tanish, suggest examples, and make practice or test questions with answers when he asks. Still use the NCERT excerpts first and name the chapter and page.`;
+
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
 const fail = (status: number, error: string) => json({ error }, status);
@@ -201,6 +204,7 @@ export default async (req: Request, context: Context) => {
     { type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } },
     { type: "text", text: bookBlock },
   ];
+  if (teacher) system.push({ type: "text", text: PAPA });
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -256,7 +260,7 @@ export default async (req: Request, context: Context) => {
       controller.close();
       const at = Date.now();
       context.waitUntil(store.setJSON("tutor/" + day + "/" + at + "-" + Math.random().toString(36).slice(2, 6), {
-        at, question: String(question.text || "").slice(0, 4000), hadImage: !!question.image, answer, model: used,
+        at, question: String(question.text || "").slice(0, 4000), hadImage: !!question.image, by: teacher ? "teacher" : "student", answer, model: used,
         book: found.map((c) => c.label + " p." + c.p),
       }));
     },
