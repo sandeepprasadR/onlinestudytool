@@ -608,7 +608,9 @@ function renderInk(v) {
   const k = c.width / U;
   ctx.setTransform(k, 0, 0, k, 0, 0);
   drawInk(ctx, v.p.strokes);
+  if (liveRemote && liveRemote.pid === v.p.id) drawStroke(ctx, liveRemote.s); // the other side's stroke, still being drawn
 }
+let liveRemote = null;
 async function renderPdfBg(v, W, H) {
   const tok = ++v.token;
   if (v.task) { try { v.task.cancel(); } catch (e) {} v.task = null; }
@@ -956,6 +958,7 @@ function onInkDown(e) {
   const [x, y] = toPage(e);
   attachLive(v);
   if (act.tool === 'select') { selDown(v, x, y); requestDraw(); return; }
+  kickLive();
   if (act.tool === 'pen') {
     act.lp = pressure(e);
     act.s = { t: 'pen', c: prefs.penColor, w: SIZES.pen[prefs.size.pen], pts: [x, y, act.lp] };
@@ -2042,7 +2045,10 @@ $('#bMore').addEventListener('click', (e) => openPop(e.currentTarget, (pop) => {
   if (nb && nb.hw) pop.append(h('button', { class: 'pi on', html: ICON.school + '<span>Return marked homework to Tanish</span>', onclick: () => { closePop(); openHw(nb.hw.id); } }));
   if (nb && HW.code) {
     if (LV.sid) pop.append(h('button', { class: 'pi on', html: ICON.together + '<span>' + (HW.role === 'teacher' ? 'End the live page' : 'Leave the live page') + '</span>', onclick: () => { closePop(); endLive(); } }));
-    else if (HW.role === 'teacher') pop.append(h('button', { class: 'pi', html: ICON.together + '<span>Write together: share page ' + (currentIdx + 1) + ' live with Tanish</span>', onclick: () => { closePop(); startLive(); } }));
+    else if (HW.role === 'teacher') {
+      pop.append(h('button', { class: 'pi', html: ICON.together + '<span>Write together: share page ' + (currentIdx + 1) + ' live with Tanish</span>', onclick: () => { closePop(); startLive(false); } }));
+      if (nb.pages.length > 1) pop.append(h('button', { class: 'pi', html: ICON.together + '<span>Write together: share all ' + Math.min(30, nb.pages.length) + ' pages live</span>', onclick: () => { closePop(); startLive(true); } }));
+    }
     else pop.append(h('button', { class: 'pi', html: ICON.together + '<span>Join Papa\'s live page</span>', onclick: () => { closePop(); joinLive(); } }));
   }
   if (nb && HW.code) {
@@ -2875,91 +2881,118 @@ function showBig(url) {
     h('button', { class: 'hwbtn', type: 'button', onclick: close }, 'Close'));
   document.body.append(box);
 }
-/* ---------- live page: Papa and Tanish write on the same page ---------- */
+/* ---------- live pages: Papa and Tanish write on the same pages ---------- */
 // Strokes carry an id (lid). Every tick, each side sends the ids it added or removed since the last
-// tick and receives the other side's changes. Netlify cannot hold a socket open, so this polls.
-const LV = { sid: null, pid: null, nbId: null, title: '', known: new Set(), seen: new Set(), since: 0, lastAct: 0, busy: false, timer: null };
+// tick, plus the stroke it is drawing at that moment, and receives the other side's. Netlify cannot
+// hold a socket open, so this polls: fast while someone is drawing, slower when the page is quiet.
+const LV = { sid: null, pids: [], nbId: null, title: '', known: new Set(), seen: new Set(), since: 0, lastAct: 0, busy: false, timer: null, curSent: false, remoteAt: 0 };
 let lidN = 0;
 const newLid = () => (HW.role === 'teacher' ? 't' : 's') + Date.now().toString(36) + (lidN++).toString(36) + Math.random().toString(36).slice(2, 5);
 const packStroke = (s) => ({ t: s.t, c: s.c, w: s.w, pts: Array.from(s.pts, (v) => Math.round(v * 10) / 10) });
-const livePage = () => (LV.sid && nb && nb.id === LV.nbId ? nb.pages.find((p) => p.id === LV.pid) || null : null);
+function livePages() { // the live pages, in order, if the live notebook is the one open
+  if (!LV.sid || !nb || nb.id !== LV.nbId) return null;
+  const ps = LV.pids.map((id) => nb.pages.find((p) => p.id === id) || null);
+  return ps.some(Boolean) ? ps : null;
+}
+const livePage = () => { const ps = livePages(); return ps ? ps.find(Boolean) : null; };
 const liveOther = () => (HW.role === 'teacher' ? 'Tanish' : 'Papa');
-function saveLv() { try { localStorage.setItem('studyboard-live', LV.sid ? JSON.stringify({ sid: LV.sid, pid: LV.pid, nbId: LV.nbId, title: LV.title }) : ''); } catch (e) {} }
-function bindLive(session, page) {
-  Object.assign(LV, { sid: session.sid, pid: page.id, nbId: nb.id, title: session.title, known: new Set(), seen: new Set(), since: 0, lastAct: Date.now() });
+function saveLv() { try { localStorage.setItem('studyboard-live', LV.sid ? JSON.stringify({ sid: LV.sid, pids: LV.pids, nbId: LV.nbId, title: LV.title }) : ''); } catch (e) {} }
+function bindLive(session, pages) {
+  Object.assign(LV, { sid: session.sid, pids: pages.map((p) => p.id), nbId: nb.id, title: session.title, known: new Set(), seen: new Set(), since: 0, lastAct: Date.now(), curSent: false });
   saveLv(); livePill(); clearTimeout(LV.timer); liveTick();
 }
+function setRemote(cur) {
+  const before = liveRemote;
+  liveRemote = cur ? { pid: LV.pids[cur.pg], s: { t: cur.s.t, c: cur.s.c, w: cur.s.w, pts: Float32Array.from(cur.s.pts) } } : null;
+  if (cur) LV.remoteAt = Date.now();
+  for (const pid of new Set([before && before.pid, liveRemote && liveRemote.pid])) { const v = pid && views.get(pid); if (v && v.mounted) renderInk(v); }
+}
 function endLiveLocal(msg) {
-  clearTimeout(LV.timer); LV.sid = null; LV.pid = null; LV.nbId = null; saveLv(); livePill();
+  clearTimeout(LV.timer); LV.sid = null; LV.pids = []; LV.nbId = null; saveLv(); setRemote(null); livePill();
   if (msg) toast(msg, null, 8000);
 }
-function scheduleLive() { clearTimeout(LV.timer); if (LV.sid) LV.timer = setTimeout(liveTick, Date.now() - LV.lastAct < 30000 ? 1200 : 3000); }
+function scheduleLive() {
+  clearTimeout(LV.timer);
+  if (!LV.sid) return;
+  const now = Date.now();
+  const drawing = (act && act.s) || now - LV.remoteAt < 2500;
+  LV.timer = setTimeout(liveTick, drawing ? 450 : now - LV.lastAct < 30000 ? 1200 : 3000);
+}
+function kickLive() { if (LV.sid && !LV.busy) { clearTimeout(LV.timer); LV.timer = setTimeout(liveTick, 250); } }
 async function liveTick() {
   if (!LV.sid || LV.busy) return;
-  const p = livePage();
-  if (!p || document.visibilityState !== 'visible') { livePill(); scheduleLive(); return; }
+  const ps = livePages();
+  if (!ps || document.visibilityState !== 'visible') { livePill(); scheduleLive(); return; }
   LV.busy = true;
   try {
-    const cur = new Map();
-    for (const s of p.strokes) { if (!s.lid) s.lid = newLid(); cur.set(s.lid, s); }
-    const adds = [], dels = [];
-    for (const [id, s] of cur) if (!LV.known.has(id) && adds.length < 60) adds.push({ id, s: packStroke(s) });
+    const cur = new Map(), adds = [], dels = [];
+    ps.forEach((p, pg) => { if (p) for (const s of p.strokes) { if (!s.lid) s.lid = newLid(); cur.set(s.lid, pg); if (!LV.known.has(s.lid) && adds.length < 60) adds.push({ id: s.lid, pg, s: packStroke(s) }); } });
     for (const id of LV.known) if (!cur.has(id)) dels.push(id);
-    const r = await api('live/sync', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sid: LV.sid, since: LV.since, adds, dels }) });
+    const body = { sid: LV.sid, since: LV.since, adds, dels };
+    const pg = act && act.s && act.v ? ps.indexOf(act.v.p) : -1;
+    if (pg >= 0 && act.s.pts.length >= 3) { body.cur = { pg, s: packStroke(act.s) }; LV.curSent = true; }
+    else if (LV.curSent) { body.cur = null; LV.curSent = false; }
+    const r = await api('live/sync', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
     if (!LV.sid) return;
     if (!r.active) { endLiveLocal(HW.role === 'teacher' ? 'The live page has ended.' : 'Papa ended the live page. Your writing stays in this notebook.'); return; }
     for (const a of adds) LV.known.add(a.id);
     for (const id of dels) LV.known.delete(id);
     if (adds.length || dels.length) LV.lastAct = Date.now();
     applyLive(r.events || []);
+    setRemote(r.cur && LV.pids[r.cur.pg] ? r.cur : null);
     LV.since = Math.max(0, r.now - 5000);
     LV.ok = true; livePill();
   } catch (e) { LV.ok = false; livePill(); }
   finally { LV.busy = false; scheduleLive(); }
 }
 function applyLive(evs) {
-  const p = livePage();
-  if (!p) return;
-  let changed = false;
+  const ps = livePages();
+  if (!ps) return;
+  const touched = new Set();
   for (const e of evs) {
     if (LV.seen.has(e.key)) continue;
     LV.seen.add(e.key); LV.lastAct = Date.now();
     for (const id of e.dels || []) {
       LV.known.delete(id);
-      const i = p.strokes.findIndex((s) => s.lid === id);
-      if (i >= 0) { p.strokes.splice(i, 1); changed = true; }
+      for (const p of ps) { if (!p) continue; const i = p.strokes.findIndex((s) => s.lid === id); if (i >= 0) { p.strokes.splice(i, 1); touched.add(p); } }
     }
     for (const a of e.adds || []) {
       LV.known.add(a.id);
-      if (p.strokes.some((s) => s.lid === a.id)) continue;
+      const p = ps[a.pg];
+      if (!p || p.strokes.some((s) => s.lid === a.id)) continue;
       p.strokes.push({ t: a.s.t, c: a.s.c, w: a.s.w, pts: Float32Array.from(a.s.pts), lid: a.id });
-      changed = true;
+      touched.add(p);
     }
   }
-  if (changed) { const v = views.get(p.id); if (v && v.mounted) renderInk(v); dirty(); }
+  for (const p of touched) { const v = views.get(p.id); if (v && v.mounted) renderInk(v); }
+  if (touched.size) dirty();
 }
-async function startLive() {
+async function startLive(all) {
   if (HW.role !== 'teacher') { toast('Sign in as the teacher under Homework first.'); return; }
-  const p = nb.pages[currentIdx];
+  const pages = all ? nb.pages.slice(0, 30) : [nb.pages[currentIdx]];
   try {
     await saveNow();
-    toast('Starting the live page …', null, 60000);
-    const cv = await renderPageImage(Object.assign({}, p, { strokes: [] }), 1400);
-    const blob = await new Promise((r) => cv.toBlob(r, 'image/jpeg', 0.85));
-    cv.width = 0; cv.height = 0;
-    const fd = new FormData();
-    fd.append('file', new File([blob], 'page.jpg', { type: 'image/jpeg' }));
-    fd.append('h', String(p.h));
-    fd.append('title', nb.name + ', page ' + (currentIdx + 1));
-    const r = await api('live/start', { method: 'POST', body: fd });
-    if (r.msg) HW.msgs.push(r.msg);
-    bindLive(r.session, p);
-    toast('Live page started. Tanish taps Join in Chat. His writing appears here in a second or two.', null, 10000);
+    const title = nb.name + (all ? '' : ', page ' + (currentIdx + 1));
+    const r = await api('live/start', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title, pages: pages.map((p) => p.h) }) });
+    for (let i = 0; i < pages.length; i++) {
+      toast('Starting the live page' + (pages.length > 1 ? ': page ' + (i + 1) + ' of ' + pages.length : '') + ' …', null, 120000);
+      const cv = await renderPageImage(Object.assign({}, pages[i], { strokes: [] }), 1400);
+      const blob = await new Promise((res) => cv.toBlob(res, 'image/jpeg', 0.85));
+      cv.width = 0; cv.height = 0;
+      const fd = new FormData();
+      fd.append('file', new File([blob], 'page.jpg', { type: 'image/jpeg' }));
+      fd.append('n', String(i));
+      await api('live/bg', { method: 'POST', body: fd });
+    }
+    const g = await api('live/go', { method: 'POST' });
+    if (g.msg) HW.msgs.push(g.msg);
+    bindLive(r.session, pages);
+    toast((pages.length > 1 ? pages.length + ' pages are live.' : 'Live page started.') + ' Tanish taps Join in Chat. You see his writing as he writes.', null, 10000);
   } catch (e) { toast('Could not start the live page: ' + (e && e.message ? e.message : 'try again'), null, 9000); }
 }
 async function endLive() {
   if (HW.role === 'teacher') { try { await api('live/end', { method: 'POST' }); } catch (e) {} }
-  endLiveLocal(HW.role === 'teacher' ? 'Live page ended. Everything Tanish wrote is saved on your page.' : 'You left the live page. Your writing stays in this notebook.');
+  endLiveLocal(HW.role === 'teacher' ? 'Live page ended. Everything Tanish wrote is saved on your pages.' : 'You left the live page. Your writing stays in this notebook.');
 }
 async function joinLive() {
   if (!HW.code) { toast('Sign in under Homework first.'); return; }
@@ -2968,12 +3001,17 @@ async function joinLive() {
     const ses = r.session;
     if (!ses || !ses.active) { toast('Papa has no live page open right now.'); return; }
     if (LV.sid === ses.sid && livePage()) { scrollToPage(nb.pages.indexOf(livePage())); toast('You are already on the live page.'); return; }
-    const old = (await DB.all('notebooks').catch(() => [])).find((n) => n.live === ses.sid);
+    const n = (ses.pages || [1]).length;
+    const old = (await DB.all('notebooks').catch(() => [])).find((x) => x.live === ses.sid);
     if (old) { closeHw(); await openNotebook(old.id); }
     else {
-      toast('Joining the live page …', null, 60000);
-      const blob = await api('live/bg');
-      const file = await imagesToPdf([new File([blob], 'live.jpg', { type: 'image/jpeg' })], 2000, 0.9);
+      const files = [];
+      for (let i = 0; i < n; i++) {
+        toast('Joining the live page' + (n > 1 ? ': page ' + (i + 1) + ' of ' + n : '') + ' …', null, 120000);
+        const blob = await api('live/bg?n=' + i);
+        files.push(new File([blob], 'live' + i + '.jpg', { type: 'image/jpeg' }));
+      }
+      const file = await imagesToPdf(files, 2000, 0.9);
       closeHw();
       await importPdf(file, 'new');
       nb.name = 'Live: ' + ses.title; nb.live = ses.sid;
@@ -2981,8 +3019,8 @@ async function joinLive() {
       dirty();
     }
     prefs.penColor = PEN[3]; if (prefs.tool !== 'pen') prefs.tool = 'pen'; savePrefs(); renderToolbar();
-    bindLive(ses, nb.pages[0]);
-    toast('You are on Papa\'s live page. Write in green; Papa sees it in a second or two.', null, 9000);
+    bindLive(ses, nb.pages.slice(0, n));
+    toast('You are on Papa\'s live ' + (n > 1 ? n + ' pages' : 'page') + '. Write in green; Papa sees it as you write.', null, 9000);
   } catch (e) { toast('Could not join: ' + (e && e.message ? e.message : 'try again'), null, 9000); }
 }
 const livePillEl = h('div', { class: 'livepill', hidden: true });
@@ -3001,7 +3039,8 @@ function resumeLive() {
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem('studyboard-live') || 'null'); } catch (e) {}
   if (!saved || !saved.sid || !HW.code) return;
-  Object.assign(LV, saved, { known: new Set(), seen: new Set(), since: 0, lastAct: Date.now() });
+  if (!Array.isArray(saved.pids)) saved.pids = saved.pid ? [saved.pid] : [];
+  Object.assign(LV, saved, { known: new Set(), seen: new Set(), since: 0, lastAct: Date.now(), curSent: false });
   livePill(); liveTick();
 }
 // send marked pages (writing included) into the chat as pictures
