@@ -174,34 +174,56 @@ export default async (req: Request, context: Context) => {
       return new Response(data, { headers: { "content-type": rec.audio.type, "cache-control": "no-store" } });
     }
 
-    // live page: both write on the same page. The teacher starts it with a picture of the page;
-    // each side sends the strokes it added or removed and gets the other side's changes (polling).
+    // live pages: both write on the same pages. The teacher starts a session with the page heights,
+    // uploads a picture of each page, then opens it. Each side sends the strokes it added or removed and
+    // the stroke it is drawing right now; it gets back the other side's changes (polling).
     if (req.method === "POST" && action === "live" && id === "start") {
       if (!teacher) return fail(403, "Only the teacher can start a live page.");
+      const body = await req.json();
+      const hs = (Array.isArray(body.pages) ? body.pages : []).slice(0, 30).map((h: unknown) => Math.max(100, Math.min(20000, Math.round(Number(h) || 1414))));
+      if (!hs.length) return fail(400, "No pages.");
+      const old = await s.list({ prefix: "live/" });
+      await Promise.all(old.blobs.map((x) => s.delete(x.key)));
+      const at = Date.now();
+      const session = { sid: at.toString(36) + Math.random().toString(36).slice(2, 6), title: clean(body.title, 120) || "Live page", pages: hs, at, active: false };
+      await s.setJSON("live/session", session);
+      return json({ session });
+    }
+
+    if (req.method === "POST" && action === "live" && id === "bg") {
+      if (!teacher) return fail(403, "Only the teacher can do this.");
       const form = await req.formData();
       const f = await readFile(form);
-      if (!f || !/^image\//.test(f.meta.type)) return fail(400, "Send a picture of the page.");
-      const old = await s.list({ prefix: "live/" });
-      await Promise.all(old.blobs.map((b) => s.delete(b.key)));
-      const at = Date.now();
-      const session = { sid: at.toString(36) + Math.random().toString(36).slice(2, 6), title: clean(form.get("title"), 120) || "Live page", h: Math.max(100, Math.min(20000, Math.round(Number(form.get("h")) || 1414))), at, active: true };
-      await s.set("live/bg", f.data);
+      const n = Math.round(Number(form.get("n")));
+      if (!f || !/^image\//.test(f.meta.type) || !(n >= 0 && n < 30)) return fail(400, "Send a picture of the page.");
+      await s.set("live/bg/" + n, f.data);
+      return json({ ok: true });
+    }
+
+    if (req.method === "POST" && action === "live" && id === "go") {
+      if (!teacher) return fail(403, "Only the teacher can do this.");
+      const session = (await s.get("live/session", { type: "json" })) as { sid: string; title: string; pages: number[]; active: boolean; at: number } | null;
+      if (!session) return fail(404, "No live page.");
+      session.active = true;
       await s.setJSON("live/session", session);
+      const at = Date.now();
       const msgId = String(at).padStart(13, "0") + "-" + Math.random().toString(36).slice(2, 8);
-      const msg = { id: msgId, at, from: "teacher", text: "🖊️ Live page: " + session.title + ". Tap Join to write on it with Papa.", live: session.sid };
+      const what = session.pages.length > 1 ? session.pages.length + " live pages: " : "Live page: ";
+      const msg = { id: msgId, at, from: "teacher", text: "🖊️ " + what + session.title + ". Tap Join to write on it with Papa.", live: session.sid };
       await s.setJSON("msg/" + msgId, msg);
       await notify(s, "student", "Papa", "🖊️ Live page started. Open Study Board and tap Join.", "chat");
       return json({ session, msg });
     }
 
     if (req.method === "GET" && action === "live" && !id) {
-      const session = await s.get("live/session", { type: "json" });
-      return json({ session: session || null });
+      const session = (await s.get("live/session", { type: "json" })) as { active?: boolean } | null;
+      return json({ session: session && session.active ? session : null });
     }
 
     if (req.method === "GET" && action === "live" && id === "bg") {
-      const data = await s.get("live/bg", { type: "arrayBuffer" });
-      if (!data) return fail(404, "No live page.");
+      const n = Math.max(0, Math.round(Number(new URL(req.url).searchParams.get("n") || 0)));
+      const data = await s.get("live/bg/" + n, { type: "arrayBuffer" });
+      if (!data) return fail(404, "That live page is not ready.");
       return new Response(data, { headers: { "content-type": "image/jpeg", "cache-control": "no-store" } });
     }
 
@@ -214,24 +236,30 @@ export default async (req: Request, context: Context) => {
 
     if (req.method === "POST" && action === "live" && id === "sync") {
       const body = await req.json();
-      const session = (await s.get("live/session", { type: "json" })) as { sid: string; active: boolean } | null;
+      const session = (await s.get("live/session", { type: "json" })) as { sid: string; active: boolean; pages: number[] } | null;
       const now = Date.now();
       if (!session || !session.active || session.sid !== clean(body.sid, 40)) return json({ active: false, now, events: [] });
-      const role = teacher ? "teacher" : "student";
+      const role = teacher ? "teacher" : "student", otherRole = teacher ? "student" : "teacher";
+      const np = session.pages.length;
       const okStroke = (x: any) => x && /^(pen|hl|line|arrow|rect|ellipse)$/.test(x.t) && typeof x.c === "string" && x.c.length < 30 && Number.isFinite(+x.w) && Array.isArray(x.pts) && x.pts.length >= 3 && x.pts.length <= 30000 && x.pts.every((v: unknown) => Number.isFinite(v as number));
+      const okPg = (n: unknown) => Number.isInteger(n) && (n as number) >= 0 && (n as number) < np;
       const adds = (Array.isArray(body.adds) ? body.adds : []).slice(0, 100)
-        .filter((a: any) => a && typeof a.id === "string" && a.id.length < 60 && okStroke(a.s))
-        .map((a: any) => ({ id: a.id, s: { t: a.s.t, c: a.s.c, w: +a.s.w, pts: a.s.pts } }));
+        .filter((a: any) => a && typeof a.id === "string" && a.id.length < 60 && okPg(a.pg) && okStroke(a.s))
+        .map((a: any) => ({ id: a.id, pg: a.pg, s: { t: a.s.t, c: a.s.c, w: +a.s.w, pts: a.s.pts } }));
       const dels = (Array.isArray(body.dels) ? body.dels : []).filter((x: unknown) => typeof x === "string" && (x as string).length < 60).slice(0, 2000);
-      if (adds.length || dels.length) {
-        await s.setJSON("live/e/" + session.sid + "/" + String(now).padStart(13, "0") + "-" + Math.random().toString(36).slice(2, 8), { by: role, adds, dels });
-      }
+      const writes: Promise<unknown>[] = [];
+      if (adds.length || dels.length) writes.push(s.setJSON("live/e/" + session.sid + "/" + String(now).padStart(13, "0") + "-" + Math.random().toString(36).slice(2, 8), { by: role, adds, dels }));
+      // the stroke being drawn right now (not saved as an event, overwritten each time)
+      if (body.cur === null) writes.push(s.delete("live/cur/" + role));
+      else if (body.cur && okPg(body.cur.pg) && okStroke(body.cur.s)) writes.push(s.setJSON("live/cur/" + role, { pg: body.cur.pg, s: { t: body.cur.s.t, c: body.cur.s.c, w: +body.cur.s.w, pts: body.cur.s.pts }, at: now }));
+      await Promise.all(writes);
       const since = Math.max(0, Number(body.since) || 0);
-      const { blobs } = await s.list({ prefix: "live/e/" + session.sid + "/" });
-      const pre = ("live/e/" + session.sid + "/").length;
-      const keys = blobs.map((b) => b.key).filter((k) => Number(k.slice(pre, pre + 13)) >= since).sort();
-      const evs = (await Promise.all(keys.map(async (k) => ({ key: k.slice(pre), ...((await s.get(k, { type: "json" })) as object) })))) as { key: string; by: string }[];
-      return json({ active: true, now, events: evs.filter((e) => e.by && e.by !== role) });
+      const pre = "live/e/" + session.sid + "/";
+      const [{ blobs }, theirCur] = await Promise.all([s.list({ prefix: pre }), s.get("live/cur/" + otherRole, { type: "json" }) as Promise<{ at: number } | null>]);
+      const keys = blobs.map((x) => x.key).filter((k) => Number(k.slice(pre.length, pre.length + 13)) >= since).sort();
+      const evs = (await Promise.all(keys.map(async (k) => ({ key: k.slice(pre.length), ...((await s.get(k, { type: "json" })) as object) })))) as { key: string; by: string }[];
+      const cur = theirCur && now - theirCur.at < 4000 ? theirCur : null;
+      return json({ active: true, now, events: evs.filter((e) => e.by && e.by !== role), cur });
     }
 
     // shared chapter library: the teacher uploads each chapter PDF once; every device can download it
