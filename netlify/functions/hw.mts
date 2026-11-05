@@ -190,12 +190,27 @@ export default async (req: Request, context: Context) => {
       return json({ session });
     }
 
+    // either side can add pages (a picture or PDF for reference) to a running live session
+    if (req.method === "POST" && action === "live" && id === "add") {
+      const body = await req.json();
+      const session = (await s.get("live/session", { type: "json" })) as { sid: string; active: boolean; pages: number[] } | null;
+      if (!session || !session.active || session.sid !== clean(body.sid, 40)) return fail(409, "The live page has ended.");
+      const hs = (Array.isArray(body.pages) ? body.pages : []).slice(0, 10).map((h: unknown) => Math.max(100, Math.min(20000, Math.round(Number(h) || 1414))));
+      if (!hs.length) return fail(400, "No pages.");
+      if (session.pages.length + hs.length > 30) return fail(400, "The live pages are full (30 pages). End and start again to add more.");
+      const start = session.pages.length;
+      session.pages.push(...hs);
+      await s.setJSON("live/session", session);
+      return json({ start, np: session.pages.length });
+    }
+
     if (req.method === "POST" && action === "live" && id === "bg") {
-      if (!teacher) return fail(403, "Only the teacher can do this.");
       const form = await req.formData();
       const f = await readFile(form);
       const n = Math.round(Number(form.get("n")));
-      if (!f || !/^image\//.test(f.meta.type) || !(n >= 0 && n < 30)) return fail(400, "Send a picture of the page.");
+      const ses = (await s.get("live/session", { type: "json" })) as { pages: number[]; active: boolean } | null;
+      if (!ses || (!teacher && !ses.active)) return fail(409, "The live page has ended.");
+      if (!f || !/^image\//.test(f.meta.type) || !(n >= 0 && n < ses.pages.length)) return fail(400, "Send a picture of the page.");
       await s.set("live/bg/" + n, f.data);
       return json({ ok: true });
     }
@@ -261,7 +276,7 @@ export default async (req: Request, context: Context) => {
       const keys = blobs.map((x) => x.key).filter((k) => Number(k.slice(pre.length, pre.length + 13)) >= since).sort();
       const evs = (await Promise.all(keys.map(async (k) => ({ key: k.slice(pre.length), ...((await s.get(k, { type: "json" })) as object) })))) as { key: string; by: string }[];
       const cur = theirCur && now - theirCur.at < 4000 ? theirCur : null;
-      return json({ active: true, now, events: evs.filter((e) => e.by && e.by !== role), cur, view: theirView || null });
+      return json({ active: true, now, events: evs.filter((e) => e.by && e.by !== role), cur, view: theirView || null, np });
     }
 
     // shared chapter library: the teacher uploads each chapter PDF once; every device can download it

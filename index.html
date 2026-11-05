@@ -2045,6 +2045,7 @@ $('#bMore').addEventListener('click', (e) => openPop(e.currentTarget, (pop) => {
   pop.append(h('button', { class: 'pi', html: ICON.help + '<span>How to share this screen</span>', onclick: () => showShareHelp($('#bMore')) }));
   if (nb && nb.hw) pop.append(h('button', { class: 'pi on', html: ICON.school + '<span>Return marked homework to Tanish</span>', onclick: () => { closePop(); openHw(nb.hw.id); } }));
   if (nb && HW.code) {
+    if (LV.sid) pop.append(h('button', { class: 'pi', html: ICON.pdf + '<span>Add a picture or PDF to the live pages</span>', onclick: () => { closePop(); liveAddIn.click(); } }));
     if (LV.sid) pop.append(h('button', { class: 'pi on', html: ICON.together + '<span>' + (HW.role === 'teacher' ? 'End the live page' : 'Leave the live page') + '</span>', onclick: () => { closePop(); endLive(); } }));
     else if (HW.role === 'teacher') {
       pop.append(h('button', { class: 'pi', html: ICON.together + '<span>Write together: share page ' + (currentIdx + 1) + ' live with Tanish</span>', onclick: () => { closePop(); startLive(false); } }));
@@ -3021,6 +3022,7 @@ async function liveTick() {
     if (adds.length || dels.length) LV.lastAct = Date.now();
     applyLive(r.events || []);
     setRemote(r.cur && LV.pids[r.cur.pg] ? r.cur : null);
+    if (r.np > LV.pids.filter(Boolean).length) fetchLivePages(r.np);
     const first = LV.viewAt < 0;
     if (first) LV.viewAt = 0;
     if (sentView && HW.role === 'teacher') { if (r.view) LV.viewAt = Math.max(LV.viewAt, r.view.at); } // Papa's own scroll wins
@@ -3074,6 +3076,76 @@ async function startLive(all) {
     bindLive(r.session, pages);
     toast((pages.length > 1 ? pages.length + ' pages are live.' : 'Live page started.') + ' Tanish taps Join in Chat. You see his writing as he writes.', null, 10000);
   } catch (e) { toast('Could not start the live page: ' + (e && e.message ? e.message : 'try again'), null, 9000); }
+}
+// adding a picture or PDF to running live pages: the pages go at the end of both notebooks
+const liveAddIn = h('input', { type: 'file', accept: 'application/pdf,.pdf,image/*', multiple: true, hidden: true });
+document.body.append(liveAddIn);
+liveAddIn.addEventListener('change', () => { const files = [...liveAddIn.files]; liveAddIn.value = ''; if (files.length) addToLive(files); });
+async function appendPdfPages(file) { // appends without moving the view or adding an undo step
+  const bytes = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(bytes.slice(0)) }).promise;
+  const pdfId = uid();
+  await DB.put('pdfs', { bytes, name: file.name }, pdfId);
+  pdfDocs.set(pdfId, Promise.resolve(pdf));
+  const pages = [];
+  for (let i = 1; i <= Math.min(pdf.numPages, 10); i++) {
+    const vp = (await pdf.getPage(i)).getViewport({ scale: 1 });
+    pages.push({ id: uid(), bg: 'pdf', pdfId, pdfPage: i, h: Math.round(U * vp.height / vp.width), strokes: [] });
+  }
+  nb.pdfIds = nb.pdfIds || []; nb.pdfIds.push(pdfId);
+  const keep = scroller.scrollTop;
+  LV.ignoreScrollUntil = Date.now() + 900;
+  nb.pages.push(...pages);
+  buildPages();
+  scroller.scrollTop = keep;
+  dirty();
+  return pages;
+}
+async function addToLive(files) {
+  if (!LV.sid || !livePages()) { toast('Open the live page first.'); return; }
+  try {
+    const pdf = files.find((f) => /pdf$/i.test(f.type) || /\.pdf$/i.test(f.name));
+    const imgs = files.filter((f) => /^image\//.test(f.type));
+    let file = pdf || (imgs.length ? await imagesToPdf(imgs.slice(0, 10), 2000, 0.85) : null);
+    if (!file) { toast('Choose a picture or a PDF.'); return; }
+    file = new File([file], 'Live reference.pdf', { type: 'application/pdf' });
+    toast('Adding to the live pages …', null, 120000);
+    const pages = await appendPdfPages(file);
+    const r = await api('live/add', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sid: LV.sid, pages: pages.map((p) => p.h) }) });
+    pages.forEach((p, k) => { LV.pids[r.start + k] = p.id; });
+    saveLv();
+    for (let k = 0; k < pages.length; k++) {
+      toast('Sending page ' + (k + 1) + ' of ' + pages.length + ' …', null, 120000);
+      const cv = await renderPageImage(Object.assign({}, pages[k], { strokes: [] }), 1400);
+      const blob = await new Promise((res) => cv.toBlob(res, 'image/jpeg', 0.85));
+      cv.width = 0; cv.height = 0;
+      const fd = new FormData();
+      fd.append('file', new File([blob], 'page.jpg', { type: 'image/jpeg' }));
+      fd.append('n', String(r.start + k));
+      await api('live/bg', { method: 'POST', body: fd });
+    }
+    const at = nb.pages.indexOf(pages[0]);
+    toast(pages.length + (pages.length === 1 ? ' page' : ' pages') + ' added at the end for ' + liveOther() + ' too.', { label: 'Go there', fn: () => scrollToPage(at) });
+  } catch (e) { toast('Could not add: ' + (e && e.message ? e.message : 'try again'), null, 9000); }
+}
+async function fetchLivePages(np) { // the other side added pages: fetch their pictures
+  if (LV.fetching || !livePages()) return;
+  const need = [];
+  for (let i = 0; i < np; i++) if (!LV.pids[i]) need.push(i);
+  if (!need.length) return;
+  LV.fetching = true;
+  try {
+    const files = [];
+    for (const n of need) files.push(new File([await api('live/bg?n=' + n)], 'p' + n + '.jpg', { type: 'image/jpeg' }));
+    let file = await imagesToPdf(files, 2000, 0.9);
+    file = new File([file], 'Live reference.pdf', { type: 'application/pdf' });
+    const pages = await appendPdfPages(file);
+    need.forEach((n, k) => { if (pages[k]) LV.pids[n] = pages[k].id; });
+    saveLv();
+    const at = nb.pages.indexOf(pages[0]);
+    toast(liveOther() + ' added ' + need.length + (need.length === 1 ? ' page' : ' pages') + ' to the live pages.', { label: 'Go there', fn: () => scrollToPage(at), ms: 12000 });
+  } catch (e) { /* not uploaded yet: try again on the next sync */ }
+  finally { LV.fetching = false; }
 }
 async function endLive() {
   if (HW.role === 'teacher') { try { await api('live/end', { method: 'POST' }); } catch (e) {} }
