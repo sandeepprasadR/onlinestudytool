@@ -5,7 +5,7 @@ self.addEventListener('push', (e) => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (err) { d = { body: e.data ? e.data.text() : '' }; }
   e.waitUntil(self.registration.showNotification(d.title || 'Study Board', {
-    body: d.body || '', tag: d.tag || 'studyboard', renotify: true, icon: 'icon-180.png', badge: 'icon-180.png', data: { url: d.url || './' },
+    body: d.body || '', tag: d.tag || 'studyboard', renotify: true, icon: 'icon-v2-180.png', badge: 'icon-v2-180.png', data: { url: d.url || './' },
   }));
 });
 self.addEventListener('notificationclick', (e) => {
