@@ -368,7 +368,6 @@ export default async (req: Request, context: Context) => {
     }
 
     if (req.method === "POST" && action === "lib") {
-      if (!teacher) return fail(403, "Only the teacher can add to the shared library.");
       const form = await req.formData();
       const f = await readFile(form);
       if (!f || f.meta.type !== "application/pdf") return fail(400, "Send a chapter PDF.");
@@ -386,7 +385,7 @@ export default async (req: Request, context: Context) => {
         if (!(await s.getMetadata("libpart/" + key + "/" + i))) return fail(409, "Some parts did not arrive. Share the chapter again.");
       }
       const size = Math.round(Number(form.get("size")) || f.meta.size);
-      const meta = { key, subject, ch, name: clean(form.get("name"), 120) || f.meta.name, size, parts, at: Date.now() };
+      const meta = { key, subject, ch, name: clean(form.get("name"), 120) || f.meta.name, size, parts, at: Date.now(), by: teacher ? "teacher" : "student" };
       await s.setJSON("libmeta/" + key, meta);
       await s.delete("lib/" + key);
       return json({ item: meta });
