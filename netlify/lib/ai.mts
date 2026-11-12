@@ -22,7 +22,7 @@ export function costOf(model: string, u: any): number {
 
 // Spend that is not a Study Buddy question (reading scanned papers, writing and marking mock exams)
 // goes into the same daily and running totals, so Papa's spend card stays complete.
-export async function addCost(store: Store, who: "student" | "teacher", usd: number, kind: "ocr" | "exam") {
+export async function addCost(store: Store, who: "student" | "teacher", usd: number, kind: "ocr" | "exam" | "hwmark") {
   if (!usd) return;
   const day = istDay();
   for (const key of ["usage/day/" + day, "usage/total"]) {

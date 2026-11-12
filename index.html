@@ -415,6 +415,21 @@ body.t-select #pages .page { cursor: crosshair; }
 .resultcard tr.zero td:nth-child(2) { color: #e03131; font-weight: 700; }
 .pomopill.exampill { top: calc(108px + env(safe-area-inset-top)); background: #7048e8; color: #fff; border: 0; font: 600 15px var(--font-ui); padding: 9px 14px; font-variant-numeric: tabular-nums; }
 .pomopill.exampill[hidden] { display: none; }
+.premark { margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: rgba(112,72,232,.07); border: 1px dashed rgba(112,72,232,.35); }
+.premark summary { cursor: pointer; }
+.premark .utable { margin-top: 8px; }
+.premark tr.full td:nth-child(2) { color: #0ca678; font-weight: 700; }
+.premark tr.part td:nth-child(2) { color: #e8590c; font-weight: 700; }
+.premark tr.zero td:nth-child(2) { color: #e03131; font-weight: 700; }
+.reportcard { background: linear-gradient(120deg, rgba(36,87,214,.08), rgba(12,166,120,.08)); }
+.reportcard .rhead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.reportcard .rhead > b { font-size: 18px; }
+.reportcard .papatabs { margin: 0; }
+.rtiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin: 8px 0; }
+.rtile { display: flex; flex-direction: column; padding: 10px 12px; border-radius: 12px; background: var(--ui-bg); border: 1px solid var(--ui-line); }
+.rtile b { font-size: 22px; }
+.rtile span { font-size: 13px; color: var(--ui-muted); }
+.wchart.small { height: 120px; }
 .dlbar { position: relative; width: 100%; height: 12px; border-radius: 999px; background: rgba(112,72,232,.15); overflow: hidden; margin: 4px 0; }
 .dlbar span { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, #7048e8, #12b886); transition: width .25s ease; }
 .dlbar.busy span { width: 35%; }
@@ -2793,10 +2808,10 @@ function closeHw() {
   clearInterval(HW.timer);
   clearInterval(HW.chatTimer);
   mascotSync();
-  if (/^#(homework|chat|tutor|plan|exam)$/.test(location.hash)) { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }
+  if (/^#(homework|chat|tutor|plan|exam|report)$/.test(location.hash)) { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }
 }
 async function refreshHw() {
-  try { const r = await api('items'); HW.items = r.items || []; HW.teacher = !!r.teacher; if (HW.bad) { HW.msg = ''; HW.bad = false; } setTimeout(prefetchHwFiles, 1500); }
+  try { const r = await api('items'); HW.items = r.items || []; HW.teacher = !!r.teacher; if (HW.bad) { HW.msg = ''; HW.bad = false; } setTimeout(prefetchHwFiles, 1500); if (HW.role === 'teacher' && !HW.pmT) premarkWatch(); }
   catch (e) { HW.msg = e.message; HW.bad = true; }
   if (!hwEl.hidden) renderHw();
 }
@@ -3226,10 +3241,14 @@ function teacherView() {
   wrap.append(heroBanner());
   wrap.append(h('h3', null, 'To check (' + pending.length + ')'));
   if (!pending.length) wrap.append(h('p', { class: 'empty' }, 'Nothing waiting. ✅'));
-  for (const s of pending) wrap.append(itemCard(s, [
-    h('button', { class: 'hwbtn', onclick: () => markHw(s) }, 'Open and mark'),
-    h('button', { class: 'tb', onclick: () => { HW.returning = s.id; renderHw(); } }, 'Give marks only'),
-    h('button', { class: 'tb', onclick: () => viewHwFile(s.id) }, 'View')]));
+  for (const s of pending) {
+    const card = itemCard(s, [
+      h('button', { class: 'hwbtn', onclick: () => markHw(s) }, 'Open and mark'),
+      h('button', { class: 'tb', onclick: () => { HW.returning = s.id; renderHw(); } }, 'Give marks only'),
+      h('button', { class: 'tb', onclick: () => viewHwFile(s.id) }, 'View')]);
+    card.append(premarkBox(s));
+    wrap.append(card);
+  }
 
   const subj = h('select', { class: 'hwinput', id: 'hwgSubj' }, ...SUBJECTS.map(([k, n]) => h('option', { value: k }, n)));
   const title = h('input', { class: 'hwinput', id: 'hwgTitle', placeholder: 'For example: Exercise 8.1 Q1 to 5', maxlength: '120' });
@@ -3282,9 +3301,10 @@ function returnView() {
     return wrap;
   }
   const mine = nb && nb.hw && nb.hw.id === it.id;
-  const score = h('input', { class: 'hwinput', id: 'hwScore', inputmode: 'decimal', value: it.score || '', placeholder: '8' });
-  const outOf = h('input', { class: 'hwinput', id: 'hwOutOf', inputmode: 'decimal', value: it.outOf || '10' });
-  const remarks = h('textarea', { class: 'hwinput', id: 'hwRemarks', rows: '4', placeholder: 'What went well, and what to correct' }, it.remarks || '');
+  const pf = HW.prefill && HW.prefill.id === it.id ? HW.prefill : null;
+  const score = h('input', { class: 'hwinput', id: 'hwScore', inputmode: 'decimal', value: it.score || (pf ? pf.score : ''), placeholder: '8' });
+  const outOf = h('input', { class: 'hwinput', id: 'hwOutOf', inputmode: 'decimal', value: it.outOf || (pf ? pf.outOf : '10') });
+  const remarks = h('textarea', { class: 'hwinput', id: 'hwRemarks', rows: '4', placeholder: 'What went well, and what to correct' }, it.remarks || (pf ? pf.remarks : ''));
   const attach = h('input', { type: 'checkbox', id: 'hwAttach', checked: mine });
   if (!mine) attach.disabled = true;
   const send = h('button', { class: 'hwbtn', type: 'submit' }, 'Return to Tanish');
@@ -4815,6 +4835,7 @@ function planView() {
   } else {
     hero.append(h('b', null, '📅 Back-to-school date not set'), h('p', { class: 'meta' }, teacher ? 'Set it below, so Study Board can pace the syllabus and nudge Tanish.' : 'Ask Papa to set the date you go back to school. Then I will pace the syllabus for you.'));
   }
+  if (teacher) wrap.append(reportCard());
   wrap.append(hero, studyNowCard());
   // day plan
   const dates = [istDayC(0), istDayC(1)], date = dates[PLAN.tab] || dates[0];
@@ -4926,6 +4947,87 @@ function planView() {
     wrap.append(sf);
   }
   return wrap;
+}
+
+/* ---------- Study Buddy's suggested marks on a hand-in (Papa only; Papa decides) ---------- */
+function premarkBox(s) {
+  const ai = s.ai;
+  const box = h('div', { class: 'premark' });
+  if (!ai) {
+    box.append(h('button', { class: 'linkbtn', type: 'button', onclick: () => askPremark(s) }, '✨ Ask Study Buddy to check this'));
+    return box;
+  }
+  if (ai.status === 'working') { box.append(h('div', { class: 'thinking' }, h('span', { class: 'dots' }, h('i'), h('i'), h('i')), ' Study Buddy is checking this …')); return box; }
+  if (ai.status === 'failed') { box.append(h('p', { class: 'meta' }, '⚠️ ' + (ai.error || 'Study Buddy could not check this.') + ' '), h('button', { class: 'linkbtn', type: 'button', onclick: () => askPremark(s) }, 'Try again')); return box; }
+  const r = ai.result || {};
+  const det = h('details', null, h('summary', null, h('b', null, '✨ Study Buddy suggests ' + (r.score != null ? r.score + ' / ' + (r.outOf || 10) : '')), r.praise ? h('span', { class: 'meta' }, ' · ' + r.praise) : null));
+  if (Array.isArray(r.questions) && r.questions.length) {
+    const tbl = h('table', { class: 'utable' }, h('tr', null, h('th', null, 'Q'), h('th', null, 'Marks'), h('th', null, 'Note')));
+    for (const q of r.questions) tbl.append(h('tr', { class: q.got >= q.of ? 'full' : q.got > 0 ? 'part' : 'zero' }, h('td', null, String(q.q || '')), h('td', null, q.got + ' / ' + q.of), h('td', null, q.note || '')));
+    det.append(tbl);
+  }
+  if (Array.isArray(r.mistakes) && r.mistakes.length) det.append(h('p', null, h('b', null, 'To correct: '), r.mistakes.join('; ')));
+  if (r.remarks) det.append(h('p', null, h('b', null, 'Suggested remarks: '), r.remarks));
+  if (r.unsure) det.append(h('p', { class: 'meta' }, '❓ ' + r.unsure));
+  det.append(h('p', { class: 'meta' }, 'A suggestion only: check it before you send. Tanish does not see this.'));
+  box.append(det, h('div', { class: 'hwacts' },
+    h('button', { class: 'tb', type: 'button', onclick: () => { HW.prefill = { id: s.id, score: r.score != null ? String(r.score) : '', outOf: String(r.outOf || 10), remarks: r.remarks || '' }; HW.returning = s.id; renderHw(); } }, '✅ Use these marks'),
+    h('button', { class: 'linkbtn', type: 'button', onclick: () => askPremark(s) }, 'Check again')));
+  return box;
+}
+async function askPremark(s) {
+  try { await api('premark/' + s.id, { method: 'POST' }); s.ai = { status: 'working', at: Date.now() }; renderHw(); premarkWatch(); }
+  catch (e) { hwSay(e.message, true); }
+}
+function premarkWatch() { // refresh while Study Buddy is checking something
+  clearTimeout(HW.pmT);
+  if ((HW.items || []).some((x) => x.ai && x.ai.status === 'working')) HW.pmT = setTimeout(() => { if (!hwEl.hidden) refreshHw(); premarkWatch(); }, 10000);
+}
+
+/* ---------- Weekly report (Papa) ---------- */
+const REPORT = { data: null, end: null, busy: false };
+async function loadReport(end) {
+  REPORT.busy = true; REPORT.end = end || null;
+  try { REPORT.data = (await api('report' + (end ? '?end=' + end : ''))).report; } catch (e) { hwSay(e.message, true); }
+  REPORT.busy = false;
+  const old = hwEl.querySelector('.reportcard'); if (old) old.replaceWith(reportCard());
+}
+function reportCard() {
+  const card = h('div', { class: 'hwcard reportcard', id: 'report' });
+  const r = REPORT.data;
+  const lastWeek = istDayC(-7);
+  card.append(h('div', { class: 'rhead' }, h('b', null, '📊 Tanish’s week'),
+    h('div', { class: 'papatabs' }, h('button', { class: 'tb' + (!REPORT.end ? ' on' : ''), type: 'button', onclick: () => loadReport(null) }, 'Last 7 days'), h('button', { class: 'tb' + (REPORT.end ? ' on' : ''), type: 'button', onclick: () => loadReport(lastWeek) }, 'The 7 days before'))));
+  if (!r) { card.append(h('p', { class: 'meta' }, REPORT.busy ? 'Adding it up …' : '')); if (!REPORT.busy) loadReport(null); return card; }
+  const dt = (d) => new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  card.append(h('p', { class: 'meta' }, dt(r.from) + ' to ' + dt(r.to) + (r.daysOff ? ' · ' + r.daysOff + (r.daysOff === 1 ? ' day off' : ' days off') : '')));
+  const tile = (big, small) => h('div', { class: 'rtile' }, h('b', null, big), h('span', null, small));
+  card.append(h('div', { class: 'rtiles' },
+    tile(r.hours.toFixed(1).replace(/\.0$/, '') + ' h', 'studied · ' + r.daysStudied + '/7 days'),
+    tile(String(r.pomos), 'Pomodoros'),
+    tile(r.tasksPlanned ? r.tasksDone + '/' + r.tasksPlanned : '0', 'plan items done'),
+    tile(String(r.moved.filter((m) => m.status === 'done' || m.status === 'revised').length), 'chapters done'),
+    tile(r.exams.length ? r.exams.map((e) => Math.round(100 * e.score / Math.max(1, e.outOf)) + '%').join(' · ') : '–', 'mock exams'),
+    tile(String(r.handedIn.length), 'homework handed in' + (r.avgPct != null ? ' · avg ' + r.avgPct + '%' : ''))));
+  // hours a day
+  const max = Math.max(r.goalHours, ...r.days.map((x) => x.secs / 3600));
+  const chart = h('div', { class: 'wchart small' });
+  for (const x of r.days) {
+    const col = h('div', { class: 'wcol', title: (x.secs / 3600).toFixed(1) + ' h' });
+    const bar = h('div', { class: 'wbar' + (x.secs >= r.goalHours * 3600 ? ' hit' : '') }); bar.style.height = Math.max(2, x.secs / 3600 / max * 100) + '%';
+    const gl = h('i', { class: 'wgoal' }); gl.style.bottom = (r.goalHours / max * 100) + '%';
+    col.append(h('span', { class: 'wv' }, x.secs ? (x.secs / 3600).toFixed(1) : ''), h('div', { class: 'wbox' }, bar, gl), h('span', { class: 'wd' }, x.off ? '🏖️' : new Date(x.d + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short' })));
+    chart.append(col);
+  }
+  card.append(chart);
+  const LBL = { doing: '📖 started', done: '✅ done', revised: '⭐ revised', todo: '↩️ reset' };
+  if (r.moved.length) card.append(h('p', null, h('b', null, 'Syllabus: '), r.moved.map((m) => (m.subject === 'science' ? 'Science' : 'Maths') + ' Ch ' + m.ch + ' ' + (LBL[m.status] || m.status)).join(' · ')));
+  if (r.exams.length) card.append(h('p', null, h('b', null, 'Mock exams: '), r.exams.map((e) => e.title + ' ' + e.score + '/' + e.outOf).join(' · ')));
+  if (r.weak.length) card.append(h('p', null, h('b', null, '🎯 Weak spots: '), r.weak.join('; ')));
+  if (r.handedIn.length) card.append(h('p', null, h('b', null, 'Handed in: '), r.handedIn.join(', ')));
+  card.append(h('p', null, h('b', null, 'Study Buddy: '), r.questions + (r.questions === 1 ? ' question' : ' questions') + (r.photos ? ' (' + r.photos + ' with photos)' : '') + (r.asked.length ? '. Recently: “' + r.asked.slice(0, 4).join('”, “') + '”' : '')));
+  card.append(h('p', { class: 'meta' }, 'Estimated AI spend in these 7 days: ' + money(r.usd) + '. Every Sunday at 7 PM a summary comes to your phone (if notifications are on).'));
+  return card;
 }
 
 /* ---------- Study Buddy mascot: floats on the screen, blinks and looks around, opens Study Buddy when tapped ---------- */
@@ -5148,10 +5250,10 @@ async function init() {
   if (location.hash === '#homework') openHw();
   if (location.hash === '#chat') openHw(null, 'chat');
   if (location.hash === '#tutor') openHw(null, 'tutor');
-  if (location.hash === '#plan') openHw(null, 'plan');
+  if (location.hash === '#plan' || location.hash === '#report') openHw(null, 'plan');
   if (location.hash === '#exam') openHw(null, 'exam');
   if (/^#snap/.test(location.hash)) showSnapScreen((location.hash.match(/^#snap=([a-z0-9]+)/) || [])[1]);
-  window.addEventListener('hashchange', () => { if (location.hash === '#homework') openHw(); if (location.hash === '#chat') openHw(null, 'chat'); if (location.hash === '#tutor') openHw(null, 'tutor'); if (location.hash === '#plan') openHw(null, 'plan'); if (location.hash === '#exam') openHw(null, 'exam'); if (/^#snap/.test(location.hash) && !document.querySelector('.snapview')) showSnapScreen((location.hash.match(/^#snap=([a-z0-9]+)/) || [])[1]); });
+  window.addEventListener('hashchange', () => { if (location.hash === '#homework') openHw(); if (location.hash === '#chat') openHw(null, 'chat'); if (location.hash === '#tutor') openHw(null, 'tutor'); if (location.hash === '#plan' || location.hash === '#report') openHw(null, 'plan'); if (location.hash === '#exam') openHw(null, 'exam'); if (/^#snap/.test(location.hash) && !document.querySelector('.snapview')) showSnapScreen((location.hash.match(/^#snap=([a-z0-9]+)/) || [])[1]); });
   if (!prefs.seenTip) {
     prefs.seenTip = true; savePrefs();
     const desk = matchMedia('(pointer: fine)').matches && !('ontouchend' in window);

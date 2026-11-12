@@ -24,6 +24,7 @@ type Item = {
   remarks?: string;
   checkedAt?: number;
   marked?: { name: string; type: string; size: number };
+  ai?: { status: "working" | "done" | "failed"; at: number; result?: any; error?: string; usd?: number }; // Study Buddy's suggested marks (Papa only)
 };
 
 const json = (data: unknown, status = 200) =>
@@ -55,7 +56,7 @@ async function notify(s: ReturnType<typeof store>, to: "teacher" | "student", ti
   if (!blobs.length) return;
   const k = await vapid(s);
   webpush.setVapidDetails("https://tanish-study-board.netlify.app", k.publicKey, k.privateKey);
-  const payload = JSON.stringify({ title, body: body.slice(0, 160), tag, url: tag === "chat" ? "./#chat" : "./#homework" });
+  const payload = JSON.stringify({ title, body: body.slice(0, 160), tag, url: tag === "chat" ? "./#chat" : tag === "report" ? "./#report" : "./#homework" });
   await Promise.allSettled(blobs.map(async (b) => {
     const sub = await s.get(b.key, { type: "json" });
     if (!sub) return;
@@ -75,6 +76,62 @@ async function readFile(form: FormData, audio = false) {
   const ok = audio ? /^audio\/(webm|ogg|mp4|mpeg|aac|x-m4a|wav)$/.test(type) : /^(application\/pdf|image\/(jpeg|png|webp|heic|heif))$/.test(type);
   if (!ok) throw new Error("bad_type");
   return { data: await file.arrayBuffer(), meta: { name: clean(file.name, 120) || "homework", type, size: file.size } };
+}
+
+// Study Buddy pre-marks a hand-in in the background job (exam-job.mts); at most 10 a day
+async function startPremark(s: ReturnType<typeof store>, req: Request, classCode: string, id: string) {
+  const day = istDay(0);
+  const n = Number(await s.get("hwmark/day/" + day)) || 0;
+  if (n >= 10) return "That is 10 pre-marks today; mark the rest yourself or try tomorrow.";
+  const rec = (await s.get("item/" + id, { type: "json" })) as Item | null;
+  if (!rec || rec.kind !== "sub" || !rec.file) return "Nothing to check.";
+  if (!/^(application\/pdf|image\/(jpeg|png|webp))$/.test(rec.file.type)) { rec.ai = { status: "failed", at: Date.now(), error: "Study Buddy cannot read this kind of file (" + rec.file.type + ")." }; await s.setJSON("item/" + id, rec); return rec.ai.error; }
+  rec.ai = { status: "working", at: Date.now() };
+  await Promise.all([s.setJSON("item/" + id, rec), s.set("hwmark/day/" + day, String(n + 1))]);
+  try {
+    const r = await fetch(new URL("/api/exam-job", req.url), { method: "POST", headers: { "content-type": "application/json", "x-class-code": classCode }, body: JSON.stringify({ job: "hwmark", id }) });
+    if (r.status >= 400) throw new Error("job " + r.status);
+  } catch (e) { rec.ai = { status: "failed", at: Date.now(), error: "Could not start the check." }; await s.setJSON("item/" + id, rec); }
+  return "";
+}
+
+// The week in numbers, for Papa: study time, plan, syllabus, mock exams, homework, Study Buddy, spend
+async function weekReport(s: ReturnType<typeof store>, end: string) {
+  const days: string[] = [];
+  for (let i = 6; i >= 0; i--) days.push(new Date(Date.parse(end + "T00:00:00Z") - i * 86400_000).toISOString().slice(0, 10));
+  const from = Date.parse(days[0] + "T00:00:00+05:30"), to = Date.parse(end + "T23:59:59+05:30");
+  const [settings, syllabus, leave] = await Promise.all([s.get("plan/settings", { type: "json" }), s.get("plan/syllabus", { type: "json" }), s.get("plan/leave", { type: "json" })]) as any[];
+  const per = await Promise.all(days.map(async (d) => {
+    const [st, pl, us] = await Promise.all([s.get("study/" + d, { type: "json" }), s.get("plan/day/" + d, { type: "json" }), s.get("usage/day/" + d, { type: "json" })]) as any[];
+    const tasks = (pl && pl.tasks) || [];
+    return { d, secs: (st && st.secs) || 0, pomos: (st && st.pomos) || 0, breaks: (st && st.breaks) || 0, planned: tasks.length, done: tasks.filter((t: any) => t.done).length,
+      q: ((us && us.student && us.student.q) || 0), photos: ((us && us.student && us.student.photos) || 0), usd: ((us && us.student && us.student.usd) || 0) + ((us && us.teacher && us.teacher.usd) || 0),
+      off: !!(leave && leave[d]) };
+  }));
+  const moved: { subject: string; ch: number; status: string }[] = [];
+  for (const sub of ["maths", "science"]) for (const [ch, v] of Object.entries((syllabus && syllabus[sub]) || {}) as any[]) if (v && v.at >= from && v.at <= to) moved.push({ subject: sub, ch: Number(ch), status: v.status });
+  const { blobs: eb } = await s.list({ prefix: "exam/" });
+  const exams = (await Promise.all(eb.map((b) => s.get(b.key, { type: "json" })))).filter((e: any) => e && e.status === "marked" && e.markedAt >= from && e.markedAt <= to) as any[];
+  const { blobs: ib } = await s.list({ prefix: "item/" });
+  const items = (await Promise.all(ib.map((b) => s.get(b.key, { type: "json" })))).filter(Boolean) as Item[];
+  const subs = items.filter((i) => i.kind === "sub" && i.created >= from && i.created <= to);
+  const checked = items.filter((i) => i.kind === "sub" && i.checkedAt && i.checkedAt >= from && i.checkedAt <= to);
+  const pct = checked.map((i) => (Number(i.score) / Number(i.outOf)) * 100).filter((x) => isFinite(x));
+  const asked: string[] = [];
+  for (const d of days.slice().reverse()) {
+    const { blobs } = await s.list({ prefix: "tutor/" + d + "/" });
+    for (const b of blobs.slice(-8).reverse()) { const t: any = await s.get(b.key, { type: "json" }); if (t && t.by !== "teacher" && t.question) asked.push(String(t.question).slice(0, 90)); if (asked.length >= 6) break; }
+    if (asked.length >= 6) break;
+  }
+  const weak = exams.flatMap((e) => ((e.result && e.result.weak) || []).map((w: any) => (e.subject === "science" ? "Science" : "Maths") + (w.ch ? " Ch " + w.ch : "") + ": " + (w.topic || ""))).slice(0, 6);
+  return {
+    from: days[0], to: end, goalHours: (settings && settings.goalHours) || 4, days: per,
+    hours: per.reduce((a, x) => a + x.secs, 0) / 3600, pomos: per.reduce((a, x) => a + x.pomos, 0), daysStudied: per.filter((x) => x.secs >= 1800).length,
+    tasksDone: per.reduce((a, x) => a + x.done, 0), tasksPlanned: per.reduce((a, x) => a + x.planned, 0), daysOff: per.filter((x) => x.off).length,
+    moved, exams: exams.map((e) => ({ title: e.title, subject: e.subject, score: e.result.total, outOf: e.result.outOf, at: e.markedAt })), weak,
+    handedIn: subs.map((i) => i.title), checkedCount: checked.length, avgPct: pct.length ? Math.round(pct.reduce((a, b) => a + b, 0) / pct.length) : null,
+    questions: per.reduce((a, x) => a + x.q, 0), photos: per.reduce((a, x) => a + x.photos, 0), asked, usd: per.reduce((a, x) => a + x.usd, 0),
+  };
 }
 
 // India date (YYYY-MM-DD), offset in days from today
@@ -133,7 +190,7 @@ export default async (req: Request, context: Context) => {
       const { blobs } = await s.list({ prefix: "item/" });
       const items = (await Promise.all(blobs.map((b) => s.get(b.key, { type: "json" })))).filter(Boolean) as Item[];
       items.sort((a, b) => b.created - a.created);
-      return json({ items, teacher });
+      return json({ items: teacher ? items : items.map(({ ai, ...rest }) => rest), teacher });
     }
 
     if (req.method === "GET" && action === "msgs") {
@@ -529,7 +586,32 @@ export default async (req: Request, context: Context) => {
       await s.set("file/" + item.id, f.data);
       await s.setJSON("item/" + item.id, item);
       await notify(s, "teacher", "Tanish handed in homework", title, "hw");
+      context.waitUntil(startPremark(s, req, classCode, item.id).catch((e) => console.error("premark", e)));
       return json({ item });
+    }
+
+    if (req.method === "POST" && action === "premark" && id) {
+      if (!teacher) return fail(403, "Only Papa can ask for a pre-mark.");
+      const err = await startPremark(s, req, classCode, id.replace(/[^a-z0-9]/g, ""));
+      if (err) return fail(429, err);
+      return json({ ok: true });
+    }
+
+    if (req.method === "GET" && action === "report") {
+      if (!teacher) return fail(403, "Only Papa can see the weekly report.");
+      const end = new URL(req.url).searchParams.get("end") || "";
+      return json({ report: await weekReport(s, /^\d{4}-\d{2}-\d{2}$/.test(end) ? end : istDay(0)) });
+    }
+    if (req.method === "POST" && action === "report" && id === "send") {
+      if (!teacher) return fail(403, "Only Papa can send the report.");
+      const r = await weekReport(s, istDay(0));
+      await s.setJSON("report/" + r.to, r);
+      const hrs = r.hours.toFixed(1).replace(/\.0$/, "");
+      const bits = [hrs + " h studied (" + r.daysStudied + "/7 days)", r.moved.filter((m) => m.status === "done" || m.status === "revised").length + " chapters done"];
+      if (r.exams.length) bits.push("mock " + r.exams.map((e) => e.score + "/" + e.outOf).join(", "));
+      bits.push(r.handedIn.length + " homework handed in");
+      await notify(s, "teacher", "📊 Tanish's week", bits.join(" · "), "report");
+      return json({ report: r });
     }
 
     if (req.method === "POST" && action === "check" && id) {
