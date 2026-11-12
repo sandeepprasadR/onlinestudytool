@@ -190,7 +190,9 @@ export default async (req: Request, context: Context) => {
       const { blobs } = await s.list({ prefix: "item/" });
       const items = (await Promise.all(blobs.map((b) => s.get(b.key, { type: "json" })))).filter(Boolean) as Item[];
       items.sort((a, b) => b.created - a.created);
-      return json({ items: teacher ? items : items.map(({ ai, ...rest }) => rest), teacher });
+      if (!teacher) return json({ items: items.map(({ ai, ...rest }) => rest), teacher });
+      const pm = (await s.get("premark/settings", { type: "json" })) as { auto?: boolean } | null;
+      return json({ items, teacher, premarkAuto: !!(pm && pm.auto) });
     }
 
     if (req.method === "GET" && action === "msgs") {
@@ -586,10 +588,17 @@ export default async (req: Request, context: Context) => {
       await s.set("file/" + item.id, f.data);
       await s.setJSON("item/" + item.id, item);
       await notify(s, "teacher", "Tanish handed in homework", title, "hw");
-      context.waitUntil(startPremark(s, req, classCode, item.id).catch((e) => console.error("premark", e)));
+      const pm = (await s.get("premark/settings", { type: "json" })) as { auto?: boolean } | null;
+      if (pm && pm.auto) context.waitUntil(startPremark(s, req, classCode, item.id).catch((e) => console.error("premark", e))); // only when Papa has switched it on
       return json({ item });
     }
 
+    if (req.method === "POST" && action === "premark" && id === "auto") {
+      if (!teacher) return fail(403, "Only Papa can change this.");
+      const b = await req.json().catch(() => ({}));
+      await s.setJSON("premark/settings", { auto: !!b.on, at: Date.now() });
+      return json({ auto: !!b.on });
+    }
     if (req.method === "POST" && action === "premark" && id) {
       if (!teacher) return fail(403, "Only Papa can ask for a pre-mark.");
       const err = await startPremark(s, req, classCode, id.replace(/[^a-z0-9]/g, ""));

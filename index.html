@@ -2811,7 +2811,7 @@ function closeHw() {
   if (/^#(homework|chat|tutor|plan|exam|report)$/.test(location.hash)) { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }
 }
 async function refreshHw() {
-  try { const r = await api('items'); HW.items = r.items || []; HW.teacher = !!r.teacher; if (HW.bad) { HW.msg = ''; HW.bad = false; } setTimeout(prefetchHwFiles, 1500); if (HW.role === 'teacher' && !HW.pmT) premarkWatch(); }
+  try { const r = await api('items'); HW.items = r.items || []; HW.teacher = !!r.teacher; HW.premarkAuto = !!r.premarkAuto; if (HW.bad) { HW.msg = ''; HW.bad = false; } setTimeout(prefetchHwFiles, 1500); if (HW.role === 'teacher' && !HW.pmT) premarkWatch(); }
   catch (e) { HW.msg = e.message; HW.bad = true; }
   if (!hwEl.hidden) renderHw();
 }
@@ -3240,6 +3240,12 @@ function teacherView() {
   const checked = subs.filter((s) => s.status === 'checked');
   wrap.append(heroBanner());
   wrap.append(h('h3', null, 'To check (' + pending.length + ')'));
+  const auto = h('input', { type: 'checkbox' }); auto.checked = !!HW.premarkAuto;
+  auto.addEventListener('change', async () => {
+    try { const r = await api('premark/auto', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ on: auto.checked }) }); HW.premarkAuto = r.auto; hwSay(r.auto ? '✨ Study Buddy will pre-check new hand-ins. You still decide the marks.' : 'Study Buddy will check a hand-in only when you ask.'); }
+    catch (e) { auto.checked = !auto.checked; hwSay(e.message, true); }
+  });
+  wrap.append(h('label', { class: 'hwcheck autopm' }, auto, ' ✨ Let Study Buddy pre-check new hand-ins automatically (you still decide the marks)'));
   if (!pending.length) wrap.append(h('p', { class: 'empty' }, 'Nothing waiting. ✅'));
   for (const s of pending) {
     const card = itemCard(s, [
