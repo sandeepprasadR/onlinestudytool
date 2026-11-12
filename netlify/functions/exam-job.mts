@@ -77,6 +77,46 @@ Return ONLY JSON:
   return { ...e, status: "marked", result, markedAt: Date.now(), markCost: r.usd };
 }
 
+// Study Buddy checks a homework hand-in and suggests marks; Papa decides
+async function premark(store: ReturnType<typeof getStore>, id: string) {
+  const rec: any = await store.get("item/" + id, { type: "json" });
+  if (!rec || !rec.ai || rec.ai.status !== "working") return;
+  try {
+    const content: Anthropic.ContentBlockParam[] = [];
+    const task: any = rec.taskId ? await store.get("item/" + rec.taskId, { type: "json" }) : null;
+    content.push({ type: "text", text: "HOMEWORK SET BY PAPA: " + (task ? task.title + (task.note ? "\nInstructions: " + task.note : "") : rec.title + " (no separate question sheet)") + "\nSubject: " + (rec.subject || "maths") + (rec.note ? "\nTanish's note: " + rec.note : "") });
+    const attach = async (key: string, type: string, label: string) => {
+      const data = await store.get(key, { type: "arrayBuffer" });
+      if (!data) return;
+      const b64 = (globalThis as any).Buffer.from(data as ArrayBuffer).toString("base64");
+      content.push({ type: "text", text: label });
+      if (type === "application/pdf") content.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: b64 } } as Anthropic.ContentBlockParam);
+      else if (/^image\/(jpeg|png|webp)$/.test(type)) content.push({ type: "image", source: { type: "base64", media_type: type as "image/jpeg", data: b64 } });
+    };
+    if (task && task.file) await attach("file/" + task.id, task.file.type, "The question sheet:");
+    await attach("file/" + id, rec.file.type, "Tanish's handed-in work:");
+    content.push({ type: "text", text: `Check Tanish's work like his CBSE Class 10 teacher would. Find each question he answered, decide if the method and answer are right, and give step marks for correct working. If there is no question sheet, work out the questions from his work and the title. Unless the homework says otherwise, count each question as equal marks so the total is out of 10.
+Return ONLY JSON:
+{"score": number, "outOf": number,
+ "questions": [{"q": "short label, e.g. Q3 or Ex 10.2 Q4", "got": number, "of": number, "note": "one short line: right, or the first mistake"}],
+ "mistakes": ["the main mistakes to correct, short"],
+ "praise": "one line on what he did well",
+ "remarks": "2 or 3 sentences of remarks Papa can send to Tanish as they are: warm, specific, what to fix",
+ "unsure": "anything you could not read or were not sure about, or empty"}` });
+    const r = await ask({ system: "You are a careful, fair CBSE Class 10 Maths and Science teacher checking a student's handwritten homework. You suggest marks; the student's father makes the final decision.", content, maxTokens: 8000, effort: "medium" });
+    await addCost(store, "teacher", r.usd, "hwmark");
+    const result = parseJson(r.text);
+    const fresh: any = (await store.get("item/" + id, { type: "json" })) || rec;
+    fresh.ai = { status: "done", at: Date.now(), result, usd: r.usd };
+    await store.setJSON("item/" + id, fresh);
+  } catch (err) {
+    console.error("premark", err);
+    const fresh: any = (await store.get("item/" + id, { type: "json" })) || rec;
+    fresh.ai = { status: "failed", at: Date.now(), error: "Study Buddy could not check this one. Tap to try again." };
+    await store.setJSON("item/" + id, fresh);
+  }
+}
+
 export default async (req: Request) => {
   const classCode = Netlify.env.get("CLASS_CODE") || "";
   if (!classCode || !same(req.headers.get("x-class-code") || "", classCode)) return;
@@ -84,6 +124,7 @@ export default async (req: Request) => {
   let b: any = {};
   try { b = await req.json(); } catch { return; }
   const id = String(b.id || "").replace(/[^a-z0-9]/g, "");
+  if (b.job === "hwmark") { await premark(store, id); return; }
   const e: any = await store.get("exam/" + id, { type: "json" });
   if (!e) return;
   // only do the job the record is waiting for (a retried invocation finds it already done)
