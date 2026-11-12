@@ -415,6 +415,10 @@ body.t-select #pages .page { cursor: crosshair; }
 .resultcard tr.zero td:nth-child(2) { color: #e03131; font-weight: 700; }
 .pomopill.exampill { top: calc(108px + env(safe-area-inset-top)); background: #7048e8; color: #fff; border: 0; font: 600 15px var(--font-ui); padding: 9px 14px; font-variant-numeric: tabular-nums; }
 .pomopill.exampill[hidden] { display: none; }
+.dlbar { position: relative; width: 100%; height: 12px; border-radius: 999px; background: rgba(112,72,232,.15); overflow: hidden; margin: 4px 0; }
+.dlbar span { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, #7048e8, #12b886); transition: width .25s ease; }
+.dlbar.busy span { width: 35%; }
+@media (prefers-reduced-motion: no-preference) { .dlbar.busy span { animation: dlslide 1.2s ease-in-out infinite; } @keyframes dlslide { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } } }
 .dlview { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 16px; background: rgba(10,14,20,.45); }
 .dlcard { display: flex; flex-direction: column; align-items: center; gap: 8px; width: min(360px, 100%); padding: 22px 20px 16px; border-radius: 18px; background: var(--ui-bg); color: var(--ui-fg); box-shadow: 0 12px 40px rgba(0,0,0,.3); text-align: center; }
 .dlcard b { font-size: 17px; }
@@ -2803,14 +2807,21 @@ const HWFILES = new Map();
 function dlBox(label) {
   const ctl = new AbortController();
   const msg = h('p', { class: 'dlmsg' }, 'Starting …'), slow = h('p', { class: 'meta dlslow' });
+  const fill = h('span'), bar = h('div', { class: 'dlbar busy', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100' }, fill);
   const box = h('div', { class: 'dlview', role: 'dialog', 'aria-label': 'Opening ' + label },
-    h('div', { class: 'dlcard' }, h('div', { class: 'spin', 'aria-hidden': 'true' }), h('b', null, '📥 Opening ' + label), msg, slow,
+    h('div', { class: 'dlcard' }, h('div', { class: 'spin', 'aria-hidden': 'true' }), h('b', null, '📥 Opening ' + label), bar, msg, slow,
       h('button', { class: 'tb', type: 'button', onclick: () => ctl.abort() }, 'Cancel')));
   document.body.append(box);
   const t1 = setTimeout(() => { slow.textContent = 'The internet looks slow right now. Keep this open; it will finish.'; }, 10000);
-  return { ctl, say: (t) => { msg.textContent = t; }, done: () => { clearTimeout(t1); box.remove(); } };
+  const kb = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB');
+  return { ctl, say: (t) => { msg.textContent = t; },
+    progress: (got, total) => {
+      if (total > 0) { const pct = Math.min(100, Math.round(100 * got / total)); bar.classList.remove('busy'); fill.style.width = pct + '%'; bar.setAttribute('aria-valuenow', String(pct)); msg.textContent = pct + '% · ' + kb(got) + ' of ' + kb(total); }
+      else msg.textContent = kb(got) + ' received …';
+    },
+    done: () => { clearTimeout(t1); box.remove(); } };
 }
-async function downloadHwFile(id, marked, label, quiet) {
+async function downloadHwFile(id, marked, label, quiet, size) {
   const ui = quiet ? null : dlBox(label);
   const ctl = ui ? ui.ctl : new AbortController();
   const limit = setTimeout(() => ctl.abort(), quiet ? 180000 : 150000);
@@ -2820,7 +2831,8 @@ async function downloadHwFile(id, marked, label, quiet) {
         const r = await fetch('api/hw/file/' + id + (marked ? '?v=marked' : ''), { headers: Object.assign({ 'x-class-code': HW.code }, HW.role === 'teacher' ? { 'x-teacher-pin': HW.pin } : {}), cache: 'no-store', signal: ctl.signal });
         if (!r.ok) { let m = 'Could not open the file (' + r.status + ').'; try { m = (await r.json()).error || m; } catch (e) {} throw Object.assign(new Error(m), { final: true }); }
         const type = (r.headers.get('content-type') || 'application/pdf').split(';')[0];
-        const total = Number(r.headers.get('content-length')) || 0;
+        const total = Number(r.headers.get('content-length')) || size || 0;
+        if (ui) ui.progress(0, total);
         const parts = []; let got = 0;
         const reader = r.body && r.body.getReader ? r.body.getReader() : null;
         if (!reader) return await r.blob();
@@ -2828,7 +2840,7 @@ async function downloadHwFile(id, marked, label, quiet) {
           const { value, done } = await reader.read();
           if (done) break;
           parts.push(value); got += value.length;
-          if (ui) ui.say(Math.round(got / 1024) + ' KB' + (total ? ' of ' + Math.round(total / 1024) + ' KB' : '') + ' received …');
+          if (ui) ui.progress(got, total);
         }
         return new Blob(parts, { type });
       } catch (e) {
@@ -2845,7 +2857,8 @@ async function getHwFile(id, marked, label, quiet) {
   if (!marked) { const c = await DB.get('pdfs', key).catch(() => null); if (c && c.bytes) return new Blob([c.bytes], { type: c.type || 'application/pdf' }); }
   const k = key + (marked ? ':m' : '');
   if (HWFILES.has(k)) return HWFILES.get(k);
-  const p = downloadHwFile(id, marked, label || 'homework', quiet).then(async (blob) => {
+  const it = (HW.items || []).find((x) => x.id === id), meta = it && (marked ? it.marked : it.file);
+  const p = downloadHwFile(id, marked, label || 'homework', quiet, meta && meta.size).then(async (blob) => {
     if (!marked) { try { await DB.put('pdfs', { bytes: await blob.arrayBuffer(), name: label || 'homework', type: blob.type }, key); } catch (e) {} }
     return blob;
   });

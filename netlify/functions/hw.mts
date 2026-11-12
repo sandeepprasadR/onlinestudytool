@@ -503,7 +503,7 @@ export default async (req: Request, context: Context) => {
       if (!rec || !meta) return fail(404, "File not found.");
       const data = await s.get(which + "/" + id, { type: "arrayBuffer" });
       if (!data) return fail(404, "File not found.");
-      return new Response(data, { headers: { "content-type": meta.type, "cache-control": "no-store" } });
+      return new Response(data, { headers: { "content-type": meta.type, "content-length": String((data as ArrayBuffer).byteLength), "cache-control": "no-store" } });
     }
 
     if (req.method === "POST" && action === "task") {
