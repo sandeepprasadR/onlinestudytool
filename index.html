@@ -415,6 +415,17 @@ body.t-select #pages .page { cursor: crosshair; }
 .resultcard tr.zero td:nth-child(2) { color: #e03131; font-weight: 700; }
 .pomopill.exampill { top: calc(108px + env(safe-area-inset-top)); background: #7048e8; color: #fff; border: 0; font: 600 15px var(--font-ui); padding: 9px 14px; font-variant-numeric: tabular-nums; }
 .pomopill.exampill[hidden] { display: none; }
+.dlbar { position: relative; width: 100%; height: 12px; border-radius: 999px; background: rgba(112,72,232,.15); overflow: hidden; margin: 4px 0; }
+.dlbar span { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, #7048e8, #12b886); transition: width .25s ease; }
+.dlbar.busy span { width: 35%; }
+@media (prefers-reduced-motion: no-preference) { .dlbar.busy span { animation: dlslide 1.2s ease-in-out infinite; } @keyframes dlslide { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } } }
+.dlview { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 16px; background: rgba(10,14,20,.45); }
+.dlcard { display: flex; flex-direction: column; align-items: center; gap: 8px; width: min(360px, 100%); padding: 22px 20px 16px; border-radius: 18px; background: var(--ui-bg); color: var(--ui-fg); box-shadow: 0 12px 40px rgba(0,0,0,.3); text-align: center; }
+.dlcard b { font-size: 17px; }
+.dlcard p { margin: 0; }
+.dlmsg { font-variant-numeric: tabular-nums; }
+.spin { width: 34px; height: 34px; border-radius: 50%; border: 4px solid rgba(112,72,232,.2); border-top-color: #7048e8; }
+@media (prefers-reduced-motion: no-preference) { .spin { animation: spin .8s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } } }
 .papatabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 12px; }
 .hwacts { display: flex; flex-wrap: wrap; gap: 8px; }
 .hwbtn { height: 40px; padding: 0 14px; border: 0; border-radius: 10px; background: var(--accent); color: #fff; font-weight: 600; }
@@ -2785,16 +2796,90 @@ function closeHw() {
   if (/^#(homework|chat|tutor|plan|exam)$/.test(location.hash)) { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }
 }
 async function refreshHw() {
-  try { const r = await api('items'); HW.items = r.items || []; HW.teacher = !!r.teacher; if (HW.bad) { HW.msg = ''; HW.bad = false; } }
+  try { const r = await api('items'); HW.items = r.items || []; HW.teacher = !!r.teacher; if (HW.bad) { HW.msg = ''; HW.bad = false; } setTimeout(prefetchHwFiles, 1500); }
   catch (e) { HW.msg = e.message; HW.bad = true; }
   if (!hwEl.hidden) renderHw();
 }
 function hwSay(text, bad) { HW.msg = text; HW.bad = !!bad; const m = hwEl.querySelector('.hwmsg'); if (m) { m.textContent = text; m.classList.toggle('bad', !!bad); m.hidden = !text; } }
+// Handed-in files: downloaded once (one download per file however often it is tapped), with a
+// progress box, and kept on this device. On a slow connection a 120 KB PDF has taken over 30 seconds.
+const HWFILES = new Map();
+function dlBox(label) {
+  const ctl = new AbortController();
+  const msg = h('p', { class: 'dlmsg' }, 'Starting …'), slow = h('p', { class: 'meta dlslow' });
+  const fill = h('span'), bar = h('div', { class: 'dlbar busy', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100' }, fill);
+  const box = h('div', { class: 'dlview', role: 'dialog', 'aria-label': 'Opening ' + label },
+    h('div', { class: 'dlcard' }, h('div', { class: 'spin', 'aria-hidden': 'true' }), h('b', null, '📥 Opening ' + label), bar, msg, slow,
+      h('button', { class: 'tb', type: 'button', onclick: () => ctl.abort() }, 'Cancel')));
+  document.body.append(box);
+  const t1 = setTimeout(() => { slow.textContent = 'The internet looks slow right now. Keep this open; it will finish.'; }, 10000);
+  const kb = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB');
+  return { ctl, say: (t) => { msg.textContent = t; },
+    progress: (got, total) => {
+      if (total > 0) { const pct = Math.min(100, Math.round(100 * got / total)); bar.classList.remove('busy'); fill.style.width = pct + '%'; bar.setAttribute('aria-valuenow', String(pct)); msg.textContent = pct + '% · ' + kb(got) + ' of ' + kb(total); }
+      else msg.textContent = kb(got) + ' received …';
+    },
+    done: () => { clearTimeout(t1); box.remove(); } };
+}
+async function downloadHwFile(id, marked, label, quiet, size) {
+  const ui = quiet ? null : dlBox(label);
+  const ctl = ui ? ui.ctl : new AbortController();
+  const limit = setTimeout(() => ctl.abort(), quiet ? 180000 : 150000);
+  try {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        const r = await fetch('api/hw/file/' + id + (marked ? '?v=marked' : ''), { headers: Object.assign({ 'x-class-code': HW.code }, HW.role === 'teacher' ? { 'x-teacher-pin': HW.pin } : {}), cache: 'no-store', signal: ctl.signal });
+        if (!r.ok) { let m = 'Could not open the file (' + r.status + ').'; try { m = (await r.json()).error || m; } catch (e) {} throw Object.assign(new Error(m), { final: true }); }
+        const type = (r.headers.get('content-type') || 'application/pdf').split(';')[0];
+        const total = Number(r.headers.get('content-length')) || size || 0;
+        if (ui) ui.progress(0, total);
+        const parts = []; let got = 0;
+        const reader = r.body && r.body.getReader ? r.body.getReader() : null;
+        if (!reader) return await r.blob();
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          parts.push(value); got += value.length;
+          if (ui) ui.progress(got, total);
+        }
+        return new Blob(parts, { type });
+      } catch (e) {
+        if (ctl.signal.aborted) throw new Error(quiet ? 'stopped' : 'Stopped. The file did not arrive; check the internet and try again.');
+        if (e.final || attempt >= 3) throw e.final ? e : new Error('No connection. Check the internet and try again.');
+        if (ui) ui.say('Connection dropped, trying again (' + (attempt + 1) + ' of 3) …');
+        await new Promise((res) => setTimeout(res, 1500 * attempt));
+      }
+    }
+  } finally { clearTimeout(limit); if (ui) ui.done(); }
+}
+async function getHwFile(id, marked, label, quiet) {
+  const key = 'hwfile:' + id;
+  if (!marked) { const c = await DB.get('pdfs', key).catch(() => null); if (c && c.bytes) return new Blob([c.bytes], { type: c.type || 'application/pdf' }); }
+  const k = key + (marked ? ':m' : '');
+  if (HWFILES.has(k)) return HWFILES.get(k);
+  const it = (HW.items || []).find((x) => x.id === id), meta = it && (marked ? it.marked : it.file);
+  const p = downloadHwFile(id, marked, label || 'homework', quiet, meta && meta.size).then(async (blob) => {
+    if (!marked) { try { await DB.put('pdfs', { bytes: await blob.arrayBuffer(), name: label || 'homework', type: blob.type }, key); } catch (e) {} }
+    return blob;
+  });
+  HWFILES.set(k, p);
+  try { return await p; } finally { HWFILES.delete(k); }
+}
+async function prefetchHwFiles() { // fetch the work waiting to be checked in the background, so a tap opens it at once
+  if (HW.role !== 'teacher' || HW.prefetching) return;
+  HW.prefetching = true;
+  try {
+    for (const it of (HW.items || []).filter((x) => x.kind === 'sub' && x.status === 'submitted').slice(0, 6)) {
+      if (await DB.get('pdfs', 'hwfile:' + it.id).catch(() => null)) continue;
+      try { await getHwFile(it.id, false, it.title, true); } catch (e) { break; }
+    }
+  } finally { HW.prefetching = false; }
+}
 // opens a homework file inside the app (a new window shows a blank page in the iPad/iPhone Home Screen app)
 async function viewHwFile(id, marked) {
-  hwSay('Opening …');
   try {
-    const blob = await api('file/' + id + (marked ? '?v=marked' : ''));
+    const it0 = HW.items.find((x) => x.id === id);
+    const blob = await getHwFile(id, marked, it0 ? it0.title : 'homework');
     const item = HW.items.find((x) => x.id === id);
     HW.msg = ''; renderHw();
     await showDoc(blob, (item ? item.title : 'Homework') + (marked ? ' (marked)' : ''), !marked && HW.role === 'teacher' && item && item.kind === 'sub' ? item : null);
@@ -2826,9 +2911,10 @@ async function showDoc(blob, title, markItem) {
   if (pdf.numPages > n) pagesEl.append(h('p', { class: 'empty' }, 'Showing the first ' + n + ' of ' + pdf.numPages + ' pages.'));
 }
 async function markHw(item) {
-  hwSay('Opening ' + item.title + ' …');
+  if (HW.marking === item.id) return; // already opening this one
+  HW.marking = item.id;
   try {
-    const blob = await api('file/' + item.id);
+    const blob = await getHwFile(item.id, false, item.title);
     let file = new File([blob], (item.title || 'Homework') + '.pdf', { type: blob.type || 'application/pdf' });
     if (!/pdf/i.test(file.type)) file = await imagesToPdf([new File([blob], item.file.name, { type: blob.type })]);
     await importPdf(file, 'new');
@@ -2838,7 +2924,8 @@ async function markHw(item) {
     dirty();
     closeHw();
     toast('Mark it with the pen. Then ⋯ menu, Return marked homework to Tanish.', null, 9000);
-  } catch (e) { hwSay(e.message, true); }
+  } catch (e) { hwSay(e.message, true); toast(e.message, null, 8000); }
+  finally { HW.marking = null; }
 }
 function field(label, control) { return h('label', { class: 'hwfield' }, h('span', null, label), control); }
 function chip(text, kind) { return h('span', { class: 'chip ' + (kind || '') }, text); }
