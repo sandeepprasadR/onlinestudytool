@@ -5054,14 +5054,26 @@ function voiceButton(box) {
     try { rec = new SpeechRec(); } catch (e) { hwSay('Speaking is not available here. Use the 🎤 key on the keyboard instead.', true); return; }
     rec.lang = 'en-IN'; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
     const before = box.value ? box.value.replace(/\s*$/, ' ') : '';
-    rec.onresult = (ev) => { let t = ''; for (let i = 0; i < ev.results.length; i++) t += ev.results[i][0].transcript; box.value = before + t; };
+    let heard = false, gotAudio = false;
+    // the iPad can start listening and then never hear anything (the microphone is busy, e.g. with a Google Meet call): give up and say so
+    const watch = setTimeout(() => {
+      if (heard) return;
+      try { rec.abort(); } catch (e) {}
+      hwSay(gotAudio ? 'I could not hear any words. Speak a little louder and closer, or use the 🎤 key on the keyboard.'
+        : 'The microphone did not start. If a Google Meet call is on, Meet is using the microphone: use the 🎤 key on the keyboard instead, or try again after the call.', true);
+    }, 8000);
+    rec.onaudiostart = () => { gotAudio = true; };
+    rec.onresult = (ev) => { heard = true; let t = ''; for (let i = 0; i < ev.results.length; i++) t += ev.results[i][0].transcript; box.value = before + t; };
     rec.onerror = (ev) => {
-      const msg = ev.error === 'not-allowed' || ev.error === 'service-not-allowed' ? 'Allow the microphone for Study Board (Settings → Safari → Microphone), or use the 🎤 key on the keyboard.'
+      if (ev.error === 'aborted') return;
+      const msg = ev.error === 'audio-capture' ? 'The microphone is busy or not available (a Google Meet call may be using it). Use the 🎤 key on the keyboard instead.'
+        : ev.error === 'not-allowed' || ev.error === 'service-not-allowed' ? 'Allow the microphone for Study Board (Settings → Safari → Microphone), or use the 🎤 key on the keyboard.'
         : ev.error === 'no-speech' ? 'I did not hear anything. Tap 🎤 and speak again.' : ev.error === 'network' ? 'Speaking needs the internet. Try again, or type the question.' : '';
       if (msg) hwSay(msg, ev.error !== 'no-speech');
     };
-    rec.onend = () => { VOICE.rec = null; b.classList.remove('on'); b.lastChild.textContent = ' Speak'; if (box.value.trim()) { box.focus(); hwSay('Check the words, then tap Ask.'); } };
+    rec.onend = () => { clearTimeout(watch); VOICE.rec = null; b.classList.remove('on'); b.lastChild.textContent = ' Speak'; if (box.value.trim()) { box.focus(); hwSay('Check the words, then tap Ask.'); } };
     VOICE.rec = rec; b.classList.add('on'); b.lastChild.textContent = ' Listening… tap to stop';
+    setTimeout(() => { if (VOICE.rec === rec && !heard) { VOICE.rec = null; b.classList.remove('on'); b.lastChild.textContent = ' Speak'; } }, 9000);
     hwSay('');
     try { rec.start(); } catch (e) { VOICE.rec = null; b.classList.remove('on'); b.lastChild.textContent = ' Speak'; }
   });
