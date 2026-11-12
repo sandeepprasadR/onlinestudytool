@@ -415,6 +415,10 @@ body.t-select #pages .page { cursor: crosshair; }
 .resultcard tr.zero td:nth-child(2) { color: #e03131; font-weight: 700; }
 .pomopill.exampill { top: calc(108px + env(safe-area-inset-top)); background: #7048e8; color: #fff; border: 0; font: 600 15px var(--font-ui); padding: 9px 14px; font-variant-numeric: tabular-nums; }
 .pomopill.exampill[hidden] { display: none; }
+.micbtn.speakbtn { flex: none; white-space: nowrap; }
+.micbtn.speakbtn.on { background: #e03131; color: #fff; border-color: #e03131; }
+@media (prefers-reduced-motion: no-preference) { .micbtn.speakbtn.on { animation: blink 1s infinite; } }
+.bubble .speak { display: inline-block; margin-top: 6px; font-size: 13px; }
 .premark { margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: rgba(112,72,232,.07); border: 1px dashed rgba(112,72,232,.35); }
 .premark summary { cursor: pointer; }
 .premark .utable { margin-top: 8px; }
@@ -3511,6 +3515,7 @@ function tutorView() {
       h('div', { class: 'who' }, h('span', { class: 'av ' + (m.role === 'user' ? (papa ? 't' : 's') : 'b') }, m.role === 'user' ? (papa ? 'P' : 'T') : '✨'), m.role === 'user' ? (papa ? 'Papa' : 'Tanish') : 'Study Buddy'));
     if (m.photo) bub.append(h('div', { class: 'meta' }, '📷 Photo sent'));
     bub.append(m.role === 'user' ? h('div', { class: 'txt' }, m.text) : richText(m.text || (TUTOR.busy ? 'Thinking …' : '')));
+    if (m.role !== 'user' && m.text && 'speechSynthesis' in window) bub.append(h('button', { class: 'linkbtn speak', type: 'button', onclick: (ev) => speakText(m.text, ev.currentTarget) }, '🔊 Read aloud'));
     list.append(bub);
   }
   const box = h('textarea', { class: 'hwinput', id: 'tutorText', rows: '2', maxlength: '2000', placeholder: papa ? 'Ask Study Buddy anything (an explanation, practice questions, a check)' : 'Ask Study Buddy anything from your chapters' });
@@ -3533,7 +3538,8 @@ function tutorView() {
     } catch (e) { hwSay(e.message, true); }
   });
   const ask = h('button', { class: 'hwbtn', type: 'submit', disabled: TUTOR.busy }, TUTOR.busy ? 'Thinking …' : 'Ask');
-  const form = h('form', { class: 'chatform' }, photoBtn, photoIn, box, ask);
+  const micBtn = voiceButton(box);
+  const form = h('form', { class: 'chatform' }, photoBtn, photoIn, ...(micBtn ? [micBtn] : []), box, ask);
   box.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); } });
   form.addEventListener('submit', (ev) => { ev.preventDefault(); askTutor(box.value.trim()); });
   const fresh = h('button', { class: 'linkbtn', type: 'button', onclick: () => { TUTOR.msgs = []; TUTOR.photo = null; saveTutor(); renderHw(); } }, 'Start a new topic');
@@ -5034,6 +5040,45 @@ function reportCard() {
   card.append(h('p', null, h('b', null, 'Study Buddy: '), r.questions + (r.questions === 1 ? ' question' : ' questions') + (r.photos ? ' (' + r.photos + ' with photos)' : '') + (r.asked.length ? '. Recently: “' + r.asked.slice(0, 4).join('”, “') + '”' : '')));
   card.append(h('p', { class: 'meta' }, 'Estimated AI spend in these 7 days: ' + money(r.usd) + '. Every Sunday at 7 PM a summary comes to your phone (if notifications are on).'));
   return card;
+}
+
+/* ---------- Talk to Study Buddy: speech to text for questions, read answers aloud (the device's own speech, no AI cost) ---------- */
+const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+const VOICE = { rec: null, btn: null };
+function voiceButton(box) {
+  const b = h('button', { class: 'tb micbtn speakbtn', type: 'button', title: 'Ask by speaking', 'aria-label': 'Ask by speaking' }, '🎤', h('span', null, ' Speak'));
+  b.addEventListener('click', () => {
+    if (VOICE.rec) { VOICE.rec.stop(); return; }
+    if (!SpeechRec) { hwSay('Speaking is not available in this browser. Tap the box and use the 🎤 key on the keyboard to dictate.', true); box.focus(); return; }
+    let rec;
+    try { rec = new SpeechRec(); } catch (e) { hwSay('Speaking is not available here. Use the 🎤 key on the keyboard instead.', true); return; }
+    rec.lang = 'en-IN'; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
+    const before = box.value ? box.value.replace(/\s*$/, ' ') : '';
+    rec.onresult = (ev) => { let t = ''; for (let i = 0; i < ev.results.length; i++) t += ev.results[i][0].transcript; box.value = before + t; };
+    rec.onerror = (ev) => {
+      const msg = ev.error === 'not-allowed' || ev.error === 'service-not-allowed' ? 'Allow the microphone for Study Board (Settings → Safari → Microphone), or use the 🎤 key on the keyboard.'
+        : ev.error === 'no-speech' ? 'I did not hear anything. Tap 🎤 and speak again.' : ev.error === 'network' ? 'Speaking needs the internet. Try again, or type the question.' : '';
+      if (msg) hwSay(msg, ev.error !== 'no-speech');
+    };
+    rec.onend = () => { VOICE.rec = null; b.classList.remove('on'); b.lastChild.textContent = ' Speak'; if (box.value.trim()) { box.focus(); hwSay('Check the words, then tap Ask.'); } };
+    VOICE.rec = rec; b.classList.add('on'); b.lastChild.textContent = ' Listening… tap to stop';
+    hwSay('');
+    try { rec.start(); } catch (e) { VOICE.rec = null; b.classList.remove('on'); b.lastChild.textContent = ' Speak'; }
+  });
+  return b;
+}
+function speakText(text, btn) {
+  const ss = window.speechSynthesis;
+  if (ss.speaking) { ss.cancel(); if (btn && btn.dataset.on) { delete btn.dataset.on; btn.textContent = '🔊 Read aloud'; return; } }
+  const clean = String(text).replace(/\*\*/g, '').replace(/📖[^\n]*|🌐[^\n]*|📝[^\n]*/g, '').replace(/[#>*_`]/g, '').replace(/√/g, ' root ').replace(/²/g, ' squared').replace(/³/g, ' cubed').replace(/θ/g, ' theta').replace(/π/g, ' pi').replace(/≤/g, ' less than or equal to ').replace(/≥/g, ' greater than or equal to ');
+  const u = new SpeechSynthesisUtterance(clean);
+  const voices = ss.getVoices();
+  u.voice = voices.find((v) => /en-IN/i.test(v.lang)) || voices.find((v) => /^en/i.test(v.lang)) || null;
+  u.lang = (u.voice && u.voice.lang) || 'en-IN'; u.rate = 0.98;
+  document.querySelectorAll('.speak[data-on]').forEach((x) => { delete x.dataset.on; x.textContent = '🔊 Read aloud'; });
+  if (btn) { btn.dataset.on = '1'; btn.textContent = '⏹ Stop reading'; }
+  u.onend = u.onerror = () => { if (btn) { delete btn.dataset.on; btn.textContent = '🔊 Read aloud'; } };
+  ss.speak(u);
 }
 
 /* ---------- Study Buddy mascot: floats on the screen, blinks and looks around, opens Study Buddy when tapped ---------- */
